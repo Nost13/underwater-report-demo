@@ -93,7 +93,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .matrix-corner { text-align: left; }
 .general-matrix-row { grid-column: 1 / -1; display: grid; grid-template-columns: 68px repeat(3, minmax(0, 1fr)); gap: 4px; }
 .general-matrix-row > strong { display: flex; align-items: center; color: #526b74; font-size: 8px; }
-.target-cell { min-width: 0; min-height: 47px; padding: 4px; display: grid; grid-template-columns: minmax(0, 1fr) 23px; grid-template-rows: 21px auto; gap: 3px; border: 1px solid #d7e1e4; border-radius: 7px; background: #fff; }
+.target-cell { min-width: 0; min-height: 41px; padding: 3px; display: grid; grid-template-columns: minmax(0, 1fr) 21px; grid-template-rows: 19px auto; gap: 2px; border: 1px solid #d7e1e4; border-radius: 7px; background: #fff; }
 .target-cell.assigned { border-color: #a8d2cd; background: #f4fbfa; }
 .target-main { min-width: 0; padding: 0 5px; border: 0; border-radius: 4px; background: #edf2f3; color: #405c66; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 7px; font-weight: 850; }
 .target-cell.assigned .target-main { background: #dff2ef; color: #185b56; }
@@ -115,7 +115,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .niche-group > header button { width: 24px; height: 24px; border: 0; border-radius: 5px; background: transparent; color: #7b8a91; font-size: 14px; }
 .niche-group > header button:hover:not(:disabled) { background: #fff0ef; color: var(--danger); }
 .niche-targets { padding: 7px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
-.niche-targets .target-cell { min-height: 50px; }
+.niche-targets .target-cell { min-height: 45px; }
 .side-note { margin: 10px 0 0; color: #758890; font-size: 8px; }
 .scope-summary { margin: 12px 0 8px; padding: 9px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-radius: 8px; background: #eef3f4; }
 .scope-summary > div { display: flex; flex-wrap: wrap; gap: 4px; }

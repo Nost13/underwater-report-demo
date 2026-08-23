@@ -14,13 +14,16 @@ ZIP에 실행 런타임이 포함되어 있어 별도 Node.js 설치나 서버 �
 ## 빠른 확인 순서
 
 1. IMO `9876543`으로 Vessel 확인
-2. Service 선택 후 Scope 만들기
-3. `사진 입력으로` 이동 후 `사진 폴더 선택`
-4. 새 작업이면 `표준 폴더 구조 생성`, 기존 폴더면 `사진 불러오기` 선택
-5. Report Input에서 BEFORE/AFTER Condition과 Report Use 확인
+2. 작업 브러시를 선택하고 GENERAL/NICHE의 필요한 위치에 작업 배정
+   - `전체/PORT/STBD/BOTTOM 적용`으로 빠르게 채우고, 예외 위치만 클릭해 변경합니다.
+   - 한 위치에 여러 작업이 있으면 작은 `+` 버튼으로 작업을 추가합니다.
+3. Scope 만들기
+4. `사진 입력으로` 이동 후 `사진 폴더 선택`
+5. 새 작업이면 `표준 폴더 구조 생성`, 기존 폴더면 `사진 불러오기` 선택
+6. Report Input에서 BEFORE/AFTER 또는 CURRENT Condition과 Report Use 확인
    - 잘못 배정한 사진은 `재배정`을 눌러 UNMATCHED로 되돌릴 수 있습니다.
-6. Check / Preview에서 누락 패널과 자동 페이지 확인
-7. PDF 준비 → PDF 다운로드
+7. Check / Preview에서 누락 패널과 자동 페이지 확인
+8. PDF 준비 → PDF 다운로드
 
 ## 사진 폴더
 
@@ -28,7 +31,9 @@ ZIP에 실행 런타임이 포함되어 있어 별도 Node.js 설치나 서버 �
 
 정확한 경로의 사진은 자동 매칭하고, 일치하지 않는 사진은 추측하지 않고 UNMATCHED로 남겨 Report Input에서 Section과 Phase를 직접 배정합니다.
 
-Scope를 만든 뒤에는 선박과 Service가 고정됩니다. 바꾸려면 `Scope 초기화`를 눌러 사진과 입력 내용을 비운 뒤 다시 만드세요.
+각 Section은 자체 Service를 가집니다. Inspection은 CURRENT, Cleaning/Polishing/Repair/Removal은 BEFORE/AFTER로 자동 구성되며 AFTER는 CLEAN/R0에서 시작해 수정할 수 있습니다. 같은 위치에 phase가 겹치는 여러 Service가 있으면 생성 폴더 앞에 Service가 자동으로 추가되어 모호함을 막습니다.
+
+Scope를 만든 뒤에는 선박과 작업 배정이 고정됩니다. 바꾸려면 `Scope 초기화`를 눌러 사진과 입력 내용을 비운 뒤 다시 만드세요.
 
 ## 데이터와 성능
 

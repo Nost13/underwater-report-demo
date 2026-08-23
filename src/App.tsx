@@ -140,7 +140,7 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
   const [generalUndo, setGeneralUndo] = useState<ScopeTarget[] | null>(null);
   const [nicheDraft, setNicheDraft] = useState<NicheDraft>({ component: 'Sea Chest', type: 'SIDE_QUANTITY', quantity: 2 });
   const [nicheItems, setNicheItems] = useState<NicheGroup[]>([]);
-  const [scopeMeta, setScopeMeta] = useState<{ vesselName: string; service: ServiceKind } | null>(null);
+  const [scopeMeta, setScopeMeta] = useState<{ vesselName: string } | null>(null);
   const [report, dispatch] = useReducer(reportReducer, initialReportState);
   const [folder, setFolder] = useState<DirectoryHandleLike | null>(null);
   const [status, setStatus] = useState('사진 폴더를 선택하거나 샘플 사진으로 흐름을 확인하세요.');
@@ -165,7 +165,7 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
   const buildScope = () => {
     const sections = createReportSections(draftTargets);
     dispatch({ type: 'SET_SCOPE', sections });
-    setScopeMeta({ vesselName: vessel?.name ?? 'UNDERWATER REPORT', service: activeService });
+    setScopeMeta({ vesselName: vessel?.name ?? 'UNDERWATER REPORT' });
     setPreviewPage(0);
   };
 
@@ -302,7 +302,6 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
     try {
       const result = await exporter({
         vesselName: scopeMeta?.vesselName ?? 'UNDERWATER REPORT',
-        service: scopeMeta?.service ?? activeService,
         sections: report.sections,
         photos: report.photos,
       });
@@ -384,10 +383,11 @@ interface TargetCellProps {
 
 function TargetCell(props: TargetCellProps) {
   const label = targetLabel(props.target);
+  const shortLabel = [props.target.side, props.target.unit ? `#${String(props.target.unit).padStart(2, '0')}` : null]
+    .filter(Boolean).join(' ') || props.target.component;
   return <div className={props.target.services.length ? 'target-cell assigned' : 'target-cell'}>
     <button type="button" className="target-main" disabled={props.locked} aria-label={`${label} 작업 배정`} onClick={props.onReplace}>
-      <b>{props.compact ? props.target.side : label}</b>
-      <small>{props.target.services.length ? '클릭하여 교체' : '미배정'}</small>
+      {props.compact ? (props.target.services.length ? '배정 변경' : '클릭 배정') : shortLabel}
     </button>
     <div className="target-status" aria-label={`${label} 배정 상태`}>
       {props.target.services.length ? props.target.services.map((service) => <button
@@ -480,7 +480,7 @@ interface PhotoSourceProps {
 
 function PhotoSource(props: PhotoSourceProps) {
   return <div className="workspace wide"><div className="page-heading"><div><p className="step-kicker">STEP 02</p><h2>사진 폴더</h2><p>원본은 로컬 File 참조로만 유지하며 서버로 전송하지 않습니다.</p></div><span className="privacy-chip">{props.photoCount} PHOTOS</span></div>
-    <section className="method-card recommended photo-folder-card"><div className="method-top"><span>02</span><em>ONE FLOW</em></div><h3>사진 폴더 선택</h3><p>기존 사진 폴더와 새 OneDrive 폴더 모두 같은 방식으로 선택합니다. 정확한 경로는 자동 매칭하고, 맞지 않는 사진만 UNMATCHED로 남깁니다.</p><div className="folder-tree"><code>SECTION / COMPONENT</code><code>└ SIDE <small>필요시</small></code><code>&nbsp;&nbsp;└ UNIT <small>수량형</small></code><code>&nbsp;&nbsp;&nbsp;&nbsp;└ BEFORE / AFTER 또는 CURRENT</code></div><div className="photo-folder-actions"><button type="button" className="primary" onClick={props.onSelect}>사진 폴더 선택</button><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onCreate}>표준 폴더 구조 생성</button><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onLoad}>사진 불러오기</button></div><p className="folder-help">새 작업이면 폴더 구조를 먼저 만들고, 기존 폴더면 바로 사진을 불러오세요.</p></section>
+    <section className="method-card recommended photo-folder-card"><div className="method-top"><span>02</span><em>ONE FLOW</em></div><h3>사진 폴더 선택</h3><p>기존 사진 폴더와 새 OneDrive 폴더 모두 같은 방식으로 선택합니다. 정확한 경로는 자동 매칭하고, 맞지 않는 사진만 UNMATCHED로 남깁니다.</p><div className="folder-tree"><code>SERVICE <small>같은 위치의 phase가 겹칠 때만</small></code><code>└ SECTION / COMPONENT</code><code>&nbsp;&nbsp;└ SIDE <small>필요시</small></code><code>&nbsp;&nbsp;&nbsp;&nbsp;└ UNIT <small>수량형</small></code><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ BEFORE / AFTER 또는 CURRENT</code></div><div className="photo-folder-actions"><button type="button" className="primary" onClick={props.onSelect}>사진 폴더 선택</button><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onCreate}>표준 폴더 구조 생성</button><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onLoad}>사진 불러오기</button></div><p className="folder-help">새 작업이면 폴더 구조를 먼저 만들고, 기존 폴더면 바로 사진을 불러오세요.</p></section>
     <section className="demo-strip"><div><b>빠른 동작 확인</b><span>선택된 첫 Section에 BEFORE 3장 + AFTER 4장을 생성합니다.</span></div><button type="button" className="ghost" onClick={props.onDemo}>샘플 사진 7장 불러오기</button></section>
     <div className="status-line"><span className="status-dot" />{props.status}</div><div className="actionbar"><button type="button" className="text-button" onClick={props.onBack}>← Vessel / Scope</button><button type="button" className="primary" onClick={props.onNext}>Report Input으로</button></div>
   </div>;

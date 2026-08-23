@@ -8,12 +8,14 @@ async function buildGeneralScope(page: import('@playwright/test').Page) {
   await expect(page.locator('[data-nextjs-dialog], .vite-error-overlay')).toHaveCount(0);
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await expect(page.getByText('M.V. PACIFIC AURORA').first()).toBeVisible();
+  await page.getByRole('button', { name: '전체 적용' }).click();
   await page.getByRole('button', { name: 'Scope 만들기' }).click();
-  await expect(page.locator('.scope-ready')).toContainText('GENERAL 15');
-  await expect(page.getByLabel('Service')).toBeDisabled();
+  await expect(page.locator('.scope-ready')).toContainText('총 15 sections');
+  await expect(page.locator('.scope-summary')).toContainText('CLEANING 15');
+  await expect(page.getByRole('button', { name: 'Cleaning 작업 선택' })).toBeDisabled();
 }
 
-test('Method A creates the exact GENERAL directory tree', async ({ page }) => {
+test('the unified photo input creates the exact GENERAL directory tree', async ({ page }) => {
   await page.addInitScript(() => {
     const created: string[] = [];
     class MemoryDirectory {
@@ -59,7 +61,7 @@ test('Method A creates the exact GENERAL directory tree', async ({ page }) => {
   expect(paths.filter((path) => /\/(BEFORE|AFTER)$/.test(path))).toHaveLength(30);
 });
 
-test('Method B imports UNMATCHED, assigns, unassigns, and reassigns', async ({ page }) => {
+test('the unified photo input imports UNMATCHED, assigns, unassigns, and reassigns', async ({ page }) => {
   await buildGeneralScope(page);
   await page.getByRole('button', { name: '사진 입력으로' }).click();
   const directoryInput = page.locator('input[type="file"]');
@@ -74,13 +76,63 @@ test('Method B imports UNMATCHED, assigns, unassigns, and reassigns', async ({ p
 
   await page.getByRole('button', { name: 'manual.jpg 재배정' }).click();
   await expect(page.locator('.unmatched-head > span')).toHaveText('1');
-  await page.getByLabel('manual.jpg section').selectOption('GENERAL/FWD/STBD');
+  await page.getByLabel('manual.jpg section').selectOption('CLEANING/GENERAL/FWD/STBD');
   await page.getByLabel('manual.jpg phase').selectOption('AFTER');
   await page.getByRole('button', { name: '배정' }).click();
   await expect(page.locator('.page-badge b')).toHaveText('0P');
   await page.locator('.section-row').filter({ hasText: 'STBD' }).first().click();
   await expect(page.locator('.page-badge b')).toHaveText('1P');
   await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
+});
+
+test('one physical target can carry two services with unambiguous folders', async ({ page }) => {
+  await page.addInitScript(() => {
+    const created: string[] = [];
+    class MemoryDirectory {
+      kind = 'directory' as const;
+      children = new Map<string, MemoryDirectory>();
+      constructor(public name = '', public path = '') {}
+      async getDirectoryHandle(name: string) {
+        let child = this.children.get(name);
+        if (!child) {
+          const path = this.path ? `${this.path}/${name}` : name;
+          child = new MemoryDirectory(name, path);
+          this.children.set(name, child);
+          created.push(path);
+        }
+        return child;
+      }
+      async *entries(): AsyncGenerator<[string, MemoryDirectory]> { yield* this.children.entries(); }
+    }
+    const demoWindow = window as unknown as Window & { __createdPaths: string[]; showDirectoryPicker: () => Promise<MemoryDirectory> };
+    demoWindow.__createdPaths = created;
+    demoWindow.showDirectoryPicker = async () => new MemoryDirectory('사진');
+  });
+
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Vessel 확인' }).click();
+  await page.getByRole('button', { name: '전체 적용' }).click();
+  await page.getByRole('button', { name: 'Polishing 작업 선택' }).click();
+  await page.getByRole('button', { name: 'FWD PORT 작업 추가' }).click();
+  await page.screenshot({ path: 'e2e/scope-mixed-1440.png', fullPage: true });
+  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await expect(page.locator('.scope-ready')).toContainText('총 16 sections');
+  await expect(page.locator('.scope-summary')).toContainText('CLEANING 15');
+  await expect(page.locator('.scope-summary')).toContainText('POLISHING 1');
+
+  await page.getByRole('button', { name: '사진 입력으로' }).click();
+  await page.getByRole('button', { name: '사진 폴더 선택' }).click();
+  await page.getByRole('button', { name: '표준 폴더 구조 생성' }).click();
+  const paths = await page.evaluate(() => (window as unknown as Window & { __createdPaths: string[] }).__createdPaths);
+  expect(paths).toEqual(expect.arrayContaining([
+    'CLEANING/GENERAL/FWD/PORT/BEFORE',
+    'CLEANING/GENERAL/FWD/PORT/AFTER',
+    'POLISHING/GENERAL/FWD/PORT/BEFORE',
+    'POLISHING/GENERAL/FWD/PORT/AFTER',
+    'GENERAL/FWD/STBD/BEFORE',
+  ]));
+  expect(paths.filter((path) => /\/(BEFORE|AFTER)$/.test(path))).toHaveLength(32);
 });
 
 test('complete 1440px flow covers five-page virtualization, QA focus, shrink, and PDF', async ({ page }) => {

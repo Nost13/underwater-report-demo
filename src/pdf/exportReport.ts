@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import { resizeForPdf } from '../browser/images';
 import { createCaption, phaseIndexForPhoto } from '../domain/photos';
 import { paginateSection } from '../domain/pagination';
-import type { PhotoData, ReportSection, ServiceKind } from '../domain/types';
+import type { PhotoData, ReportSection } from '../domain/types';
 
 interface PdfWriter {
   addPage(format?: string, orientation?: string): void;
@@ -27,7 +27,6 @@ interface PdfWriter {
 
 export interface ExportInput {
   vesselName: string;
-  service: ServiceKind;
   sections: ReportSection[];
   photos: PhotoData[];
   fileName?: string;
@@ -83,7 +82,7 @@ function drawHeader(
   pdf.text('UNDERWATER SERVICE REPORT', 12, 12);
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
-  pdf.text(`${input.vesselName}  |  ${input.service}`, 12, 19);
+  pdf.text(`${input.vesselName}  |  ${section.service}`, 12, 19);
   pdf.text(section.id, 204, 12);
   pdf.text(`PAGE ${pageNumber}`, 272, 19);
 }
@@ -164,7 +163,9 @@ export async function exportReportPdf(
     drawFooter(pdf, section);
   }
 
-  const safeName = input.fileName ?? `${input.vesselName.replace(/[^a-z0-9]+/gi, '_')}_${input.service}.pdf`;
+  const services = [...new Set(input.sections.map((section) => section.service))];
+  const serviceLabel = services.length === 1 ? services[0] : 'MIXED';
+  const safeName = input.fileName ?? `${input.vesselName.replace(/[^a-z0-9]+/gi, '_')}_${serviceLabel}.pdf`;
   pdf.save(safeName);
   return { skipped };
 }
