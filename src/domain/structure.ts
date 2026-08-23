@@ -4,6 +4,7 @@ import type {
   NicheType,
   Phase,
   ReportSection,
+  ScopeTarget,
   ServiceKind,
   Side,
 } from './types';
@@ -32,32 +33,100 @@ export function defaultConditions(service: ServiceKind): Partial<Record<Phase, C
   return conditions;
 }
 
-function makeSection(
+function targetId(
   area: ReportSection['area'],
   component: string,
-  service: ServiceKind,
   side?: Side,
   unit?: number,
-): ReportSection {
+): string {
   const upperComponent = component.trim().toUpperCase();
-  const id = [area, upperComponent, side, unit ? String(unit).padStart(2, '0') : undefined]
+  return [area, upperComponent, side, unit ? String(unit).padStart(2, '0') : undefined]
     .filter(Boolean)
     .join('/');
+}
+
+function makeTarget(
+  area: ScopeTarget['area'],
+  component: string,
+  side?: Side,
+  unit?: number,
+  services: ServiceKind[] = [],
+): ScopeTarget {
+  const upperComponent = component.trim().toUpperCase();
   return {
-    id,
+    id: targetId(area, upperComponent, side, unit),
     area,
     component: upperComponent,
     side,
     unit,
+    services: [...services],
+  };
+}
+
+function makeSection(target: ScopeTarget, service: ServiceKind): ReportSection {
+  return {
+    id: `${service}/${target.id}`,
+    targetId: target.id,
+    area: target.area,
+    component: target.component,
+    side: target.side,
+    unit: target.unit,
     service,
     phases: phasesFor(service),
     conditions: defaultConditions(service),
   };
 }
 
-export function createGeneralSections(service: ServiceKind): ReportSection[] {
+export function createGeneralTargets(): ScopeTarget[] {
   return GENERAL_ZONES.flatMap((zone) =>
-    GENERAL_SIDES.map((side) => makeSection('GENERAL', zone, service, side)),
+    GENERAL_SIDES.map((side) => makeTarget('GENERAL', zone, side)),
+  );
+}
+
+export function replaceTargetService(
+  target: ScopeTarget,
+  service: ServiceKind,
+): ScopeTarget {
+  return { ...target, services: [service] };
+}
+
+export function appendTargetService(
+  target: ScopeTarget,
+  service: ServiceKind,
+): ScopeTarget {
+  return target.services.includes(service)
+    ? target
+    : { ...target, services: [...target.services, service] };
+}
+
+export function removeTargetService(
+  target: ScopeTarget,
+  service: ServiceKind,
+): ScopeTarget {
+  return { ...target, services: target.services.filter((item) => item !== service) };
+}
+
+export function applyServicePreset(
+  targets: ScopeTarget[],
+  service: ServiceKind,
+  predicate: (target: ScopeTarget) => boolean,
+): ScopeTarget[] {
+  return targets.map((target) => (
+    predicate(target) && target.services.length === 0
+      ? replaceTargetService(target, service)
+      : target
+  ));
+}
+
+export function createReportSections(targets: ScopeTarget[]): ReportSection[] {
+  return targets.flatMap((target) =>
+    target.services.map((service) => makeSection(target, service)),
+  );
+}
+
+export function createGeneralSections(service: ServiceKind): ReportSection[] {
+  return createReportSections(
+    createGeneralTargets().map((target) => replaceTargetService(target, service)),
   );
 }
 
@@ -68,7 +137,7 @@ function sideSafeType(component: string, type: NicheType): NicheType {
   return type;
 }
 
-export function createNicheSections(input: NicheInput): ReportSection[] {
+export function createNicheTargets(input: NicheInput): ScopeTarget[] {
   const type = sideSafeType(input.component, input.type);
   const quantity = Math.max(1, Math.floor(input.quantity || 1));
   const sides: Array<Side | undefined> =
@@ -79,6 +148,10 @@ export function createNicheSections(input: NicheInput): ReportSection[] {
       : [undefined];
 
   return sides.flatMap((side) =>
-    units.map((unit) => makeSection('NICHE', input.component, input.service, side, unit)),
+    units.map((unit) => makeTarget('NICHE', input.component, side, unit, [input.service])),
   );
+}
+
+export function createNicheSections(input: NicheInput): ReportSection[] {
+  return createReportSections(createNicheTargets(input));
 }

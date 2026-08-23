@@ -13,6 +13,7 @@ export interface Condition {
 
 export interface ReportSection {
   id: string;
+  targetId: string;
   area: 'GENERAL' | 'NICHE';
   component: string;
   side?: Side;
@@ -20,6 +21,15 @@ export interface ReportSection {
   service: ServiceKind;
   phases: Phase[];
   conditions: Partial<Record<Phase, Condition>>;
+}
+
+export interface ScopeTarget {
+  id: string;
+  area: 'GENERAL' | 'NICHE';
+  component: string;
+  side?: Side;
+  unit?: number;
+  services: ServiceKind[];
 }
 
 export interface PhotoData {

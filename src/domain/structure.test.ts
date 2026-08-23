@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  appendTargetService,
+  applyServicePreset,
+  createGeneralTargets,
   createGeneralSections,
   createNicheSections,
+  createNicheTargets,
+  createReportSections,
   defaultConditions,
   phasesFor,
+  replaceTargetService,
 } from './structure';
 
 describe('report structure rules', () => {
@@ -24,22 +30,82 @@ describe('report structure rules', () => {
     const sections = createGeneralSections('CLEANING');
     expect(sections).toHaveLength(15);
     expect(sections.map((section) => section.id)).toEqual([
-      'GENERAL/FWD/PORT',
-      'GENERAL/FWD/STBD',
-      'GENERAL/FWD/BOTTOM',
-      'GENERAL/FWD-MID/PORT',
-      'GENERAL/FWD-MID/STBD',
-      'GENERAL/FWD-MID/BOTTOM',
-      'GENERAL/MID/PORT',
-      'GENERAL/MID/STBD',
-      'GENERAL/MID/BOTTOM',
-      'GENERAL/MID-AFT/PORT',
-      'GENERAL/MID-AFT/STBD',
-      'GENERAL/MID-AFT/BOTTOM',
-      'GENERAL/AFT/PORT',
-      'GENERAL/AFT/STBD',
-      'GENERAL/AFT/BOTTOM',
+      'CLEANING/GENERAL/FWD/PORT',
+      'CLEANING/GENERAL/FWD/STBD',
+      'CLEANING/GENERAL/FWD/BOTTOM',
+      'CLEANING/GENERAL/FWD-MID/PORT',
+      'CLEANING/GENERAL/FWD-MID/STBD',
+      'CLEANING/GENERAL/FWD-MID/BOTTOM',
+      'CLEANING/GENERAL/MID/PORT',
+      'CLEANING/GENERAL/MID/STBD',
+      'CLEANING/GENERAL/MID/BOTTOM',
+      'CLEANING/GENERAL/MID-AFT/PORT',
+      'CLEANING/GENERAL/MID-AFT/STBD',
+      'CLEANING/GENERAL/MID-AFT/BOTTOM',
+      'CLEANING/GENERAL/AFT/PORT',
+      'CLEANING/GENERAL/AFT/STBD',
+      'CLEANING/GENERAL/AFT/BOTTOM',
     ]);
+  });
+
+  it('keeps the fixed 15 GENERAL positions unassigned until work is selected', () => {
+    const targets = createGeneralTargets();
+    expect(targets).toHaveLength(15);
+    expect(targets.every((target) => target.services.length === 0)).toBe(true);
+    expect(createReportSections(targets)).toEqual([]);
+  });
+
+  it('fills only unassigned GENERAL targets and preserves a service exception', () => {
+    const targets = createGeneralTargets().map((target) =>
+      target.id === 'GENERAL/AFT/STBD'
+        ? replaceTargetService(target, 'INSPECTION')
+        : target,
+    );
+    const next = applyServicePreset(targets, 'POLISHING', () => true);
+    expect(next.find((target) => target.id === 'GENERAL/AFT/STBD')?.services).toEqual([
+      'INSPECTION',
+    ]);
+    expect(next.filter((target) => target.services[0] === 'POLISHING')).toHaveLength(14);
+  });
+
+  it('expands replacement and appended services into unique phase-aware sections', () => {
+    const target = createGeneralTargets().find((item) => item.id === 'GENERAL/MID/PORT')!;
+    const inspection = replaceTargetService(target, 'INSPECTION');
+    const mixed = appendTargetService(inspection, 'POLISHING');
+    const sections = createReportSections([mixed]);
+    expect(sections).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'INSPECTION/GENERAL/MID/PORT',
+        targetId: 'GENERAL/MID/PORT',
+        phases: ['CURRENT'],
+      }),
+      expect.objectContaining({
+        id: 'POLISHING/GENERAL/MID/PORT',
+        targetId: 'GENERAL/MID/PORT',
+        phases: ['BEFORE', 'AFTER'],
+      }),
+    ]));
+    expect(sections.find((section) => section.service === 'POLISHING')?.conditions.AFTER)
+      .toEqual({ class: 'CLEAN', rating: 'R0', detail: '' });
+  });
+
+  it('creates NICHE targets with the active service ready for per-target exceptions', () => {
+    const targets = createNicheTargets({
+      component: 'Propeller Blade',
+      type: 'QUANTITY',
+      quantity: 3,
+      service: 'POLISHING',
+    });
+    expect(targets.map((target) => [target.id, target.services])).toEqual([
+      ['NICHE/PROPELLER BLADE/01', ['POLISHING']],
+      ['NICHE/PROPELLER BLADE/02', ['POLISHING']],
+      ['NICHE/PROPELLER BLADE/03', ['POLISHING']],
+    ]);
+    const exception = replaceTargetService(targets[2], 'INSPECTION');
+    expect(createReportSections([exception])[0]).toMatchObject({
+      id: 'INSPECTION/NICHE/PROPELLER BLADE/03',
+      phases: ['CURRENT'],
+    });
   });
 
   it.each([
