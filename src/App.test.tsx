@@ -335,15 +335,15 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('GENERAL · 15개 구역 · BEFORE / AFTER');
   });
 
-  it('runs the local PDF exporter from the final stage', async () => {
+  it('runs the local Word exporter from the final stage', async () => {
     const user = userEvent.setup();
-    render(<App exporter={async () => ({ skipped: [] })} />);
+    render(<App exporter={async () => ({ skipped: [], pageCount: 0, blob: new Blob() })} />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
-    await user.click(screen.getByRole('button', { name: 'PDF 준비' }));
-    await user.click(screen.getByRole('button', { name: 'PDF 다운로드' }));
-    expect(await screen.findByText('PDF 다운로드가 완료되었습니다.')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Word 준비' }));
+    await user.click(screen.getByRole('button', { name: 'Word 보고서 다운로드' }));
+    expect(await screen.findByText('Word 보고서 다운로드가 완료되었습니다.')).toBeVisible();
   });
 
   it('collapses Report Check by default and shows all preview pages in one view', async () => {

@@ -20,7 +20,7 @@ import {
   removeTargetService,
   replaceTargetService,
 } from './domain/structure';
-import type { ExportInput } from './pdf/exportReport';
+import type { WordExportInput, WordExportResult } from './docx/templateWriter';
 import type {
   NicheType,
   ObservedLevel,
@@ -33,7 +33,7 @@ import type {
 } from './domain/types';
 
 const thumbnails = new ThumbnailPool();
-const stages = ['준비', 'Report Input', 'Check / Preview', 'PDF'];
+const stages = ['준비', 'Report Input', 'Check / Preview', 'Word'];
 
 const newId = () =>
   globalThis.crypto?.randomUUID?.() ?? `photo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -121,14 +121,23 @@ function photoRecords(
   });
 }
 
-type PdfExporter = (input: ExportInput) => Promise<{ skipped: string[] }>;
+type WordExporter = (input: WordExportInput) => Promise<WordExportResult>;
 
-const loadPdfExporter: PdfExporter = async (input) => {
-  const { exportReportPdf } = await import('./pdf/exportReport');
-  return exportReportPdf(input);
+const loadWordExporter: WordExporter = async (input) => {
+  const { writeTemplateReport } = await import('./docx/templateWriter');
+  return writeTemplateReport(input, {
+    download: (blob, fileName) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+  });
 };
 
-export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExporter }) {
+export default function App({ exporter = loadWordExporter }: { exporter?: WordExporter }) {
   const [stage, setStage] = useState(0);
   const [imo, setImo] = useState('9876543');
   const [vessel, setVessel] = useState<(typeof DEMO_VESSELS)[number] | null>(null);
@@ -364,18 +373,19 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
   const runExport = async () => {
     if (isExporting) return;
     setIsExporting(true);
-    setStatus('사진을 순차 리사이즈하여 PDF를 만드는 중입니다…');
+    setStatus('사진을 순차 처리하여 Word 보고서를 만드는 중입니다…');
     try {
       const result = await exporter({
         vesselName: scopeMeta?.vesselName ?? 'UNDERWATER REPORT',
         sections: report.sections,
         photos: report.photos,
+        templateUrl: 'templates/Detail_report_template.docx',
       });
       setStatus(result.skipped.length
-        ? `PDF 완료 · 읽을 수 없어 제외된 사진: ${result.skipped.join(', ')}`
-        : 'PDF 다운로드가 완료되었습니다.');
+        ? `Word 보고서 완료 · 읽을 수 없어 제외된 사진: ${result.skipped.join(', ')}`
+        : 'Word 보고서 다운로드가 완료되었습니다.');
     } catch {
-      setStatus('PDF를 만들지 못했습니다. 사진 형식과 브라우저 다운로드 권한을 확인하세요.');
+      setStatus('Word 보고서를 만들지 못했습니다. 사진 형식과 브라우저 다운로드 권한을 확인하세요.');
     } finally {
       setIsExporting(false);
     }
@@ -664,11 +674,11 @@ function CheckPreview(props: CheckPreviewProps) {
   return <div className="check-layout"><aside className="qa-panel"><div className="qa-title"><p className="step-kicker">STEP 04</p><h2>Report Check</h2><span>{props.issues.length}</span></div><p>누락과 오류만 확인하고, 필요할 때 목록을 펼쳐 해당 Section으로 이동합니다.</p>{props.issues.length ? <><button type="button" className="qa-summary" aria-expanded={issuesOpen} onClick={() => setIssuesOpen((open) => !open)}>Report Check {props.issues.length} issues <span>{issuesOpen ? '접기' : '목록 보기'}</span></button>{issuesOpen && <div className="qa-list">{props.issues.map((issue) => <button type="button" key={issue.id} onClick={() => props.onIssue(issue.sectionId)}><span className={`issue-icon ${issue.kind.toLowerCase()}`}>!</span><span><b>{issue.kind.replaceAll('_', ' ')}</b><em>{issue.message}</em></span><i>→</i></button>)}</div>}</> : <div className="qa-clear"><b>✓</b><span>확인할 오류가 없습니다.</span></div>}</aside>
     <section className="preview-area"><div className="preview-toolbar"><div><p className="eyebrow">REPORT PREVIEW · ALL PAGES</p><h2>{props.activeSection.id}</h2></div><select aria-label="Preview section" value={props.activeSection.id} onChange={(event) => props.onSection(event.target.value)}>{props.report.sections.map((section) => <option key={section.id}>{section.id}</option>)}</select><b className="preview-count">{props.pages.length} PAGES</b></div>
       <div className="preview-stage" aria-label="전체 Report Preview">{props.pages.length ? props.pages.map((page) => <article className="report-page" data-page-index={page.index} key={page.index}><header><div><b>UNDERWATER SERVICE REPORT</b><span>{props.activeSection.id}</span></div><em>PAGE {page.index + 1}</em></header><div className={page.photos.length <= 4 ? 'preview-grid four' : 'preview-grid six'}>{page.photos.map((photo) => <div className="preview-photo" key={photo.id}><div><PhotoThumb file={photo.file} alt={photo.file.name} /><span className={`phase-tag ${photo.phase?.toLowerCase()}`}>{photo.phase}</span></div><p>{createCaption(photo, props.activeSection, phaseIndexForPhoto(photo, props.report.photos))}</p></div>)}</div><footer><span>Condition by phase</span><span>{props.activeSection.phases.map((phase) => `${phase} ${formatConditionSummary(props.activeSection.conditions[phase])}`).join(' · ')}</span></footer></article>) : <div className="preview-empty"><b>0P</b><span>Report Use 사진을 추가하면 페이지가 자동 생성됩니다.</span></div>}</div>
-      <div className="preview-footer"><span>Page 1: 4 photos · Next pages: 6 photos</span><button type="button" className="primary" onClick={props.onNext}>PDF 준비</button></div>
+      <div className="preview-footer"><span>Word 출력: Phase별 Page 1은 4장 · 이후 6장</span><button type="button" className="primary" onClick={props.onNext}>Word 준비</button></div>
     </section>
   </div>;
 }
 
 function ExportScreen({ vesselName, report, status, onBack, onExport, busy }: { vesselName: string; report: ReportState; status: string; onBack: () => void; onExport: () => void; busy: boolean }) {
-  return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 05</p><h2>PDF 다운로드</h2><p>페이지는 Report Use 사진 수에 따라 자동 생성됩니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>PDF</span><div><b>{vesselName}</b><p>{report.sections.length} sections · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Layout</dt><dd>A4 Landscape</dd></div><div><dt>Page rule</dt><dd>4 + 6 / page</dd></div><div><dt>Processing</dt><dd>Sequential resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'PDF 생성 중…' : 'PDF 다운로드'}</button><p>{status}</p></div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Check / Preview</button></div></div>;
+  return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 05</p><h2>Word 보고서 다운로드</h2><p>공식 Detail Service Record 템플릿에 Phase별 사진과 Condition을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>Detail Service Record 템플릿 · {report.sections.length} sections · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Layout</dt><dd>A4 Portrait · Phase-first</dd></div><div><dt>Page rule</dt><dd>4 + 6 / phase</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p>{status}</p></div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Check / Preview</button></div></div>;
 }
