@@ -247,6 +247,20 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('button', { name: '사진 불러오기' })).toBeDisabled();
   });
 
+  it('shows the photo-folder sequence and concrete scope before import', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: '사진 입력으로' }));
+
+    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('사진 폴더 선택');
+    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('새 작업: 구조 생성');
+    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('사진 불러오기');
+    expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('CLEANING / GENERAL / FWD / PORT / BEFORE');
+    expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('총 15개 Section · 30개 사진 폴더');
+    expect(screen.getByLabelText('사진 입력 상태')).toHaveTextContent('사진 폴더를 아직 선택하지 않았습니다.');
+  });
+
   it('runs the local PDF exporter from the final stage', async () => {
     const user = userEvent.setup();
     render(<App exporter={async () => ({ skipped: [] })} />);

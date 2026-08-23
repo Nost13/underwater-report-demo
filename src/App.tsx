@@ -368,7 +368,8 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
       />}
 
       {stage === 1 && <PhotoSource
-        photoCount={report.photos.length} status={status} hasFolder={Boolean(folder)}
+        photoCount={report.photos.length} matchedCount={report.photos.length - unmatched.length} unmatchedCount={unmatched.length}
+        status={status} hasFolder={Boolean(folder)} folderName={folder?.name ?? null} sections={report.sections}
         onSelect={selectPhotoFolder} onCreate={createFolders} onLoad={reloadFolder}
         onDemo={loadDemo} onBack={() => setStage(0)} onNext={() => setStage(2)}
       />}
@@ -506,15 +507,26 @@ function VesselScope(props: VesselScopeProps) {
 }
 
 interface PhotoSourceProps {
-  photoCount: number; status: string; hasFolder: boolean; onSelect: () => void; onCreate: () => void; onLoad: () => void;
+  photoCount: number; matchedCount: number; unmatchedCount: number; status: string; hasFolder: boolean; folderName: string | null; sections: ReportSection[];
+  onSelect: () => void; onCreate: () => void; onLoad: () => void;
   onDemo: () => void; onBack: () => void; onNext: () => void;
 }
 
 function PhotoSource(props: PhotoSourceProps) {
+  const firstSection = props.sections[0];
+  const samplePath = firstSection ? `${firstSection.id.replaceAll('/', ' / ')} / ${firstSection.phases[0]}` : 'Scope를 먼저 만드세요';
+  const phaseFolderCount = props.sections.reduce((total, section) => total + section.phases.length, 0);
+  const folderState = props.hasFolder
+    ? `“${props.folderName}” 폴더 선택됨`
+    : '사진 폴더를 아직 선택하지 않았습니다.';
+
   return <div className="workspace wide"><div className="page-heading"><div><p className="step-kicker">STEP 02</p><h2>사진 폴더</h2><p>원본은 로컬 File 참조로만 유지하며 서버로 전송하지 않습니다.</p></div><span className="privacy-chip">{props.photoCount} PHOTOS</span></div>
-    <section className="method-card recommended photo-folder-card"><div className="method-top"><span>02</span><em>ONE FLOW</em></div><h3>사진 폴더 선택</h3><p>기존 사진 폴더와 새 OneDrive 폴더 모두 같은 방식으로 선택합니다. 정확한 경로는 자동 매칭하고, 맞지 않는 사진만 UNMATCHED로 남깁니다.</p><div className="folder-tree"><code>SERVICE <small>같은 위치의 phase가 겹칠 때만</small></code><code>└ SECTION / COMPONENT</code><code>&nbsp;&nbsp;└ SIDE <small>필요시</small></code><code>&nbsp;&nbsp;&nbsp;&nbsp;└ UNIT <small>수량형</small></code><code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└ BEFORE / AFTER 또는 CURRENT</code></div><div className="photo-folder-actions"><button type="button" className="primary" onClick={props.onSelect}>사진 폴더 선택</button><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onCreate}>표준 폴더 구조 생성</button><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onLoad}>사진 불러오기</button></div><p className="folder-help">새 작업이면 폴더 구조를 먼저 만들고, 기존 폴더면 바로 사진을 불러오세요.</p></section>
+    <section className="method-card recommended photo-folder-card"><div className="method-top"><span>02</span><em>ONE FLOW</em></div><h3>사진 입력 순서</h3><p>새 작업과 기존 사진 폴더 모두 같은 흐름입니다. 경로가 정확히 맞으면 자동 배정하고, 확신할 수 없는 사진은 UNMATCHED로 분리합니다.</p>
+      <ol className="photo-flow" aria-label="사진 입력 순서"><li className={props.hasFolder ? 'done' : 'active'}><span>1</span><div><b>사진 폴더 선택</b><small>OneDrive 또는 기존 사진 폴더를 선택</small></div><em>{props.hasFolder ? '완료' : '지금 하기'}</em></li><li className={props.hasFolder ? 'active' : ''}><span>2</span><div><b>새 작업: 구조 생성</b><small>새 폴더에 사진을 넣을 때만 필요</small></div><em>{props.hasFolder ? '선택' : '폴더 선택 후'}</em></li><li className={props.photoCount ? 'done' : props.hasFolder ? 'active' : ''}><span>3</span><div><b>사진 불러오기</b><small>자동 매칭 결과와 UNMATCHED 확인</small></div><em>{props.photoCount ? `${props.photoCount}장 완료` : props.hasFolder ? '준비됨' : '대기'}</em></li></ol>
+      <section className="photo-scope-summary" aria-label="현재 작업 범위"><p>현재 작업 범위</p><code>{samplePath}</code><span>총 {props.sections.length}개 Section · {phaseFolderCount}개 사진 폴더</span><small>SERVICE 폴더는 같은 위치에 여러 Service가 있을 때만 자동으로 추가됩니다.</small></section>
+      <div className="photo-folder-actions"><div className="photo-action"><span>1</span><button type="button" className="primary" onClick={props.onSelect}>사진 폴더 선택</button></div><div className="photo-action"><span>2</span><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onCreate}>표준 폴더 구조 생성</button></div><div className="photo-action"><span>3</span><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onLoad}>사진 불러오기</button></div></div><p className="folder-help"><b>새 작업</b>은 1 → 2 → 사진 넣기 → 3, <b>기존 사진</b>은 1 → 3으로 진행하세요.</p></section>
     <section className="demo-strip"><div><b>빠른 동작 확인</b><span>선택된 첫 Section에 BEFORE 3장 + AFTER 4장을 생성합니다.</span></div><button type="button" className="ghost" onClick={props.onDemo}>샘플 사진 7장 불러오기</button></section>
-    <div className="status-line"><span className="status-dot" />{props.status}</div><div className="actionbar"><button type="button" className="text-button" onClick={props.onBack}>← Vessel / Scope</button><button type="button" className="primary" onClick={props.onNext}>Report Input으로</button></div>
+    <section className="status-line photo-input-status" aria-label="사진 입력 상태"><div><p>현재 사진 상태</p><b>{folderState}</b></div><div><strong>사진 {props.photoCount}장</strong><span>자동 매칭 {props.matchedCount}장 · UNMATCHED {props.unmatchedCount}장</span></div><small>{props.status}</small></section><div className="actionbar"><button type="button" className="text-button" onClick={props.onBack}>← Vessel / Scope</button><button type="button" className="primary" onClick={props.onNext}>Report Input으로</button></div>
   </div>;
 }
 
