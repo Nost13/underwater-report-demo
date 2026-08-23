@@ -90,6 +90,17 @@ test('the unified photo input imports UNMATCHED, assigns, unassigns, and reassig
   await page.getByRole('button', { name: 'Report Input으로' }).click();
   await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
   await expect(page.getByLabel('UNMATCHED 사진 배정')).toBeVisible();
+  await expect(page.locator('.report-workspace')).toHaveClass(/unmatched-open/);
+  const beforePanel = page.locator('.phase-panel.before');
+  const beforeWidthWithDrawer = (await beforePanel.boundingBox())?.width ?? 0;
+  const drawerThumb = await page.locator('.unmatched-thumb').boundingBox();
+  expect(drawerThumb).not.toBeNull();
+  expect((drawerThumb?.width ?? 0) / (drawerThumb?.height ?? 1)).toBeCloseTo(1.6, 1);
+  await page.getByRole('button', { name: 'UNMATCHED 닫기' }).click();
+  await expect(page.locator('.report-workspace')).not.toHaveClass(/unmatched-open/);
+  const beforeWidthWithoutDrawer = (await beforePanel.boundingBox())?.width ?? 0;
+  expect(beforeWidthWithoutDrawer).toBeGreaterThan(beforeWidthWithDrawer);
+  await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
   await page.getByRole('button', { name: '배정' }).click();
   await expect(page.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
   await expect(page.locator('.page-badge b')).toHaveText('1P');
