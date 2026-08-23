@@ -60,4 +60,21 @@ describe('report check issues', () => {
 
     expect(issues.some((issue) => issue.kind === 'MISSING_CONDITION')).toBe(false);
   });
+
+  it('requires a manual percentage when Slime Only is selected', () => {
+    const [section] = createNicheSections({
+      component: 'Rudder',
+      type: 'SINGLE',
+      quantity: 1,
+      service: 'INSPECTION',
+    });
+    section.conditions.CURRENT = {
+      fouling: { type: 'Micro fouling', coverage: '1-100% / Slime Only' },
+      observed: { type: '', level: 'Normal / Trace' },
+    };
+
+    const issues = checkReport([section], []);
+
+    expect(issues.some((issue) => issue.kind === 'MISSING_CONDITION')).toBe(true);
+  });
 });

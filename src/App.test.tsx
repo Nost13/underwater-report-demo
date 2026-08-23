@@ -204,6 +204,21 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('AFTER fouling rating')).toHaveTextContent('R2');
   });
 
+  it('collects a manual percentage when BEFORE uses Slime Only', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    await user.selectOptions(screen.getByLabelText('BEFORE fouling coverage'), '1-100% / Slime Only');
+    const slimeCoverage = screen.getByLabelText('BEFORE slime coverage');
+    await user.type(slimeCoverage, '37');
+
+    expect(slimeCoverage).toHaveValue(37);
+    expect(screen.getByLabelText('BEFORE fouling rating')).toHaveTextContent('R1');
+    expect(screen.getByLabelText('BEFORE fouling type')).toHaveTextContent('Micro fouling');
+  });
+
   it('offers separate photo-add actions for the selected Section BEFORE and AFTER phases', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -265,6 +280,17 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveTextContent('manual.jpg');
   });
 
+  it('marks a completed fallback import clearly in the photo-folder step', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    await user.upload(input, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
+
+    expect(screen.getByText('사진 불러오기 완료')).toBeVisible();
+  });
+
   it('uses one photo-folder flow with optional structure creation after selection', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -317,6 +343,21 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'PDF 준비' }));
     await user.click(screen.getByRole('button', { name: 'PDF 다운로드' }));
     expect(await screen.findByText('PDF 다운로드가 완료되었습니다.')).toBeVisible();
+  });
+
+  it('collapses Report Check by default and shows all preview pages in one view', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
+
+    const reportCheck = screen.getByRole('button', { name: /Report Check.*issues/ });
+    expect(reportCheck).toBeVisible();
+    expect(screen.queryByText('MISSING PHASE PHOTO')).not.toBeInTheDocument();
+    await user.click(reportCheck);
+    expect(screen.getAllByText('MISSING PHASE PHOTO').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('전체 Report Preview')).toBeVisible();
   });
 
   it('keeps a directory-input fallback for browsers without the folder picker API', () => {

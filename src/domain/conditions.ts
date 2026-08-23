@@ -27,12 +27,12 @@ const observedRatings: Record<Exclude<ObservedLevel, ''>, string> = {
 };
 
 export const emptyCondition = (): Condition => ({
-  fouling: { type: '', coverage: '' },
+  fouling: { type: '', coverage: '', slimeCoverage: null },
   observed: { type: '', level: 'Normal / Trace' },
 });
 
 export const cleanCondition = (): Condition => ({
-  fouling: { type: 'Clean / No Fouling', coverage: '0%' },
+  fouling: { type: 'Clean / No Fouling', coverage: '0%', slimeCoverage: null },
   observed: { type: '', level: 'Normal / Trace' },
 });
 
@@ -49,8 +49,11 @@ export function formatConditionSummary(condition?: Condition): string {
   if (!condition) return '—';
   const foulingRating = deriveFoulingRating(condition.fouling.coverage);
   const foulingType = deriveFoulingType(condition.fouling.coverage);
+  const coverage = condition.fouling.coverage === '1-100% / Slime Only'
+    ? `Slime Only ${condition.fouling.slimeCoverage ?? '—'}%`
+    : condition.fouling.coverage;
   const fouling = foulingRating
-    ? `Fouling R${foulingRating} ${foulingType} ${condition.fouling.coverage}`
+    ? `Fouling R${foulingRating} ${foulingType} ${coverage}`
     : 'Fouling —';
   const observedRating = deriveObservedRating(condition.observed.level);
   return observedRating

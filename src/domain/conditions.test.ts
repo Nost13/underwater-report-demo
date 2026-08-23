@@ -37,4 +37,11 @@ describe('report conditions', () => {
       observed: { type: 'Scratch', level: 'Minor Observation' },
     })).toBe('Fouling R3 Medium Macro Fouling 6-25% · Observed R2 Scratch');
   });
+
+  it('includes the manually entered surface coverage for Slime Only', () => {
+    expect(formatConditionSummary({
+      fouling: { type: 'Micro fouling', coverage: '1-100% / Slime Only', slimeCoverage: 37 },
+      observed: { type: '', level: 'Normal / Trace' },
+    } as unknown as ReturnType<typeof emptyCondition>)).toContain('Slime Only 37%');
+  });
 });

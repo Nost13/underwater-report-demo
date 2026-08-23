@@ -208,6 +208,7 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   await expect(page.getByLabel('BEFORE fouling type')).toHaveText('Light Macro fouling');
   await expect(page.getByLabel('BEFORE fouling rating')).toHaveText('R2');
   await page.getByLabel('AFTER fouling coverage').selectOption('1-100% / Slime Only');
+  await page.getByLabel('AFTER slime coverage').fill('37');
   await expect(page.getByLabel('AFTER fouling type')).toHaveText('Micro fouling');
   await expect(page.getByLabel('AFTER fouling rating')).toHaveText('R1');
   await expect(page.locator('.page-badge b')).toHaveText('6P');
@@ -221,12 +222,10 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   await page.screenshot({ path: 'e2e/report-input-1440.png', fullPage: true });
 
   await page.getByRole('button', { name: 'Check / Preview' }).last().click();
-  await expect(page.locator('.pager b')).toHaveText('1 / 6');
-  await expect(page.locator('.report-page')).toHaveCount(2);
-  await page.locator('.pager button').last().click();
-  await page.locator('.pager button').last().click();
-  await expect(page.locator('.pager b')).toHaveText('3 / 6');
-  await expect(page.locator('.report-page')).toHaveCount(3);
+  await expect(page.getByLabel('전체 Report Preview')).toBeVisible();
+  await expect(page.locator('.report-page')).toHaveCount(6);
+  await expect(page.locator('.qa-list')).toHaveCount(0);
+  await page.getByRole('button', { name: /Report Check.*issues/ }).click();
   await page.screenshot({ path: 'e2e/preview-1440.png', fullPage: true });
 
   const issue = page.locator('.qa-list button').filter({ hasText: 'GENERAL/FWD/STBD' }).first();
@@ -243,7 +242,7 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   await expect(page.locator('.page-badge b')).toHaveText('1P');
 
   await page.getByRole('button', { name: 'Check / Preview' }).last().click();
-  await expect(page.locator('.pager b')).toHaveText('1 / 1');
+  await expect(page.getByLabel('전체 Report Preview')).toBeVisible();
   await expect(page.locator('.report-page')).toHaveCount(1);
   await page.getByRole('button', { name: 'PDF 준비' }).click();
   const exportButton = page.getByRole('button', { name: 'PDF 다운로드' });

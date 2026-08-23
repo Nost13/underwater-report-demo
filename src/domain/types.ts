@@ -11,6 +11,7 @@ export interface Condition {
   fouling: {
     type: FoulingType;
     coverage: FoulingCoverage;
+    slimeCoverage?: number | null;
   };
   observed: {
     type: ObservedType;

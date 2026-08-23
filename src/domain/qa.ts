@@ -25,7 +25,10 @@ export function checkReport(sections: ReportSection[], photos: PhotoData[]): QaI
         });
       }
       const condition = section.conditions[phase];
-      if (!condition?.fouling.type || !condition.fouling.coverage) {
+      const requiresSlimeCoverage = condition?.fouling.coverage === '1-100% / Slime Only';
+      const slimeCoverage = condition?.fouling.slimeCoverage;
+      const hasValidSlimeCoverage = Number.isInteger(slimeCoverage) && (slimeCoverage ?? 0) >= 1 && (slimeCoverage ?? 101) <= 100;
+      if (!condition?.fouling.type || !condition.fouling.coverage || (requiresSlimeCoverage && !hasValidSlimeCoverage)) {
         issues.push({
           id: `condition:${section.id}:${phase}`,
           kind: 'MISSING_CONDITION',
