@@ -112,7 +112,7 @@ git commit -m "feat: derive fouling from entered coverage"
 - Produces \`templateValues(section, phase): TemplateValues\` with \`bc\`, \`sideLabel\`, \`title\`, \`work\`, \`fr\`, \`ft\`, \`fc\`, \`or\`, \`ol\`, and \`ot\`.
 - Consumed only by DOCX generation; existing interactive pagination remains available for the preview.
 
-- [ ] **Step 1: Write failing mapping and phase-order tests**
+- [x] **Step 1: Write failing mapping and phase-order tests**
 
 \`\`\`ts
 expect(templateValues(propellerSection, 'BEFORE')).toMatchObject({
@@ -124,27 +124,27 @@ expect(templateValues(propellerSection, 'BEFORE')).toMatchObject({
 expect(buildWordPhasePages([section], elevenBeforePhotos).map((page) => page.photos.length)).toEqual([4, 6, 1]);
 \`\`\`
 
-- [ ] **Step 2: Run the targeted test to verify it fails**
+- [x] **Step 2: Run the targeted test to verify it fails**
 
 Run: \`pnpm vitest run src/docx/reportModel.test.ts\`
 
 Expected: FAIL because the module does not exist.
 
-- [ ] **Step 3: Implement labels, scope values, and page grouping**
+- [x] **Step 3: Implement labels, scope values, and page grouping**
 
 Use Section order, then phase order BEFORE, AFTER, CURRENT constrained by \`section.phases\`. Sort Report Use photos by \`order\`. Make first page capacity 4, all later pages 6 within the phase. Map GENERAL to \`GENERAL AREAS / {ZONE}\`, PORT/STBD/BOTTOM labels as specified, and a side-less component to blank.
 
-- [ ] **Step 4: Add exhaustive grouping tests**
+- [x] **Step 4: Add exhaustive grouping tests**
 
 Test 0, 4, 5, 10, and 11 photos and a mixed BEFORE/AFTER section. Assert BEFORE groups precede AFTER and CURRENT is the only Inspection phase.
 
-- [ ] **Step 5: Run model and pagination tests**
+- [x] **Step 5: Run model and pagination tests**
 
 Run: \`pnpm vitest run src/docx/reportModel.test.ts src/domain/pagination.test.ts\`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 \`\`\`bash
 git add src/docx/reportModel.ts src/docx/reportModel.test.ts src/domain/pagination.ts src/domain/pagination.test.ts
