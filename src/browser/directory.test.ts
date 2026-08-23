@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createNicheSections } from '../domain/structure';
+import {
+  createGeneralTargets,
+  createNicheSections,
+  createReportSections,
+} from '../domain/structure';
 import { createSectionTree, directorySegments, folderRelativePath, scanImages } from './directory';
 
 class MemoryDirectory {
@@ -42,8 +46,26 @@ class MemoryFile {
 describe('local directory adapter', () => {
   it('removes only the browser-selected root folder before exact matching', () => {
     expect(folderRelativePath('사진/GENERAL/FWD/PORT/BEFORE/a.jpg')).toBe('GENERAL/FWD/PORT/BEFORE/a.jpg');
+    expect(folderRelativePath('사진/POLISHING/GENERAL/FWD/PORT/BEFORE/a.jpg')).toBe('POLISHING/GENERAL/FWD/PORT/BEFORE/a.jpg');
     expect(folderRelativePath('NICHE/SEA CHEST/PORT/01/AFTER/a.jpg')).toBe('NICHE/SEA CHEST/PORT/01/AFTER/a.jpg');
     expect(folderRelativePath('misc/a.jpg')).toBe('misc/a.jpg');
+  });
+
+  it('adds a Service folder only for targets with overlapping phases', async () => {
+    const [first, second] = createGeneralTargets();
+    const sections = createReportSections([
+      { ...first, services: ['CLEANING', 'POLISHING'] },
+      { ...second, services: ['INSPECTION', 'POLISHING'] },
+    ]);
+    const root = new MemoryDirectory();
+    await createSectionTree(root, sections);
+    expect(root.allPaths()).toEqual(expect.arrayContaining([
+      'CLEANING/GENERAL/FWD/PORT/BEFORE',
+      'POLISHING/GENERAL/FWD/PORT/AFTER',
+      'GENERAL/FWD/STBD/CURRENT',
+      'GENERAL/FWD/STBD/BEFORE',
+    ]));
+    expect(root.allPaths()).not.toContain('GENERAL/FWD/PORT/BEFORE');
   });
 
   it('creates the exact Section/Side/Unit/Phase hierarchy', async () => {

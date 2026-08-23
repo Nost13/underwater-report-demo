@@ -1,6 +1,14 @@
 import { sectionDirectorySegments } from '../domain/photos';
 import type { Phase, ReportSection } from '../domain/types';
 
+const SERVICE_SEGMENTS = new Set([
+  'INSPECTION',
+  'CLEANING',
+  'POLISHING',
+  'REPAIR',
+  'REMOVAL',
+]);
+
 export interface FileHandleLike {
   kind: 'file';
   name: string;
@@ -22,11 +30,34 @@ export interface ScannedImage {
 export function folderRelativePath(value: string): string {
   const segments = value.split(/[\\/]+/).filter(Boolean);
   const reportRoot = segments.findIndex((segment) => ['GENERAL', 'NICHE'].includes(segment.toUpperCase()));
-  return (reportRoot > 0 ? segments.slice(reportRoot) : segments).join('/');
+  if (reportRoot < 0) return segments.join('/');
+  const serviceRoot = reportRoot > 0 && SERVICE_SEGMENTS.has(segments[reportRoot - 1].toUpperCase())
+    ? reportRoot - 1
+    : reportRoot;
+  return (serviceRoot > 0 ? segments.slice(serviceRoot) : segments).join('/');
 }
 
-export function directorySegments(section: ReportSection, phase: Phase): string[] {
-  return [...sectionDirectorySegments(section), phase];
+export function needsServiceDirectory(
+  section: ReportSection,
+  sections: ReportSection[],
+): boolean {
+  return sections.some((candidate) => (
+    candidate.id !== section.id &&
+    candidate.targetId === section.targetId &&
+    candidate.phases.some((phase) => section.phases.includes(phase))
+  ));
+}
+
+export function directorySegments(
+  section: ReportSection,
+  phase: Phase,
+  sections: ReportSection[] = [section],
+): string[] {
+  return [
+    needsServiceDirectory(section, sections) ? section.service : undefined,
+    ...sectionDirectorySegments(section),
+    phase,
+  ].filter((segment): segment is string => Boolean(segment));
 }
 
 export async function createSectionTree(
@@ -36,7 +67,7 @@ export async function createSectionTree(
   for (const section of sections) {
     for (const phase of section.phases) {
       let cursor = root;
-      for (const segment of directorySegments(section, phase)) {
+      for (const segment of directorySegments(section, phase, sections)) {
         cursor = await cursor.getDirectoryHandle(segment, { create: true });
       }
     }

@@ -1,6 +1,13 @@
-import type { Phase, PhotoData, ReportSection } from './types';
+import type { Phase, PhotoData, ReportSection, ServiceKind } from './types';
 
 const normalize = (value: string) => value.trim().toUpperCase();
+const SERVICE_TOKENS: ServiceKind[] = [
+  'INSPECTION',
+  'CLEANING',
+  'POLISHING',
+  'REPAIR',
+  'REMOVAL',
+];
 
 export function sectionDirectorySegments(section: ReportSection): string[] {
   return [
@@ -21,12 +28,17 @@ export function matchPhotoPath(
   const phaseToken = directorySegments.at(-1) as Phase | undefined;
   if (!phaseToken || !['CURRENT', 'BEFORE', 'AFTER'].includes(phaseToken)) return null;
   const hierarchy = directorySegments.slice(0, -1);
+  const serviceToken = SERVICE_TOKENS.includes(hierarchy[0] as ServiceKind)
+    ? hierarchy[0] as ServiceKind
+    : null;
+  const physicalHierarchy = serviceToken ? hierarchy.slice(1) : hierarchy;
   const candidates = sections.filter((section) => {
     const expected = sectionDirectorySegments(section).map(normalize);
     return (
       section.phases.includes(phaseToken) &&
-      expected.length === hierarchy.length &&
-      expected.every((segment, index) => segment === hierarchy[index])
+      (!serviceToken || section.service === serviceToken) &&
+      expected.length === physicalHierarchy.length &&
+      expected.every((segment, index) => segment === physicalHierarchy[index])
     );
   });
   return candidates.length === 1 ? { sectionId: candidates[0].id, phase: phaseToken } : null;

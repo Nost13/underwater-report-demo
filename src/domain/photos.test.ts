@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createNicheSections } from './structure';
+import {
+  createGeneralTargets,
+  createNicheSections,
+  createReportSections,
+} from './structure';
 import { createCaption, matchPhotoPath, phaseIndexForPhoto } from './photos';
 import type { PhotoData } from './types';
 
@@ -13,8 +17,27 @@ describe('photo matching and captions', () => {
 
   it('matches a complete exact hierarchy without case sensitivity', () => {
     expect(matchPhotoPath('NICHE/sea chest/PORT/01/before/a.jpg', sections)).toEqual({
-      sectionId: 'NICHE/SEA CHEST/PORT/01',
+      sectionId: 'CLEANING/NICHE/SEA CHEST/PORT/01',
       phase: 'BEFORE',
+    });
+  });
+
+  it('requires a Service segment when the same target and phase are ambiguous', () => {
+    const target = { ...createGeneralTargets()[0], services: ['CLEANING', 'POLISHING'] as const };
+    const mixedSections = createReportSections([{ ...target, services: [...target.services] }]);
+    expect(matchPhotoPath('GENERAL/FWD/PORT/BEFORE/a.jpg', mixedSections)).toBeNull();
+    expect(matchPhotoPath('POLISHING/GENERAL/FWD/PORT/BEFORE/a.jpg', mixedSections)).toEqual({
+      sectionId: 'POLISHING/GENERAL/FWD/PORT',
+      phase: 'BEFORE',
+    });
+  });
+
+  it('keeps a legacy path exact when phase separates mixed services', () => {
+    const target = { ...createGeneralTargets()[0], services: ['INSPECTION', 'POLISHING'] as const };
+    const mixedSections = createReportSections([{ ...target, services: [...target.services] }]);
+    expect(matchPhotoPath('GENERAL/FWD/PORT/CURRENT/a.jpg', mixedSections)).toEqual({
+      sectionId: 'INSPECTION/GENERAL/FWD/PORT',
+      phase: 'CURRENT',
     });
   });
 
