@@ -79,9 +79,9 @@ test('the unified photo input creates the exact GENERAL directory tree', async (
   expect(paths.filter((path) => /\/(BEFORE|AFTER)$/.test(path))).toHaveLength(30);
 });
 
-test('the unified photo input imports UNMATCHED, assigns, unassigns, and reassigns', async ({ page }) => {
+test('the unified photo input imports UNMATCHED, moves assigned photos, and adds to a chosen phase', async ({ page }) => {
   await buildGeneralScope(page);
-  const directoryInput = page.locator('input[type="file"]');
+  const directoryInput = page.locator('input[type="file"][webkitdirectory]');
   await expect(directoryInput).toHaveAttribute('webkitdirectory', '');
   await directoryInput.setInputFiles('e2e/fixtures');
   await expect(page.locator('.status-line')).toContainText('UNMATCHED');
@@ -103,17 +103,19 @@ test('the unified photo input imports UNMATCHED, assigns, unassigns, and reassig
   await expect(page.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
   await expect(page.locator('.page-badge b')).toHaveText('1P');
 
-  await page.getByRole('button', { name: 'manual.jpg 재배정' }).click();
-  await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
-  await page.getByLabel('manual.jpg section').selectOption('CLEANING/GENERAL/FWD/STBD');
-  await page.getByLabel('manual.jpg phase').selectOption('AFTER');
-  await page.getByRole('button', { name: '배정' }).click();
+  await page.getByRole('button', { name: 'manual.jpg 이동' }).click();
+  await page.getByLabel('manual.jpg 이동 Section').selectOption('CLEANING/GENERAL/FWD/STBD');
+  await page.getByLabel('manual.jpg 이동 Phase').selectOption('AFTER');
+  await page.getByRole('button', { name: '이동 완료' }).click();
   await expect(page.locator('.page-badge b')).toHaveText('0P');
   await page.getByLabel('Report section').selectOption('CLEANING/GENERAL/FWD/STBD');
   await expect(page.locator('.page-badge b')).toHaveText('1P');
   await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
   await page.getByRole('button', { name: 'manual.jpg 삭제' }).click();
   await expect(page.locator('.phase-panel.after')).not.toContainText('manual.jpg');
+  await page.getByRole('button', { name: 'AFTER에 사진 추가' }).click();
+  await page.locator('input[type="file"]:not([webkitdirectory])').setInputFiles('e2e/fixtures/manual.jpg');
+  await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
 });
 
 test('one physical target can carry two services with unambiguous folders', async ({ page }) => {

@@ -204,6 +204,16 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('AFTER rating')).toHaveValue('R1');
   });
 
+  it('offers separate photo-add actions for the selected Section BEFORE and AFTER phases', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    expect(screen.getByRole('button', { name: 'BEFORE에 사진 추가' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'AFTER에 사진 추가' })).toBeVisible();
+  });
+
   it('switches Sections from the Report Input top bar', async () => {
     const user = userEvent.setup();
     render(<App />);

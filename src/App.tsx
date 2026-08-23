@@ -147,6 +147,8 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
   const [previewPage, setPreviewPage] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const fallbackInput = useRef<HTMLInputElement>(null);
+  const manualInput = useRef<HTMLInputElement>(null);
+  const manualTarget = useRef<{ sectionId: string; phase: Phase } | null>(null);
 
   const activeSection = report.sections.find((item) => item.id === report.focusedSectionId) ?? report.sections[0];
   const activePhotos = activeSection ? report.photos.filter((photo) => photo.sectionId === activeSection.id) : [];
@@ -309,6 +311,26 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
     setStatus(`${photos.length}장 불러옴 · ${matched}장 자동 매칭 · ${photos.length - matched}장 UNMATCHED`);
   };
 
+  const addPhotosToPhase = (sectionId: string, phase: Phase) => {
+    manualTarget.current = { sectionId, phase };
+    manualInput.current?.click();
+  };
+
+  const importManualPhotos = (files: FileList | null) => {
+    const target = manualTarget.current;
+    if (!files || !target) return;
+    const photos = photoRecords(
+      Array.from(files)
+        .filter((file) => file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(file.name))
+        .map((file) => ({ file, relativePath: file.name })),
+      report.sections,
+      false,
+      report.photos.length + 1,
+    ).map((photo) => ({ ...photo, sectionId: target.sectionId, phase: target.phase }));
+    dispatch({ type: 'IMPORT_PHOTOS', photos });
+    setStatus(`${target.phase}에 사진 ${photos.length}장을 추가했습니다.`);
+  };
+
   const loadDemo = async () => {
     if (!activeSection) return;
     setStatus('샘플 이미지를 만드는 중입니다…');
@@ -344,6 +366,7 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
 
   return <main className="app-shell">
     <input {...{ webkitdirectory: '' }} ref={fallbackInput} className="visually-hidden" type="file" multiple accept="image/*" onChange={(event) => importFallback(event.target.files)} />
+    <input ref={manualInput} className="visually-hidden" type="file" multiple accept="image/*" onChange={(event) => { importManualPhotos(event.target.files); event.currentTarget.value = ''; }} />
     <StageRail active={stage < 2 ? 0 : stage - 1} onMove={(next) => { const nextStage = next === 0 ? 0 : next + 1; if (report.sections.length || nextStage === 0) setStage(nextStage); }} />
     <section className="app-main">
       <header className="topbar"><div><p className="eyebrow">UNDERWATER SERVICE REPORT</p><h1>{scopeMeta?.vesselName ?? vessel?.name ?? 'New report'}</h1></div><div className="top-meta"><span>{serviceSummary}</span><span>{report.sections.length} SECTIONS</span><span>{report.photos.length} PHOTOS</span></div></header>
@@ -384,7 +407,7 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
         unmatched={unmatched} unmatchedOpen={unmatchedOpen}
         pages={pages} issueCount={issues.length}
         onToggleUnmatched={() => setUnmatchedOpen((open) => !open)} onCloseUnmatched={() => setUnmatchedOpen(false)}
-        dispatch={dispatch} onOpen={selectPhotoFolder} onBack={() => setStage(1)} onNext={() => setStage(3)}
+        dispatch={dispatch} onOpen={selectPhotoFolder} onAddPhotos={addPhotosToPhase} onBack={() => setStage(1)} onNext={() => setStage(3)}
       />}
 
       {stage === 3 && activeSection && <CheckPreview
@@ -546,7 +569,7 @@ interface ReportInputProps {
   report: ReportState; activeSection: ReportSection; activePhotos: PhotoData[];
   unmatched: PhotoData[]; unmatchedOpen: boolean; pages: ReturnType<typeof selectedPages>;
   issueCount: number; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; onOpen: () => void;
-  onToggleUnmatched: () => void; onCloseUnmatched: () => void; onBack: () => void; onNext: () => void;
+  onToggleUnmatched: () => void; onCloseUnmatched: () => void; onAddPhotos: (sectionId: string, phase: Phase) => void; onBack: () => void; onNext: () => void;
 }
 
 function ReportInput(props: ReportInputProps) {
@@ -557,18 +580,33 @@ function ReportInput(props: ReportInputProps) {
   };
   return <div className={`report-workspace${props.unmatchedOpen && props.unmatched.length > 0 ? ' unmatched-open' : ''}`}>
     <section className="input-canvas"><div className="input-heading"><div className="input-title"><p className="step-kicker">STEP 03 · {props.activeSection.area}</p><h2>Report Input</h2><span>{props.activeSection.id}</span></div><div className="section-switcher"><button type="button" aria-label="이전 Section" disabled={activeIndex === 0} onClick={() => focusSection(activeIndex - 1)}>←</button><label><span>SECTION {activeIndex + 1} / {props.report.sections.length}</span><select aria-label="Report section" value={props.activeSection.id} onChange={(event) => props.dispatch({ type: 'FOCUS_SECTION', sectionId: event.target.value })}>{props.report.sections.map((section) => <option key={section.id} value={section.id}>{section.id}</option>)}</select></label><button type="button" aria-label="다음 Section" disabled={activeIndex === props.report.sections.length - 1} onClick={() => focusSection(activeIndex + 1)}>→</button></div><div className="input-metrics"><div className="page-badge"><b>{props.pages.length}P</b><span>{props.activePhotos.filter((photo) => photo.reportUse).length} Report Use</span></div><button type="button" className="unmatched-trigger" aria-label={`UNMATCHED ${props.unmatched.length}`} aria-controls="unmatched" aria-expanded={props.unmatchedOpen && props.unmatched.length > 0} disabled={props.unmatched.length === 0} onClick={props.onToggleUnmatched}><span>UNMATCHED</span><b>{props.unmatched.length}</b></button></div></div>
-      <div className="phase-stack">{props.activeSection.phases.map((phase) => <PhasePanel key={phase} phase={phase} section={props.activeSection} photos={props.activePhotos.filter((photo) => photo.phase === phase)} dispatch={props.dispatch} />)}</div>
+      <div className="phase-stack">{props.activeSection.phases.map((phase) => <PhasePanel key={phase} phase={phase} section={props.activeSection} sections={props.report.sections} photos={props.activePhotos.filter((photo) => photo.phase === phase)} dispatch={props.dispatch} onAddPhotos={props.onAddPhotos} />)}</div>
     </section>
     {props.unmatchedOpen && props.unmatched.length > 0 && <aside className="unmatched-drawer" id="unmatched" aria-label="UNMATCHED 사진 배정"><div className="unmatched-head"><div><p className="eyebrow">MANUAL ASSIGN</p><h3>UNMATCHED</h3></div><div><span>{props.unmatched.length}</span><button type="button" aria-label="UNMATCHED 닫기" onClick={props.onCloseUnmatched}>×</button></div></div><p className="unmatched-help">확실하지 않은 경로는 추측하지 않습니다.</p><div className="unmatched-list">{props.unmatched.map((photo) => <UnmatchedCard key={photo.id} photo={photo} sections={props.report.sections} onAssign={(sectionId, phase) => { props.dispatch({ type: 'ASSIGN_PHOTO', photoId: photo.id, sectionId, phase }); if (props.unmatched.length === 1) props.onCloseUnmatched(); }} />)}</div><button type="button" className="ghost full" onClick={props.onOpen}>사진 더 불러오기</button></aside>}
     <div className="input-footer"><button type="button" className="text-button" onClick={props.onBack}>← 사진 입력</button><div><span>Report Check {props.issueCount} issues</span><button type="button" className="primary" onClick={props.onNext}>Check / Preview</button></div></div>
   </div>;
 }
 
-function PhasePanel({ phase, section, photos, dispatch }: { phase: Phase; section: ReportSection; photos: PhotoData[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]> }) {
+function PhasePanel({ phase, section, sections, photos, dispatch, onAddPhotos }: { phase: Phase; section: ReportSection; sections: ReportSection[]; photos: PhotoData[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; onAddPhotos: (sectionId: string, phase: Phase) => void }) {
   const condition = section.conditions[phase];
-  return <section className={`phase-panel ${phase.toLowerCase()}`} aria-label={`${phase} 사진 갤러리`}><div className="phase-head"><div><span>{phase}</span><b>{photos.filter((photo) => photo.reportUse).length} PHOTOS</b></div><p>Condition · Phase 기준</p></div><div className="phase-controls"><label><span>CONDITION</span><select aria-label={`${phase} condition`} value={condition?.class ?? ''} onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { class: event.target.value as ConditionClass } })}><option value="">선택</option>{['CLEAN', 'BIOFOULING', 'DAMAGE', 'COATING'].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>RATING</span><select aria-label={`${phase} rating`} value={condition?.rating ?? ''} onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { rating: event.target.value as ConditionRating } })}><option value="">선택</option>{['R0', 'R1', 'R2', 'R3', 'R4', 'R5'].map((value) => <option key={value}>{value}</option>)}</select></label><label className="detail-field"><span>DETAIL</span><input value={condition?.detail ?? ''} placeholder="Optional note" onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { detail: event.target.value } })} /></label></div>
-    <div className="photo-list">{photos.length ? photos.map((photo) => <article className={photo.reportUse ? 'photo-row' : 'photo-row excluded'} key={photo.id}><div className="thumb"><PhotoThumb file={photo.file} alt={photo.file.name} /><span>{String(phaseIndexForPhoto(photo, photos)).padStart(2, '0')}</span></div><div className="photo-info"><b>{photo.file.name}</b><span>{createCaption(photo, section, phaseIndexForPhoto(photo, photos))}</span></div><div className="photo-actions"><label className="switch"><input type="checkbox" checked={photo.reportUse} onChange={() => dispatch({ type: 'TOGGLE_REPORT_USE', photoId: photo.id })} /><i /><span>REPORT USE</span></label><div><button type="button" aria-label={`${photo.file.name} 재배정`} onClick={() => dispatch({ type: 'UNASSIGN_PHOTO', photoId: photo.id })}>재배정</button><button type="button" className="delete-photo" aria-label={`${photo.file.name} 삭제`} onClick={() => dispatch({ type: 'DELETE_PHOTO', photoId: photo.id })}>삭제</button></div></div></article>) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>폴더에서 불러오거나 UNMATCHED에서 배정하세요.</p></div>}</div>
+  return <section className={`phase-panel ${phase.toLowerCase()}`} aria-label={`${phase} 사진 갤러리`}><div className="phase-head"><div><span>{phase}</span><b>{photos.filter((photo) => photo.reportUse).length} PHOTOS</b></div><div><p>Condition · Phase 기준</p><button type="button" className="ghost phase-add" aria-label={`${phase}에 사진 추가`} onClick={() => onAddPhotos(section.id, phase)}>사진 추가</button></div></div><div className="phase-controls"><label><span>CONDITION</span><select aria-label={`${phase} condition`} value={condition?.class ?? ''} onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { class: event.target.value as ConditionClass } })}><option value="">선택</option>{['CLEAN', 'BIOFOULING', 'DAMAGE', 'COATING'].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>RATING</span><select aria-label={`${phase} rating`} value={condition?.rating ?? ''} onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { rating: event.target.value as ConditionRating } })}><option value="">선택</option>{['R0', 'R1', 'R2', 'R3', 'R4', 'R5'].map((value) => <option key={value}>{value}</option>)}</select></label><label className="detail-field"><span>DETAIL</span><input value={condition?.detail ?? ''} placeholder="Optional note" onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { detail: event.target.value } })} /></label></div>
+    <div className="photo-list">{photos.length ? photos.map((photo) => <PhotoRow key={photo.id} photo={photo} phasePhotos={photos} section={section} phase={phase} sections={sections} dispatch={dispatch} />) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>이 Phase에 사진을 추가하거나 폴더에서 불러오세요.</p></div>}</div>
   </section>;
+}
+
+function PhotoRow({ photo, phasePhotos, section, phase, sections, dispatch }: { photo: PhotoData; phasePhotos: PhotoData[]; section: ReportSection; phase: Phase; sections: ReportSection[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]> }) {
+  const [moving, setMoving] = useState(false);
+  const [sectionId, setSectionId] = useState(section.id);
+  const targetSection = sections.find((item) => item.id === sectionId) ?? section;
+  const [targetPhase, setTargetPhase] = useState<Phase>(phase);
+  const index = phaseIndexForPhoto(photo, phasePhotos);
+
+  const move = () => {
+    dispatch({ type: 'ASSIGN_PHOTO', photoId: photo.id, sectionId, phase: targetPhase });
+    setMoving(false);
+  };
+
+  return <article className={photo.reportUse ? 'photo-row' : 'photo-row excluded'}><div className="thumb"><PhotoThumb file={photo.file} alt={photo.file.name} /><span>{String(index).padStart(2, '0')}</span></div><div className="photo-info"><b>{photo.file.name}</b><span>{createCaption(photo, section, index)}</span></div><div className="photo-actions"><label className="switch"><input type="checkbox" checked={photo.reportUse} onChange={() => dispatch({ type: 'TOGGLE_REPORT_USE', photoId: photo.id })} /><i /><span>REPORT USE</span></label>{moving ? <div className="photo-move"><select aria-label={`${photo.file.name} 이동 Section`} value={sectionId} onChange={(event) => { const next = sections.find((item) => item.id === event.target.value) ?? section; setSectionId(next.id); setTargetPhase(next.phases[0]); }}>{sections.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select><select aria-label={`${photo.file.name} 이동 Phase`} value={targetPhase} onChange={(event) => setTargetPhase(event.target.value as Phase)}>{targetSection.phases.map((item) => <option key={item}>{item}</option>)}</select><button type="button" onClick={move}>이동 완료</button><button type="button" onClick={() => setMoving(false)}>취소</button></div> : <div><button type="button" aria-label={`${photo.file.name} 이동`} onClick={() => setMoving(true)}>이동</button><button type="button" className="delete-photo" aria-label={`${photo.file.name} 삭제`} onClick={() => dispatch({ type: 'DELETE_PHOTO', photoId: photo.id })}>삭제</button></div>}</div></article>;
 }
 
 function UnmatchedCard({ photo, sections, onAssign }: { photo: PhotoData; sections: ReportSection[]; onAssign: (sectionId: string, phase: Phase) => void }) {

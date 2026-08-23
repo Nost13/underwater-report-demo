@@ -259,6 +259,8 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .phase-panel.after .phase-head div span { color: var(--teal-700); }
 .phase-head div b { padding: 4px 6px; border-radius: 4px; background: #eef2f3; color: #667b84; font-size: 7px; }
 .phase-head p { margin: 0; color: #849198; font-size: 7px; }
+.phase-head > div:last-child { justify-content: flex-end; }
+.phase-add { min-height: 26px; padding: 0 8px; font-size: 8px; }
 .phase-controls { padding: 11px 13px; display: grid; grid-template-columns: minmax(150px, 220px) 100px minmax(220px, 1fr); gap: 8px; border-bottom: 1px solid #edf1f2; background: #fbfcfc; }
 .phase-controls label { min-width: 0; display: grid; gap: 4px; }
 .phase-controls label > span { color: #70818a; font-size: 9px; font-weight: 850; letter-spacing: .08em; }
@@ -286,6 +288,9 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .photo-actions > div { display: flex; gap: 7px; }
 .photo-actions .delete-photo { color: #a94a3a; }
 .photo-actions > button { padding: 2px 4px; border: 0; background: transparent; color: #607982; font-size: 8px; text-decoration: underline; }
+.photo-row:has(.photo-move) { grid-template-rows: auto minmax(35px, auto) auto; }
+.photo-actions .photo-move { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.photo-move select, .photo-move button { min-width: 0; height: 25px; padding: 0 4px; font-size: 7px; }
 .phase-empty { grid-column: 1 / -1; min-height: 126px; display: grid; place-items: center; align-content: center; border: 1px dashed #ccd7db; border-radius: 8px; color: #72838b; text-align: center; }
 .phase-empty > span { font-size: 20px; color: #8aa0a8; }
 .phase-empty b { margin: 5px 0 2px; font-size: 9px; }
