@@ -12,7 +12,7 @@ describe('report check issues', () => {
       service: 'CLEANING',
     });
     section.conditions.BEFORE = {
-      fouling: { type: 'Medium Macro Fouling', coverage: '' },
+      fouling: { type: 'Medium Macro Fouling', coverage: null, slimeOnly: false },
       observed: { type: '', level: '' },
     };
     const photos: PhotoData[] = [1, 2, 3, 4].map((number) => ({
@@ -44,7 +44,7 @@ describe('report check issues', () => {
     );
   });
 
-  it('accepts a Fouling Condition when type and coverage are present without an Observed Condition', () => {
+  it('accepts zero-percent Clean and a numeric Fouling Condition without an Observed Type', () => {
     const [section] = createNicheSections({
       component: 'Rudder',
       type: 'SINGLE',
@@ -52,7 +52,7 @@ describe('report check issues', () => {
       service: 'INSPECTION',
     });
     section.conditions.CURRENT = {
-      fouling: { type: 'Light Macro fouling', coverage: '1-5%' },
+      fouling: { type: 'Clean / No Fouling', coverage: 0, slimeOnly: false },
       observed: { type: '', level: '' },
     };
 
@@ -61,7 +61,7 @@ describe('report check issues', () => {
     expect(issues.some((issue) => issue.kind === 'MISSING_CONDITION')).toBe(false);
   });
 
-  it('requires a manual percentage when Slime Only is selected', () => {
+  it('requires entered coverage before Slime Only can become a valid condition', () => {
     const [section] = createNicheSections({
       component: 'Rudder',
       type: 'SINGLE',
@@ -69,7 +69,7 @@ describe('report check issues', () => {
       service: 'INSPECTION',
     });
     section.conditions.CURRENT = {
-      fouling: { type: 'Micro fouling', coverage: '1-100% / Slime Only' },
+      fouling: { type: 'Micro fouling', coverage: null, slimeOnly: true },
       observed: { type: '', level: 'Normal / Trace' },
     };
 

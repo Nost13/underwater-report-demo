@@ -6,7 +6,7 @@ import { initialReportState, reportReducer, selectedPages, type ReportState } fr
 import { createSectionTree, folderRelativePath, pickDirectory, scanImages, type DirectoryHandleLike } from './browser/directory';
 import { ThumbnailPool, type ThumbnailLease } from './browser/images';
 import { createCaption, matchPhotoPath, phaseIndexForPhoto } from './domain/photos';
-import { deriveFoulingRating, deriveFoulingType, deriveObservedRating, formatConditionSummary } from './domain/conditions';
+import { deriveFoulingCondition, deriveFoulingRating, deriveFoulingType, deriveObservedRating, formatConditionSummary } from './domain/conditions';
 import { checkReport } from './domain/qa';
 import {
   appendTargetService,
@@ -22,7 +22,6 @@ import {
 } from './domain/structure';
 import type { ExportInput } from './pdf/exportReport';
 import type {
-  FoulingCoverage,
   NicheType,
   ObservedLevel,
   ObservedType,
@@ -611,19 +610,22 @@ function ReportInput(props: ReportInputProps) {
 
 function PhasePanel({ phase, section, sections, photos, dispatch, onAddPhotos, selected, onSelect }: { phase: Phase; section: ReportSection; sections: ReportSection[]; photos: PhotoData[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; onAddPhotos: (sectionId: string, phase: Phase) => void; selected: boolean; onSelect: () => void }) {
   const condition = section.conditions[phase];
-  const foulingRating = deriveFoulingRating(condition?.fouling.coverage ?? '');
-  const foulingType = deriveFoulingType(condition?.fouling.coverage ?? '');
+  const foulingRating = deriveFoulingRating(condition?.fouling.coverage ?? null, condition?.fouling.slimeOnly ?? false);
+  const foulingType = deriveFoulingType(condition?.fouling.coverage ?? null, condition?.fouling.slimeOnly ?? false);
   const observedRating = deriveObservedRating(condition?.observed.level ?? '');
-  const isSlimeOnly = condition?.fouling.coverage === '1-100% / Slime Only';
-  const changeCoverage = (coverage: FoulingCoverage) => dispatch({
-    type: 'UPDATE_CONDITION',
-    sectionId: section.id,
-    phase,
-    patch: { fouling: { coverage, type: deriveFoulingType(coverage), slimeCoverage: coverage === '1-100% / Slime Only' ? condition?.fouling.slimeCoverage ?? null : null } },
-  });
+  const changeCoverage = (coverage: number | null) => {
+    const slimeOnly = coverage === 0 ? false : condition?.fouling.slimeOnly ?? false;
+    const derived = deriveFoulingCondition(coverage, slimeOnly);
+    dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { fouling: { coverage, slimeOnly, type: derived.type } } });
+  };
+  const changeSlimeOnly = (slimeOnly: boolean) => {
+    const coverage = condition?.fouling.coverage ?? null;
+    const derived = deriveFoulingCondition(coverage, slimeOnly);
+    dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { fouling: { slimeOnly, type: derived.type } } });
+  };
   return <section className={`phase-panel ${phase.toLowerCase()}`} aria-label={`${phase} 사진 갤러리`} onClick={onSelect}>
     <div className="phase-head"><div><span>{phase}</span><b>{photos.filter((photo) => photo.reportUse).length} PHOTOS</b></div><div><button type="button" className={selected ? 'phase-target active' : 'phase-target'} aria-label={`${phase} ${selected ? '사진 배정 대상' : '이곳에 배정'}`} onClick={(event) => { event.stopPropagation(); onSelect(); }}>{selected ? '사진 배정 대상' : '이곳에 배정'}</button><button type="button" className="ghost phase-add" aria-label={`${phase}에 사진 추가`} onClick={(event) => { event.stopPropagation(); onAddPhotos(section.id, phase); }}>사진 추가</button></div></div>
-    <div className="condition-tables"><ConditionGroup title="FOULING CONDITION"><label><span>RATING</span><output aria-label={`${phase} fouling rating`} className={`rating-badge rating-${foulingRating || 'empty'}`}>{foulingRating ? `R${foulingRating}` : '—'}</output></label><label><span>TYPE</span><output aria-label={`${phase} fouling type`} className="condition-value">{foulingType || '선택'}</output></label><label><span>SURFACE COVERAGE</span><select aria-label={`${phase} fouling coverage`} value={condition?.fouling.coverage ?? ''} onChange={(event) => changeCoverage(event.target.value as FoulingCoverage)}><option value="">선택</option>{['0%', '1-100% / Slime Only', '1-5%', '6-25%', '26-50%', '51-100%'].map((value) => <option key={value}>{value}</option>)}</select>{isSlimeOnly && <div className="slime-coverage"><input aria-label={`${phase} slime coverage`} type="number" min="1" max="100" value={condition?.fouling.slimeCoverage ?? ''} onChange={(event) => { const value = event.target.value; const slimeCoverage = value === '' ? null : Math.min(100, Math.max(1, Number(value))); dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { fouling: { slimeCoverage } } }); }} /><span>%</span></div>}</label></ConditionGroup><ConditionGroup title="OBSERVED CONDITION"><label><span>RATING</span><output aria-label={`${phase} observed rating`} className={`rating-badge rating-${observedRating || 'empty'}`}>{observedRating ? `R${observedRating}` : '—'}</output></label><label><span>LEVEL</span><select aria-label={`${phase} observed level`} value={condition?.observed.level ?? ''} onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { observed: { level: event.target.value as ObservedLevel } } })}><option value="">없음</option>{['Normal / Trace', 'Minor Observation', 'Notable Observation', 'Significant Observation', 'Critical Observation'].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>TYPE</span><select aria-label={`${phase} observed type`} value={condition?.observed.type ?? ''} onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { observed: { type: event.target.value as ObservedType } } })}><option value="">선택</option>{['Coating', 'Damage', 'Scratch', 'Corrosion', 'Other'].map((value) => <option key={value}>{value}</option>)}</select></label></ConditionGroup></div>
+    <div className="condition-tables"><ConditionGroup title="FOULING CONDITION"><label><span>RATING</span><output aria-label={`${phase} fouling rating`} className={`rating-badge rating-${foulingRating || 'empty'}`}>{foulingRating ? `R${foulingRating}` : '—'}</output></label><label><span>TYPE</span><output aria-label={`${phase} fouling type`} className="condition-value">{foulingType || '선택'}</output></label><label><span>SURFACE COVERAGE</span><div className="coverage-input"><input aria-label={`${phase} fouling coverage`} type="number" min="0" max="100" step="1" value={condition?.fouling.coverage ?? ''} onChange={(event) => { const value = event.target.value; changeCoverage(value === '' ? null : Math.min(100, Math.max(0, Math.round(Number(value))))); }} /><span>%</span></div><label className="slime-toggle"><input aria-label={`${phase} Slime Only`} type="checkbox" checked={condition?.fouling.slimeOnly ?? false} disabled={condition?.fouling.coverage === null || condition?.fouling.coverage === 0} onChange={(event) => changeSlimeOnly(event.target.checked)} /><span>Slime Only</span></label></label></ConditionGroup><ConditionGroup title="OBSERVED CONDITION"><label><span>RATING</span><output aria-label={`${phase} observed rating`} className={`rating-badge rating-${observedRating || 'empty'}`}>{observedRating ? `R${observedRating}` : '—'}</output></label><label><span>LEVEL</span><select aria-label={`${phase} observed level`} value={condition?.observed.level ?? ''} onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { observed: { level: event.target.value as ObservedLevel } } })}><option value="">없음</option>{['Normal / Trace', 'Minor Observation', 'Notable Observation', 'Significant Observation', 'Critical Observation'].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>TYPE</span><select aria-label={`${phase} observed type`} value={condition?.observed.type ?? ''} onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { observed: { type: event.target.value as ObservedType } } })}><option value="">선택</option>{['Coating', 'Damage', 'Scratch', 'Corrosion', 'Other'].map((value) => <option key={value}>{value}</option>)}</select></label></ConditionGroup></div>
     <div className="photo-list">{photos.length ? photos.map((photo) => <PhotoRow key={photo.id} photo={photo} phasePhotos={photos} section={section} phase={phase} sections={sections} dispatch={dispatch} />) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>이 Phase에 사진을 추가하거나 폴더에서 불러오세요.</p></div>}</div>
   </section>;
 }

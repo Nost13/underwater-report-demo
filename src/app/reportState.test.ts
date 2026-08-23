@@ -42,13 +42,13 @@ describe('report state', () => {
       type: 'UPDATE_CONDITION',
       sectionId: section.id,
       phase: 'BEFORE',
-      patch: { fouling: { type: 'Medium Macro Fouling', coverage: '6-25%' } },
+      patch: { fouling: { type: 'Medium Macro Fouling', coverage: 20, slimeOnly: false } },
     });
     expect(next.sections[0].conditions.BEFORE).toMatchObject({
-      fouling: { type: 'Medium Macro Fouling', coverage: '6-25%' },
+      fouling: { type: 'Medium Macro Fouling', coverage: 20, slimeOnly: false },
     });
     expect(next.sections[0].conditions.AFTER).toMatchObject({
-      fouling: { type: 'Clean / No Fouling', coverage: '0%' },
+      fouling: { type: 'Clean / No Fouling', coverage: 0, slimeOnly: false },
     });
   });
 

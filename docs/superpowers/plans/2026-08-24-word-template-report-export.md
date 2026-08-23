@@ -37,7 +37,7 @@
 - Produces \`deriveFoulingCondition(coverage: number | null, slimeOnly: boolean): { rating: string; type: FoulingType }\`.
 - Consumed by report summary, QA, Word mapping, and phase input.
 
-- [ ] **Step 1: Write the failing domain tests for every boundary**
+- [x] **Step 1: Write the failing domain tests for every boundary**
 
 \`\`\`ts
 expect(deriveFoulingCondition(0, false)).toEqual({ rating: '0', type: 'Clean / No Fouling' });
@@ -50,13 +50,13 @@ expect(deriveFoulingCondition(51, false).rating).toBe('5');
 expect(deriveFoulingCondition(70, true)).toEqual({ rating: '1', type: 'Micro fouling' });
 \`\`\`
 
-- [ ] **Step 2: Run the targeted test to verify it fails**
+- [x] **Step 2: Run the targeted test to verify it fails**
 
 Run: \`pnpm vitest run src/domain/conditions.test.ts\`
 
 Expected: FAIL because the percentage-derived function does not exist.
 
-- [ ] **Step 3: Implement the numeric model and helpers**
+- [x] **Step 3: Implement the numeric model and helpers**
 
 \`\`\`ts
 export function deriveFoulingCondition(coverage: number | null, slimeOnly: boolean) {
@@ -72,7 +72,7 @@ export function deriveFoulingCondition(coverage: number | null, slimeOnly: boole
 
 Update \`emptyCondition\`, \`cleanCondition\`, summaries, and reducer merging so AFTER remains 0%/R0 and observed remains Normal / Trace/R1.
 
-- [ ] **Step 4: Write failing UI tests for a percentage field and Slime Only toggle**
+- [x] **Step 4: Write failing UI tests for a percentage field and Slime Only toggle**
 
 \`\`\`ts
 await user.clear(screen.getByLabelText('BEFORE fouling coverage'));
@@ -82,17 +82,17 @@ expect(screen.getByLabelText('BEFORE fouling rating')).toHaveTextContent('R1');
 expect(screen.getByLabelText('BEFORE fouling type')).toHaveTextContent('Micro fouling');
 \`\`\`
 
-- [ ] **Step 5: Replace the coverage dropdown with a number field and visible toggle**
+- [x] **Step 5: Replace the coverage dropdown with a number field and visible toggle**
 
 Clamp UI input to whole values 0–100, disable Slime Only for 0%, derive read-only type/rating, and retain accessible labels.
 
-- [ ] **Step 6: Run the focused test suite**
+- [x] **Step 6: Run the focused test suite**
 
 Run: \`pnpm vitest run src/domain/conditions.test.ts src/App.test.tsx\`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 \`\`\`bash
 git add src/domain/types.ts src/domain/conditions.ts src/domain/conditions.test.ts src/app/reportState.ts src/App.tsx src/App.test.tsx

@@ -192,29 +192,30 @@ describe('desktop report workflow', () => {
     expect(screen.getByText('2 SECTIONS')).toBeVisible();
   });
 
-  it('shows AFTER Clean condition and derives its fouling rating from coverage', async () => {
+  it('shows AFTER Clean condition and derives its fouling rating from entered coverage', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     expect(screen.getByRole('heading', { name: 'Report Input' })).toBeVisible();
-    expect(screen.getByLabelText('AFTER fouling coverage')).toHaveValue('0%');
+    expect(screen.getByLabelText('AFTER fouling coverage')).toHaveValue(0);
     expect(screen.getByLabelText('AFTER fouling rating')).toHaveTextContent('R0');
-    await user.selectOptions(screen.getByLabelText('AFTER fouling coverage'), '1-5%');
+    await user.clear(screen.getByLabelText('AFTER fouling coverage'));
+    await user.type(screen.getByLabelText('AFTER fouling coverage'), '4');
     expect(screen.getByLabelText('AFTER fouling rating')).toHaveTextContent('R2');
   });
 
-  it('collects a manual percentage when BEFORE uses Slime Only', async () => {
+  it('uses a Slime Only toggle to derive Micro fouling from entered coverage', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
-    await user.selectOptions(screen.getByLabelText('BEFORE fouling coverage'), '1-100% / Slime Only');
-    const slimeCoverage = screen.getByLabelText('BEFORE slime coverage');
-    await user.type(slimeCoverage, '37');
+    const coverage = screen.getByLabelText('BEFORE fouling coverage');
+    await user.type(coverage, '37');
+    await user.click(screen.getByLabelText('BEFORE Slime Only'));
 
-    expect(slimeCoverage).toHaveValue(37);
+    expect(coverage).toHaveValue(37);
     expect(screen.getByLabelText('BEFORE fouling rating')).toHaveTextContent('R1');
     expect(screen.getByLabelText('BEFORE fouling type')).toHaveTextContent('Micro fouling');
   });
