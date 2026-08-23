@@ -85,6 +85,21 @@ describe('desktop report workflow', () => {
     expect(screen.getByText('INSPECTION 1')).toBeVisible();
   });
 
+  it('merges a repeated NICHE addition into the existing physical target', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+    await user.selectOptions(screen.getByLabelText('Niche component'), 'Boss Cap');
+    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    await user.click(screen.getByRole('button', { name: 'Inspection 작업 선택' }));
+    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    expect(screen.getAllByRole('button', { name: 'Boss Cap 삭제' })).toHaveLength(1);
+    expect(screen.getByLabelText('BOSS CAP 배정 상태')).toHaveTextContent('CLEANING');
+    expect(screen.getByLabelText('BOSS CAP 배정 상태')).toHaveTextContent('INSPECTION');
+    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    expect(screen.getByText('2 SECTIONS')).toBeVisible();
+  });
+
   it('shows editable AFTER CLEAN/R0 separately in Report Input', async () => {
     const user = userEvent.setup();
     render(<App />);

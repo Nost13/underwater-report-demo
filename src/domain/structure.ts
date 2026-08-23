@@ -118,8 +118,24 @@ export function applyServicePreset(
   ));
 }
 
+export function mergeScopeTargets(targets: ScopeTarget[]): ScopeTarget[] {
+  const unique = new Map<string, ScopeTarget>();
+  for (const target of targets) {
+    const existing = unique.get(target.id);
+    if (!existing) {
+      unique.set(target.id, { ...target, services: [...target.services] });
+      continue;
+    }
+    unique.set(target.id, {
+      ...existing,
+      services: [...new Set([...existing.services, ...target.services])],
+    });
+  }
+  return [...unique.values()];
+}
+
 export function createReportSections(targets: ScopeTarget[]): ReportSection[] {
-  return targets.flatMap((target) =>
+  return mergeScopeTargets(targets).flatMap((target) =>
     target.services.map((service) => makeSection(target, service)),
   );
 }

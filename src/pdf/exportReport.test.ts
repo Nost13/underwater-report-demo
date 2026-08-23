@@ -103,6 +103,6 @@ describe('sequential PDF export', () => {
       'M.V. TEST  |  CLEANING',
       'M.V. TEST  |  INSPECTION',
     ]));
-    expect(savedNames).toEqual(['M_V_TEST_MIXED.pdf']);
+    expect(savedNames).toEqual(['M_V_TEST_MULTI_SERVICE.pdf']);
   });
 });

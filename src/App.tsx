@@ -15,6 +15,7 @@ import {
   createReportSections,
   GENERAL_SIDES,
   GENERAL_ZONES,
+  mergeScopeTargets,
   removeTargetService,
   replaceTargetService,
 } from './domain/structure';
@@ -103,6 +104,7 @@ function SectionLabel({ section }: { section: ReportSection }) {
 
 interface NicheDraft { component: string; type: NicheType; quantity: number }
 interface NicheGroup extends NicheDraft { id: string; targets: ScopeTarget[] }
+interface GeneralScopeState { targets: ScopeTarget[]; undo: ScopeTarget[] | null }
 
 function photoRecords(
   files: Array<{ file: File; relativePath: string }>,
@@ -136,8 +138,10 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
   const [imo, setImo] = useState('9876543');
   const [vessel, setVessel] = useState<(typeof DEMO_VESSELS)[number] | null>(null);
   const [activeService, setActiveService] = useState<ServiceKind>('CLEANING');
-  const [generalTargets, setGeneralTargets] = useState<ScopeTarget[]>(() => createGeneralTargets());
-  const [generalUndo, setGeneralUndo] = useState<ScopeTarget[] | null>(null);
+  const [generalScope, setGeneralScope] = useState<GeneralScopeState>(() => ({
+    targets: createGeneralTargets(),
+    undo: null,
+  }));
   const [nicheDraft, setNicheDraft] = useState<NicheDraft>({ component: 'Sea Chest', type: 'SIDE_QUANTITY', quantity: 2 });
   const [nicheItems, setNicheItems] = useState<NicheGroup[]>([]);
   const [scopeMeta, setScopeMeta] = useState<{ vesselName: string } | null>(null);
@@ -156,6 +160,7 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
   const issues = useMemo(() => checkReport(report.sections, report.photos), [report.sections, report.photos]);
   const sectionList = report.sections.filter((section) => section.id.includes(search.trim().toUpperCase()));
   const safePreviewPage = Math.min(previewPage, Math.max(0, pages.length - 1));
+  const generalTargets = generalScope.targets;
   const draftTargets = [...generalTargets, ...nicheItems.flatMap((item) => item.targets)];
   const draftSections = createReportSections(draftTargets);
   const serviceSummary = [...new Set(
@@ -179,19 +184,32 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
 
   const addNiche = () => setNicheItems((items) => {
     const id = `${nicheDraft.component}-${Date.now()}-${items.length}`;
-    const targets = createNicheTargets({ ...nicheDraft, service: activeService });
-    return [...items, { ...nicheDraft, id, targets }];
+    const incoming = new Map(createNicheTargets({
+      ...nicheDraft,
+      service: activeService,
+    }).map((target) => [target.id, target]));
+    const mergedItems = items.map((item) => ({
+      ...item,
+      targets: item.targets.map((target) => {
+        const addition = incoming.get(target.id);
+        if (!addition) return target;
+        incoming.delete(target.id);
+        return mergeScopeTargets([target, addition])[0];
+      }),
+    }));
+    return incoming.size
+      ? [...mergedItems, { ...nicheDraft, id, targets: [...incoming.values()] }]
+      : mergedItems;
   });
 
   const changeGeneral = (update: (targets: ScopeTarget[]) => ScopeTarget[]) => {
-    setGeneralTargets((current) => {
-      const next = update(current);
+    setGeneralScope((current) => {
+      const next = update(current.targets);
       const changed = next.some((target, index) => (
-        target.services.join('|') !== current[index]?.services.join('|')
+        target.services.join('|') !== current.targets[index]?.services.join('|')
       ));
       if (!changed) return current;
-      setGeneralUndo(current);
-      return next;
+      return { targets: next, undo: current.targets };
     });
   };
 
@@ -323,10 +341,12 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
 
       {stage === 0 && <VesselScope
         imo={imo} setImo={setImo} vessel={vessel} activeService={activeService} setActiveService={setActiveService}
-        generalTargets={generalTargets} generalUndo={generalUndo}
+        generalTargets={generalTargets} generalUndo={generalScope.undo}
         onGeneralReplace={replaceGeneral} onGeneralAppend={appendGeneral} onGeneralRemove={removeGeneral}
         onGeneralPreset={applyGeneral} onGeneralClear={clearGeneral}
-        onGeneralUndo={() => { if (generalUndo) { setGeneralTargets(generalUndo); setGeneralUndo(null); } }}
+        onGeneralUndo={() => setGeneralScope((current) => current.undo
+          ? { targets: current.undo, undo: null }
+          : current)}
         nicheDraft={nicheDraft} setNicheDraft={setNicheDraft} nicheItems={nicheItems}
         addNiche={addNiche} removeNiche={(id) => setNicheItems((items) => items.filter((item) => item.id !== id))}
         onNicheReplace={(groupId, targetId) => changeNicheTarget(groupId, targetId, (target) => replaceTargetService(target, activeService))}

@@ -164,7 +164,7 @@ export async function exportReportPdf(
   }
 
   const services = [...new Set(input.sections.map((section) => section.service))];
-  const serviceLabel = services.length === 1 ? services[0] : 'MIXED';
+  const serviceLabel = services.length === 1 ? services[0] : 'MULTI_SERVICE';
   const safeName = input.fileName ?? `${input.vesselName.replace(/[^a-z0-9]+/gi, '_')}_${serviceLabel}.pdf`;
   pdf.save(safeName);
   return { skipped };

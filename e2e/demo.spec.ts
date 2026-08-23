@@ -135,6 +135,24 @@ test('one physical target can carry two services with unambiguous folders', asyn
   expect(paths.filter((path) => /\/(BEFORE|AFTER)$/.test(path))).toHaveLength(32);
 });
 
+test('an Inspection exception uses CURRENT while other Sections keep BEFORE and AFTER', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Vessel 확인' }).click();
+  await page.getByRole('button', { name: '전체 적용' }).click();
+  await page.getByRole('button', { name: 'Inspection 작업 선택' }).click();
+  await page.getByRole('button', { name: 'AFT STBD 작업 배정', exact: true }).click();
+  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await page.getByRole('button', { name: 'Report Input 바로가기' }).click();
+
+  await expect(page.locator('.phase-panel.before')).toBeVisible();
+  await expect(page.locator('.phase-panel.after')).toBeVisible();
+  await page.locator('.section-row').filter({ hasText: 'INSPECTION' }).click();
+  await expect(page.locator('.phase-panel.current')).toBeVisible();
+  await expect(page.locator('.phase-panel.before')).toHaveCount(0);
+  await expect(page.locator('.phase-panel.after')).toHaveCount(0);
+});
+
 test('complete 1440px flow covers five-page virtualization, QA focus, shrink, and PDF', async ({ page }) => {
   test.setTimeout(90_000);
   const browserErrors: string[] = [];

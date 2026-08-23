@@ -108,6 +108,23 @@ describe('report structure rules', () => {
     });
   });
 
+  it('deduplicates repeated physical NICHE targets and merges their Services', () => {
+    const cleaning = createNicheTargets({
+      component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'CLEANING',
+    });
+    const repeated = createNicheTargets({
+      component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'CLEANING',
+    });
+    const inspection = createNicheTargets({
+      component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'INSPECTION',
+    });
+    const sections = createReportSections([...cleaning, ...repeated, ...inspection]);
+    expect(sections.map((section) => section.id)).toEqual([
+      'CLEANING/NICHE/BOSS CAP',
+      'INSPECTION/NICHE/BOSS CAP',
+    ]);
+  });
+
   it.each([
     ['SINGLE', 1],
     ['SIDE', 2],
