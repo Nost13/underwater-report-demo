@@ -22,6 +22,7 @@ export interface ComponentOption {
 export const COMPONENT_OPTIONS: ComponentOption[] = [
   { name: 'Sea Chest', defaultType: 'SIDE_QUANTITY', defaultQuantity: 2 },
   { name: 'Propeller Blade', defaultType: 'QUANTITY', defaultQuantity: 4 },
+  { name: 'Fin Blade', defaultType: 'QUANTITY', defaultQuantity: 4 },
   { name: 'Rope Guard', defaultType: 'SINGLE', defaultQuantity: 1 },
   { name: 'Boss Cap', defaultType: 'SINGLE', defaultQuantity: 1 },
   { name: 'Transducer', defaultType: 'SINGLE', defaultQuantity: 1 },

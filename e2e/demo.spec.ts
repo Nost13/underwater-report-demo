@@ -15,6 +15,19 @@ async function buildGeneralScope(page: import('@playwright/test').Page) {
   await expect(page.getByRole('button', { name: 'Cleaning 작업 선택' })).toBeDisabled();
 }
 
+test('Fin Blade uses clear quantity controls at 1440px', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Vessel 확인' }).click();
+  await page.getByLabel('Niche component').selectOption('Fin Blade');
+  await expect(page.getByLabel('Quantity')).toHaveValue('4');
+  await expect(page.getByRole('button', { name: '수량 감소' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '수량 증가' })).toBeVisible();
+  await page.getByRole('button', { name: '수량 증가' }).click();
+  await expect(page.getByLabel('Quantity')).toHaveValue('5');
+  await page.screenshot({ path: 'e2e/fin-blade-stepper-1440.png', fullPage: true });
+});
+
 test('the unified photo input creates the exact GENERAL directory tree', async ({ page }) => {
   await page.addInitScript(() => {
     const created: string[] = [];

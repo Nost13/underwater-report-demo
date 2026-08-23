@@ -85,6 +85,38 @@ describe('desktop report workflow', () => {
     expect(screen.getByText('INSPECTION 1')).toBeVisible();
   });
 
+  it('uses visible quantity controls for side-less Fin Blade units', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+    await user.selectOptions(screen.getByLabelText('Niche component'), 'Fin Blade');
+
+    expect(screen.getByLabelText('Quantity')).toHaveValue(4);
+    await user.click(screen.getByRole('button', { name: '수량 증가' }));
+    expect(screen.getByLabelText('Quantity')).toHaveValue(5);
+    await user.click(screen.getByRole('button', { name: '수량 감소' }));
+    expect(screen.getByLabelText('Quantity')).toHaveValue(4);
+
+    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    expect(screen.getByLabelText('FIN BLADE UNIT 04 배정 상태')).toBeVisible();
+    expect(screen.queryByLabelText('FIN BLADE PORT UNIT 01 배정 상태')).not.toBeInTheDocument();
+  });
+
+  it('keeps the quantity buttons within the 1 to 12 range', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const decrease = screen.getByRole('button', { name: '수량 감소' });
+    const increase = screen.getByRole('button', { name: '수량 증가' });
+
+    await user.click(decrease);
+    expect(screen.getByLabelText('Quantity')).toHaveValue(1);
+    expect(decrease).toBeDisabled();
+
+    for (let count = 0; count < 11; count += 1) await user.click(increase);
+    expect(screen.getByLabelText('Quantity')).toHaveValue(12);
+    expect(increase).toBeDisabled();
+  });
+
   it('merges a repeated NICHE addition into the existing physical target', async () => {
     const user = userEvent.setup();
     render(<App />);

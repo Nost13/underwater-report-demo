@@ -13,6 +13,7 @@ export const GENERAL_ZONES = ['FWD', 'FWD-MID', 'MID', 'MID-AFT', 'AFT'] as cons
 export const GENERAL_SIDES = ['PORT', 'STBD', 'BOTTOM'] as const;
 export const SIDELESS_COMPONENTS = new Set([
   'PROPELLER BLADE',
+  'FIN BLADE',
   'ROPE GUARD',
   'BOSS CAP',
   'TRANSDUCER',

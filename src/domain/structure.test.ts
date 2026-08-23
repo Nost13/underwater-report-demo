@@ -141,7 +141,7 @@ describe('report structure rules', () => {
     ).toHaveLength(expected);
   });
 
-  it.each(['Propeller Blade', 'Rope Guard', 'Boss Cap', 'Transducer', 'Stern Frame'])(
+  it.each(['Propeller Blade', 'Fin Blade', 'Rope Guard', 'Boss Cap', 'Transducer', 'Stern Frame'])(
     '%s never receives PORT or STBD',
     (component) => {
       const sections = createNicheSections({
