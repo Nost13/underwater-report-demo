@@ -32,7 +32,7 @@ import type {
 } from './domain/types';
 
 const thumbnails = new ThumbnailPool();
-const stages = ['Vessel / Scope', '사진 입력', 'Report Input', 'Check / Preview', 'PDF'];
+const stages = ['준비', 'Report Input', 'Check / Preview', 'PDF'];
 
 const newId = () =>
   globalThis.crypto?.randomUUID?.() ?? `photo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -344,11 +344,11 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
 
   return <main className="app-shell">
     <input {...{ webkitdirectory: '' }} ref={fallbackInput} className="visually-hidden" type="file" multiple accept="image/*" onChange={(event) => importFallback(event.target.files)} />
-    <StageRail active={stage} onMove={(next) => { if (report.sections.length || next === 0) setStage(next); }} />
+    <StageRail active={stage < 2 ? 0 : stage - 1} onMove={(next) => { const nextStage = next === 0 ? 0 : next + 1; if (report.sections.length || nextStage === 0) setStage(nextStage); }} />
     <section className="app-main">
       <header className="topbar"><div><p className="eyebrow">UNDERWATER SERVICE REPORT</p><h1>{scopeMeta?.vesselName ?? vessel?.name ?? 'New report'}</h1></div><div className="top-meta"><span>{serviceSummary}</span><span>{report.sections.length} SECTIONS</span><span>{report.photos.length} PHOTOS</span></div></header>
 
-      {stage === 0 && <VesselScope
+      {stage === 0 && <><VesselScope
         imo={imo} setImo={setImo} vessel={vessel} activeService={activeService} setActiveService={selectService}
         generalTargets={generalTargets} generalUndo={generalScope.undo}
         onGeneralReplace={replaceGeneral} onGeneralAppend={appendGeneral} onGeneralRemove={removeGeneral}
@@ -364,8 +364,12 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
         onNicheRemove={(groupId, targetId, service) => changeNicheTarget(groupId, targetId, (target) => removeTargetService(target, service))}
         onLookup={() => setVessel(DEMO_VESSELS.find((item) => item.imo === imo.trim()) ?? null)}
         onBuild={buildScope} onReset={resetScope} sectionCount={report.sections.length} draftSections={draftSections}
-        onPhotos={() => setStage(1)} onInput={() => setStage(2)}
-      />}
+      /><PhotoSource embedded
+        photoCount={report.photos.length} matchedCount={report.photos.length - unmatched.length} unmatchedCount={unmatched.length}
+        status={status} hasFolder={Boolean(folder)} folderName={folder?.name ?? null} sections={report.sections}
+        onSelect={selectPhotoFolder} onCreate={createFolders} onLoad={reloadFolder}
+        onDemo={loadDemo} onBack={() => setStage(0)} onNext={() => setStage(2)}
+      /></>}
 
       {stage === 1 && <PhotoSource
         photoCount={report.photos.length} matchedCount={report.photos.length - unmatched.length} unmatchedCount={unmatched.length}
@@ -455,7 +459,7 @@ interface VesselScopeProps {
   onNicheAppend: (groupId: string, targetId: string) => void;
   onNicheRemove: (groupId: string, targetId: string, service: ServiceKind) => void;
   onLookup: () => void; onBuild: () => void; onReset: () => void;
-  sectionCount: number; draftSections: ReportSection[]; onPhotos: () => void; onInput: () => void;
+  sectionCount: number; draftSections: ReportSection[];
 }
 
 function VesselScope(props: VesselScopeProps) {
@@ -502,7 +506,6 @@ function VesselScope(props: VesselScopeProps) {
         {locked && <div className="scope-ready"><b>총 {props.sectionCount} sections</b><em>Condition과 phase가 준비되었습니다.</em><button type="button" className="text-button" onClick={props.onReset}>Scope 초기화</button></div>}
       </section>
     </div>
-    <div className="actionbar"><span>{props.sectionCount ? 'Scope가 준비되었습니다.' : 'Vessel 확인 후 Section에 작업을 배정하세요.'}</span><div><button type="button" className="ghost" disabled={!props.sectionCount} onClick={props.onInput}>Report Input 바로가기</button><button type="button" className="primary" disabled={!props.sectionCount} onClick={props.onPhotos}>사진 입력으로</button></div></div>
   </div>;
 }
 
@@ -510,23 +513,31 @@ interface PhotoSourceProps {
   photoCount: number; matchedCount: number; unmatchedCount: number; status: string; hasFolder: boolean; folderName: string | null; sections: ReportSection[];
   onSelect: () => void; onCreate: () => void; onLoad: () => void;
   onDemo: () => void; onBack: () => void; onNext: () => void;
+  embedded?: boolean;
 }
 
 function PhotoSource(props: PhotoSourceProps) {
-  const firstSection = props.sections[0];
-  const samplePath = firstSection ? `${firstSection.id.replaceAll('/', ' / ')} / ${firstSection.phases[0]}` : 'Scope를 먼저 만드세요';
   const phaseFolderCount = props.sections.reduce((total, section) => total + section.phases.length, 0);
+  const scopeGroups = SERVICES.flatMap(({ value }) => {
+    const serviceSections = props.sections.filter((section) => section.service === value);
+    return (['GENERAL', 'NICHE'] as const).flatMap((area) => {
+      const sections = serviceSections.filter((section) => section.area === area);
+      if (!sections.length) return [];
+      const label = area === 'GENERAL' ? 'GENERAL' : [...new Set(sections.map((section) => section.component))].join(', ');
+      return [{ service: value, label, count: sections.length, phases: [...new Set(sections.flatMap((section) => section.phases))] }];
+    });
+  });
   const folderState = props.hasFolder
     ? `“${props.folderName}” 폴더 선택됨`
     : '사진 폴더를 아직 선택하지 않았습니다.';
 
-  return <div className="workspace wide"><div className="page-heading"><div><p className="step-kicker">STEP 02</p><h2>사진 폴더</h2><p>원본은 로컬 File 참조로만 유지하며 서버로 전송하지 않습니다.</p></div><span className="privacy-chip">{props.photoCount} PHOTOS</span></div>
-    <section className="method-card recommended photo-folder-card"><div className="method-top"><span>02</span><em>ONE FLOW</em></div><h3>사진 입력 순서</h3><p>새 작업과 기존 사진 폴더 모두 같은 흐름입니다. 경로가 정확히 맞으면 자동 배정하고, 확신할 수 없는 사진은 UNMATCHED로 분리합니다.</p>
-      <ol className="photo-flow" aria-label="사진 입력 순서"><li className={props.hasFolder ? 'done' : 'active'}><span>1</span><div><b>사진 폴더 선택</b><small>OneDrive 또는 기존 사진 폴더를 선택</small></div><em>{props.hasFolder ? '완료' : '지금 하기'}</em></li><li className={props.hasFolder ? 'active' : ''}><span>2</span><div><b>새 작업: 구조 생성</b><small>새 폴더에 사진을 넣을 때만 필요</small></div><em>{props.hasFolder ? '선택' : '폴더 선택 후'}</em></li><li className={props.photoCount ? 'done' : props.hasFolder ? 'active' : ''}><span>3</span><div><b>사진 불러오기</b><small>자동 매칭 결과와 UNMATCHED 확인</small></div><em>{props.photoCount ? `${props.photoCount}장 완료` : props.hasFolder ? '준비됨' : '대기'}</em></li></ol>
-      <section className="photo-scope-summary" aria-label="현재 작업 범위"><p>현재 작업 범위</p><code>{samplePath}</code><span>총 {props.sections.length}개 Section · {phaseFolderCount}개 사진 폴더</span><small>SERVICE 폴더는 같은 위치에 여러 Service가 있을 때만 자동으로 추가됩니다.</small></section>
-      <div className="photo-folder-actions"><div className="photo-action"><span>1</span><button type="button" className="primary" onClick={props.onSelect}>사진 폴더 선택</button></div><div className="photo-action"><span>2</span><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onCreate}>표준 폴더 구조 생성</button></div><div className="photo-action"><span>3</span><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onLoad}>사진 불러오기</button></div></div><p className="folder-help"><b>새 작업</b>은 1 → 2 → 사진 넣기 → 3, <b>기존 사진</b>은 1 → 3으로 진행하세요.</p></section>
+  return <div id={props.embedded ? 'photo-source' : undefined} className={props.embedded ? 'photo-source-section' : 'workspace wide'}>{!props.embedded && <div className="page-heading"><div><p className="step-kicker">STEP 02</p><h2>사진 폴더</h2><p>원본은 로컬 File 참조로만 유지하며 서버로 전송하지 않습니다.</p></div><span className="privacy-chip">{props.photoCount} PHOTOS</span></div>}
+    <section className="method-card recommended photo-folder-card"><div className="method-top"><span>03</span><em>PHOTO INPUT</em></div><h3>사진 폴더</h3><p>사진을 넣기 전 폴더 구조로 분류하거나, 이미 있는 사진을 불러온 뒤 경로로 분류할 수 있습니다.</p>
+      <ol className="photo-flow" aria-label="사진 입력 순서"><li className={props.hasFolder ? 'done' : 'active'}><span>1</span><div><b>사진 폴더 선택</b><small>사진이 저장된 폴더를 선택합니다.</small></div><em>{props.hasFolder ? '완료' : '시작'}</em></li><li className={props.hasFolder ? 'active' : ''}><span>2</span><div><b>표준 폴더 구조 생성 <i>선분류</i></b><small>선택 폴더 안에 선택된 Scope와 구역의 폴더 구조를 생성합니다.</small></div><em>{props.hasFolder ? '선택' : '폴더 선택 후'}</em></li><li className={props.photoCount ? 'done' : props.hasFolder ? 'active' : ''}><span>3</span><div><b>사진 불러오기 <i>후분류</i></b><small>선택 폴더의 사진을 불러와 경로 기준으로 자동 매칭합니다.</small></div><em>{props.photoCount ? `${props.photoCount}장 완료` : props.hasFolder ? '준비됨' : '대기'}</em></li></ol>
+      <section className="photo-scope-summary" aria-label="현재 작업 범위"><p>현재 작업 범위</p><div className="scope-work-list">{scopeGroups.map((group) => <div key={`${group.service}-${group.label}`}><b>{group.service}</b><span>{group.label} · {group.count}개 구역 · {group.phases.join(' / ')}</span></div>)}</div><small>총 {props.sections.length}개 Section · {phaseFolderCount}개 사진 폴더 · SERVICE 폴더는 같은 위치에 여러 Service가 있을 때만 추가됩니다.</small></section>
+      <div className="photo-folder-actions"><div className="photo-action"><span>1</span><button type="button" className="primary" onClick={props.onSelect}>사진 폴더 선택</button></div><div className="photo-action"><span>2</span><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onCreate}>표준 폴더 구조 생성</button></div><div className="photo-action"><span>3</span><button type="button" className="ghost" disabled={!props.hasFolder} onClick={props.onLoad}>사진 불러오기</button></div></div><p className="folder-help"><b>선분류</b>는 사진을 넣기 전 표준 폴더를 만드는 방식이고, <b>후분류</b>는 기존 사진을 불러온 뒤 경로로 자동 분류하는 방식입니다.</p></section>
     <section className="demo-strip"><div><b>빠른 동작 확인</b><span>선택된 첫 Section에 BEFORE 3장 + AFTER 4장을 생성합니다.</span></div><button type="button" className="ghost" onClick={props.onDemo}>샘플 사진 7장 불러오기</button></section>
-    <section className="status-line photo-input-status" aria-label="사진 입력 상태"><div><p>현재 사진 상태</p><b>{folderState}</b></div><div><strong>사진 {props.photoCount}장</strong><span>자동 매칭 {props.matchedCount}장 · UNMATCHED {props.unmatchedCount}장</span></div><small>{props.status}</small></section><div className="actionbar"><button type="button" className="text-button" onClick={props.onBack}>← Vessel / Scope</button><button type="button" className="primary" onClick={props.onNext}>Report Input으로</button></div>
+    <section className="status-line photo-input-status" aria-label="사진 입력 상태"><div><p>현재 사진 상태</p><b>{folderState}</b></div><div><strong>사진 {props.photoCount}장</strong><span>자동 매칭 {props.matchedCount}장 · UNMATCHED {props.unmatchedCount}장</span></div><small>{props.status}</small></section>{props.embedded ? <div className="photo-next-row"><button type="button" className="primary" onClick={props.onNext}>Report Input으로</button></div> : <div className="actionbar"><button type="button" className="text-button" onClick={props.onBack}>← Vessel / Scope</button><button type="button" className="primary" onClick={props.onNext}>Report Input으로</button></div>}
   </div>;
 }
 

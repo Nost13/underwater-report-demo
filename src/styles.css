@@ -169,6 +169,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .photo-flow li > span { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #e3eaed; color: #617882; font-size: 9px; font-weight: 900; }
 .photo-flow b, .photo-flow small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .photo-flow b { color: #35525d; font-size: 9px; }
+.photo-flow i { margin-left: 5px; padding: 2px 4px; border-radius: 4px; background: #e1f2ef; color: var(--teal-700); font-size: 7px; font-style: normal; font-weight: 900; }
 .photo-flow small { margin-top: 3px; color: #7b8d94; font-size: 7px; }
 .photo-flow em { grid-column: 2; color: #6e828a; font-size: 7px; font-style: normal; font-weight: 800; }
 .photo-flow li.active { border-color: #9bcfc8; background: #f1fbfa; }
@@ -177,9 +178,14 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .photo-flow li.done em { color: var(--teal-700); }
 .photo-scope-summary { margin: 0 0 16px; padding: 13px 14px; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; row-gap: 5px; border: 1px solid #c9dfe0; border-radius: 9px; background: #f5fbfb; }
 .photo-scope-summary p { grid-column: 1 / -1; margin: 0; color: var(--teal-700); font-size: 8px; font-weight: 900; letter-spacing: .08em; }
-.photo-scope-summary code { overflow: hidden; color: #173f47; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
-.photo-scope-summary span { align-self: center; color: #56717a; font-size: 9px; font-weight: 750; text-align: right; }
+.scope-work-list { grid-column: 1 / -1; display: grid; gap: 5px; }
+.scope-work-list > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.scope-work-list b { color: #173f47; font-size: 10px; }
+.scope-work-list span { color: #56717a; font-size: 9px; font-weight: 750; text-align: right; }
 .photo-scope-summary small { grid-column: 1 / -1; color: #71858c; font-size: 8px; }
+.photo-source-section { max-width: 1260px; margin: 0 auto; padding: 0 30px 90px; scroll-margin-top: 24px; }
+.photo-source-section .photo-folder-card { margin-top: 0; }
+.photo-next-row { display: flex; justify-content: flex-end; margin-top: 14px; }
 .photo-folder-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .photo-action { display: flex; align-items: center; gap: 5px; }
 .photo-action > span { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: #e5ecee; color: #56717b; font-size: 8px; font-weight: 900; }

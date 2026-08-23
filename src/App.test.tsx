@@ -187,7 +187,7 @@ describe('desktop report workflow', () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
-    await user.click(screen.getByRole('button', { name: 'Report Input 바로가기' }));
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     expect(screen.getByRole('heading', { name: 'Report Input' })).toBeVisible();
     expect(screen.getByLabelText('AFTER condition')).toHaveValue('CLEAN');
     expect(screen.getByLabelText('AFTER rating')).toHaveValue('R0');
@@ -199,7 +199,7 @@ describe('desktop report workflow', () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
-    await user.click(screen.getByRole('button', { name: 'Report Input 바로가기' }));
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
     const sectionSelect = screen.getByLabelText('Report section');
     expect(sectionSelect).toHaveValue('CLEANING/GENERAL/FWD/PORT');
@@ -217,7 +217,6 @@ describe('desktop report workflow', () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
     await buildCleaningGeneral(user);
-    await user.click(screen.getByRole('button', { name: '사진 입력으로' }));
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     await user.upload(input, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
@@ -237,7 +236,6 @@ describe('desktop report workflow', () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
-    await user.click(screen.getByRole('button', { name: '사진 입력으로' }));
 
     expect(screen.getByRole('heading', { name: '사진 폴더' })).toBeVisible();
     expect(screen.queryByText('OneDrive ‘사진’ 폴더')).not.toBeInTheDocument();
@@ -251,21 +249,37 @@ describe('desktop report workflow', () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
-    await user.click(screen.getByRole('button', { name: '사진 입력으로' }));
 
     expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('사진 폴더 선택');
-    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('새 작업: 구조 생성');
+    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('표준 폴더 구조 생성');
+    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('선분류');
     expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('사진 불러오기');
-    expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('CLEANING / GENERAL / FWD / PORT / BEFORE');
+    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('후분류');
+    expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('CLEANING');
+    expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('GENERAL · 15개 구역 · BEFORE / AFTER');
     expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('총 15개 Section · 30개 사진 폴더');
     expect(screen.getByLabelText('사진 입력 상태')).toHaveTextContent('사진 폴더를 아직 선택하지 않았습니다.');
+  });
+
+  it('keeps Scope and photo-folder classification on the same setup page', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+
+    expect(screen.getByRole('heading', { name: 'Vessel / Scope' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '사진 폴더' })).toBeVisible();
+    expect(screen.getByRole('button', { name: /01.*준비/ })).toBeVisible();
+    expect(screen.getAllByText('선분류').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('후분류').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('CLEANING');
+    expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('GENERAL · 15개 구역 · BEFORE / AFTER');
   });
 
   it('runs the local PDF exporter from the final stage', async () => {
     const user = userEvent.setup();
     render(<App exporter={async () => ({ skipped: [] })} />);
     await buildCleaningGeneral(user);
-    await user.click(screen.getByRole('button', { name: 'Report Input 바로가기' }));
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
     await user.click(screen.getByRole('button', { name: 'PDF 준비' }));
     await user.click(screen.getByRole('button', { name: 'PDF 다운로드' }));

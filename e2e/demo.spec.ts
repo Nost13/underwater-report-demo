@@ -65,7 +65,6 @@ test('the unified photo input creates the exact GENERAL directory tree', async (
   });
 
   await buildGeneralScope(page);
-  await page.getByRole('button', { name: '사진 입력으로' }).click();
   await page.getByRole('button', { name: '사진 폴더 선택' }).click();
   await page.getByRole('button', { name: '표준 폴더 구조 생성' }).click();
   await expect(page.locator('.status-line')).toContainText('15개 Section의 폴더');
@@ -82,7 +81,6 @@ test('the unified photo input creates the exact GENERAL directory tree', async (
 
 test('the unified photo input imports UNMATCHED, assigns, unassigns, and reassigns', async ({ page }) => {
   await buildGeneralScope(page);
-  await page.getByRole('button', { name: '사진 입력으로' }).click();
   const directoryInput = page.locator('input[type="file"]');
   await expect(directoryInput).toHaveAttribute('webkitdirectory', '');
   await directoryInput.setInputFiles('e2e/fixtures');
@@ -152,7 +150,6 @@ test('one physical target can carry two services with unambiguous folders', asyn
   await expect(page.locator('.scope-summary')).toContainText('CLEANING 15');
   await expect(page.locator('.scope-summary')).toContainText('POLISHING 1');
 
-  await page.getByRole('button', { name: '사진 입력으로' }).click();
   await page.getByRole('button', { name: '사진 폴더 선택' }).click();
   await page.getByRole('button', { name: '표준 폴더 구조 생성' }).click();
   const paths = await page.evaluate(() => (window as unknown as Window & { __createdPaths: string[] }).__createdPaths);
@@ -174,7 +171,7 @@ test('an Inspection exception uses CURRENT while other Sections keep BEFORE and 
   await page.getByRole('button', { name: 'Inspection 작업 선택' }).click();
   await page.getByRole('button', { name: 'AFT STBD 작업 배정', exact: true }).click();
   await page.getByRole('button', { name: 'Scope 만들기' }).click();
-  await page.getByRole('button', { name: 'Report Input 바로가기' }).click();
+  await page.getByRole('button', { name: 'Report Input으로' }).click();
 
   await expect(page.locator('.phase-panel.before')).toBeVisible();
   await expect(page.locator('.phase-panel.after')).toBeVisible();
@@ -193,7 +190,6 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   });
 
   await buildGeneralScope(page);
-  await page.getByRole('button', { name: '사진 입력으로' }).click();
   for (let index = 0; index < 4; index += 1) {
     await page.getByRole('button', { name: '샘플 사진 7장 불러오기' }).click();
     await expect(page.locator('.status-line')).toContainText('샘플 사진 7장', { timeout: 20_000 });
