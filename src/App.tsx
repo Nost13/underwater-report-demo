@@ -7,7 +7,17 @@ import { createSectionTree, folderRelativePath, pickDirectory, scanImages, type 
 import { ThumbnailPool, type ThumbnailLease } from './browser/images';
 import { createCaption, matchPhotoPath, phaseIndexForPhoto } from './domain/photos';
 import { checkReport } from './domain/qa';
-import { createGeneralSections, createNicheSections } from './domain/structure';
+import {
+  appendTargetService,
+  applyServicePreset,
+  createGeneralTargets,
+  createNicheTargets,
+  createReportSections,
+  GENERAL_SIDES,
+  GENERAL_ZONES,
+  removeTargetService,
+  replaceTargetService,
+} from './domain/structure';
 import type { ExportInput } from './pdf/exportReport';
 import type {
   ConditionClass,
@@ -16,6 +26,7 @@ import type {
   Phase,
   PhotoData,
   ReportSection,
+  ScopeTarget,
   ServiceKind,
 } from './domain/types';
 
@@ -87,10 +98,11 @@ function StageRail({ active, onMove }: { active: number; onMove: (stage: number)
 function SectionLabel({ section }: { section: ReportSection }) {
   const detail = [section.side, section.unit ? `UNIT ${String(section.unit).padStart(2, '0')}` : null]
     .filter(Boolean).join(' · ') || section.area;
-  return <><strong>{section.component}</strong><span>{detail}</span></>;
+  return <><strong>{section.component}</strong><span>{section.service} · {detail}</span></>;
 }
 
 interface NicheDraft { component: string; type: NicheType; quantity: number }
+interface NicheGroup extends NicheDraft { id: string; targets: ScopeTarget[] }
 
 function photoRecords(
   files: Array<{ file: File; relativePath: string }>,
@@ -123,10 +135,11 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
   const [stage, setStage] = useState(0);
   const [imo, setImo] = useState('9876543');
   const [vessel, setVessel] = useState<(typeof DEMO_VESSELS)[number] | null>(null);
-  const [service, setService] = useState<ServiceKind>('CLEANING');
-  const [includeGeneral, setIncludeGeneral] = useState(true);
+  const [activeService, setActiveService] = useState<ServiceKind>('CLEANING');
+  const [generalTargets, setGeneralTargets] = useState<ScopeTarget[]>(() => createGeneralTargets());
+  const [generalUndo, setGeneralUndo] = useState<ScopeTarget[] | null>(null);
   const [nicheDraft, setNicheDraft] = useState<NicheDraft>({ component: 'Sea Chest', type: 'SIDE_QUANTITY', quantity: 2 });
-  const [nicheItems, setNicheItems] = useState<NicheDraft[]>([]);
+  const [nicheItems, setNicheItems] = useState<NicheGroup[]>([]);
   const [scopeMeta, setScopeMeta] = useState<{ vesselName: string; service: ServiceKind } | null>(null);
   const [report, dispatch] = useReducer(reportReducer, initialReportState);
   const [folder, setFolder] = useState<DirectoryHandleLike | null>(null);
@@ -143,14 +156,16 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
   const issues = useMemo(() => checkReport(report.sections, report.photos), [report.sections, report.photos]);
   const sectionList = report.sections.filter((section) => section.id.includes(search.trim().toUpperCase()));
   const safePreviewPage = Math.min(previewPage, Math.max(0, pages.length - 1));
+  const draftTargets = [...generalTargets, ...nicheItems.flatMap((item) => item.targets)];
+  const draftSections = createReportSections(draftTargets);
+  const serviceSummary = [...new Set(
+    (report.sections.length ? report.sections : draftSections).map((section) => section.service),
+  )].join(' + ') || activeService;
 
   const buildScope = () => {
-    const sections = [
-      ...(includeGeneral ? createGeneralSections(service) : []),
-      ...nicheItems.flatMap((item) => createNicheSections({ ...item, service })),
-    ];
+    const sections = createReportSections(draftTargets);
     dispatch({ type: 'SET_SCOPE', sections });
-    setScopeMeta({ vesselName: vessel?.name ?? 'UNDERWATER REPORT', service });
+    setScopeMeta({ vesselName: vessel?.name ?? 'UNDERWATER REPORT', service: activeService });
     setPreviewPage(0);
   };
 
@@ -162,7 +177,60 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
     setStatus('사진 폴더를 선택하거나 샘플 사진으로 흐름을 확인하세요.');
   };
 
-  const addNiche = () => setNicheItems((items) => [...items, { ...nicheDraft }]);
+  const addNiche = () => setNicheItems((items) => {
+    const id = `${nicheDraft.component}-${Date.now()}-${items.length}`;
+    const targets = createNicheTargets({ ...nicheDraft, service: activeService });
+    return [...items, { ...nicheDraft, id, targets }];
+  });
+
+  const changeGeneral = (update: (targets: ScopeTarget[]) => ScopeTarget[]) => {
+    setGeneralTargets((current) => {
+      const next = update(current);
+      const changed = next.some((target, index) => (
+        target.services.join('|') !== current[index]?.services.join('|')
+      ));
+      if (!changed) return current;
+      setGeneralUndo(current);
+      return next;
+    });
+  };
+
+  const replaceGeneral = (targetId: string) => changeGeneral((targets) =>
+    targets.map((target) => target.id === targetId
+      ? replaceTargetService(target, activeService)
+      : target),
+  );
+
+  const appendGeneral = (targetId: string) => changeGeneral((targets) =>
+    targets.map((target) => target.id === targetId
+      ? appendTargetService(target, activeService)
+      : target),
+  );
+
+  const removeGeneral = (targetId: string, service: ServiceKind) => changeGeneral((targets) =>
+    targets.map((target) => target.id === targetId
+      ? removeTargetService(target, service)
+      : target),
+  );
+
+  const applyGeneral = (side?: ScopeTarget['side']) => changeGeneral((targets) =>
+    applyServicePreset(targets, activeService, (target) => !side || target.side === side),
+  );
+
+  const clearGeneral = () => changeGeneral((targets) =>
+    targets.map((target) => ({ ...target, services: [] })),
+  );
+
+  const changeNicheTarget = (
+    groupId: string,
+    targetId: string,
+    update: (target: ScopeTarget) => ScopeTarget,
+  ) => setNicheItems((items) => items.map((item) => item.id === groupId
+    ? {
+      ...item,
+      targets: item.targets.map((target) => target.id === targetId ? update(target) : target),
+    }
+    : item));
 
   const createFolders = async () => {
     if (!folder) return;
@@ -234,7 +302,7 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
     try {
       const result = await exporter({
         vesselName: scopeMeta?.vesselName ?? 'UNDERWATER REPORT',
-        service: scopeMeta?.service ?? service,
+        service: scopeMeta?.service ?? activeService,
         sections: report.sections,
         photos: report.photos,
       });
@@ -252,15 +320,21 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
     <input {...{ webkitdirectory: '' }} ref={fallbackInput} className="visually-hidden" type="file" multiple accept="image/*" onChange={(event) => importFallback(event.target.files)} />
     <StageRail active={stage} onMove={(next) => { if (report.sections.length || next === 0) setStage(next); }} />
     <section className="app-main">
-      <header className="topbar"><div><p className="eyebrow">UNDERWATER SERVICE REPORT</p><h1>{scopeMeta?.vesselName ?? vessel?.name ?? 'New report'}</h1></div><div className="top-meta"><span>{scopeMeta?.service ?? service}</span><span>{report.sections.length} SECTIONS</span><span>{report.photos.length} PHOTOS</span></div></header>
+      <header className="topbar"><div><p className="eyebrow">UNDERWATER SERVICE REPORT</p><h1>{scopeMeta?.vesselName ?? vessel?.name ?? 'New report'}</h1></div><div className="top-meta"><span>{serviceSummary}</span><span>{report.sections.length} SECTIONS</span><span>{report.photos.length} PHOTOS</span></div></header>
 
       {stage === 0 && <VesselScope
-        imo={imo} setImo={setImo} vessel={vessel} service={service} setService={setService}
-        includeGeneral={includeGeneral} setIncludeGeneral={setIncludeGeneral}
+        imo={imo} setImo={setImo} vessel={vessel} activeService={activeService} setActiveService={setActiveService}
+        generalTargets={generalTargets} generalUndo={generalUndo}
+        onGeneralReplace={replaceGeneral} onGeneralAppend={appendGeneral} onGeneralRemove={removeGeneral}
+        onGeneralPreset={applyGeneral} onGeneralClear={clearGeneral}
+        onGeneralUndo={() => { if (generalUndo) { setGeneralTargets(generalUndo); setGeneralUndo(null); } }}
         nicheDraft={nicheDraft} setNicheDraft={setNicheDraft} nicheItems={nicheItems}
-        addNiche={addNiche} removeNiche={(index) => setNicheItems((items) => items.filter((_, itemIndex) => itemIndex !== index))}
+        addNiche={addNiche} removeNiche={(id) => setNicheItems((items) => items.filter((item) => item.id !== id))}
+        onNicheReplace={(groupId, targetId) => changeNicheTarget(groupId, targetId, (target) => replaceTargetService(target, activeService))}
+        onNicheAppend={(groupId, targetId) => changeNicheTarget(groupId, targetId, (target) => appendTargetService(target, activeService))}
+        onNicheRemove={(groupId, targetId, service) => changeNicheTarget(groupId, targetId, (target) => removeTargetService(target, service))}
         onLookup={() => setVessel(DEMO_VESSELS.find((item) => item.imo === imo.trim()) ?? null)}
-        onBuild={buildScope} onReset={resetScope} sectionCount={report.sections.length}
+        onBuild={buildScope} onReset={resetScope} sectionCount={report.sections.length} draftSections={draftSections}
         onPhotos={() => setStage(1)} onInput={() => setStage(2)}
       />}
 
@@ -292,38 +366,110 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
   </main>;
 }
 
+const targetLabel = (target: ScopeTarget) => [
+  target.component,
+  target.side,
+  target.unit ? `UNIT ${String(target.unit).padStart(2, '0')}` : null,
+].filter(Boolean).join(' ');
+
+interface TargetCellProps {
+  target: ScopeTarget;
+  activeService: ServiceKind;
+  locked: boolean;
+  compact?: boolean;
+  onReplace: () => void;
+  onAppend: () => void;
+  onRemove: (service: ServiceKind) => void;
+}
+
+function TargetCell(props: TargetCellProps) {
+  const label = targetLabel(props.target);
+  return <div className={props.target.services.length ? 'target-cell assigned' : 'target-cell'}>
+    <button type="button" className="target-main" disabled={props.locked} aria-label={`${label} 작업 배정`} onClick={props.onReplace}>
+      <b>{props.compact ? props.target.side : label}</b>
+      <small>{props.target.services.length ? '클릭하여 교체' : '미배정'}</small>
+    </button>
+    <div className="target-status" aria-label={`${label} 배정 상태`}>
+      {props.target.services.length ? props.target.services.map((service) => <button
+        type="button"
+        key={service}
+        disabled={props.locked}
+        className={`service-chip ${service.toLowerCase()}`}
+        aria-label={`${label} ${service} 제거`}
+        onClick={() => props.onRemove(service)}
+      >{service}<span>×</span></button>) : <span>—</span>}
+    </div>
+    <button
+      type="button"
+      className="target-add"
+      aria-label={`${label} 작업 추가`}
+      disabled={props.locked || props.target.services.length === 0 || props.target.services.includes(props.activeService)}
+      onClick={props.onAppend}
+    >＋</button>
+  </div>;
+}
+
 interface VesselScopeProps {
   imo: string; setImo: (value: string) => void; vessel: (typeof DEMO_VESSELS)[number] | null;
-  service: ServiceKind; setService: (value: ServiceKind) => void;
-  includeGeneral: boolean; setIncludeGeneral: (value: boolean) => void;
-  nicheDraft: NicheDraft; setNicheDraft: (value: NicheDraft) => void; nicheItems: NicheDraft[];
-  addNiche: () => void; removeNiche: (index: number) => void; onLookup: () => void;
-  onBuild: () => void; onReset: () => void; sectionCount: number; onPhotos: () => void; onInput: () => void;
+  activeService: ServiceKind; setActiveService: (value: ServiceKind) => void;
+  generalTargets: ScopeTarget[]; generalUndo: ScopeTarget[] | null;
+  onGeneralReplace: (targetId: string) => void; onGeneralAppend: (targetId: string) => void;
+  onGeneralRemove: (targetId: string, service: ServiceKind) => void;
+  onGeneralPreset: (side?: ScopeTarget['side']) => void; onGeneralClear: () => void; onGeneralUndo: () => void;
+  nicheDraft: NicheDraft; setNicheDraft: (value: NicheDraft) => void; nicheItems: NicheGroup[];
+  addNiche: () => void; removeNiche: (id: string) => void;
+  onNicheReplace: (groupId: string, targetId: string) => void;
+  onNicheAppend: (groupId: string, targetId: string) => void;
+  onNicheRemove: (groupId: string, targetId: string, service: ServiceKind) => void;
+  onLookup: () => void; onBuild: () => void; onReset: () => void;
+  sectionCount: number; draftSections: ReportSection[]; onPhotos: () => void; onInput: () => void;
 }
 
 function VesselScope(props: VesselScopeProps) {
+  const locked = props.sectionCount > 0;
+  const serviceCounts = SERVICES.map((item) => ({
+    ...item,
+    count: props.draftSections.filter((section) => section.service === item.value).length,
+  })).filter((item) => item.count > 0);
+  const unassignedGeneral = props.generalTargets.filter((target) => target.services.length === 0).length;
+
   return <div className="workspace wide">
     <div className="page-heading"><div><p className="step-kicker">STEP 01</p><h2>Vessel / Scope</h2><p>Vessel DB는 선박 확인에만 사용됩니다. 보고서와 사진은 이 브라우저 탭에만 있습니다.</p></div><span className="privacy-chip">서버 저장 없음</span></div>
     <div className="scope-grid">
       <section className="panel vessel-panel"><div className="panel-title"><span>01</span><div><h3>Vessel 확인</h3><p>Demo Vessel DB</p></div></div>
-        <label className="field"><span>IMO number</span><div className="input-action"><input aria-label="IMO number" value={props.imo} disabled={props.sectionCount > 0} onChange={(event) => props.setImo(event.target.value)} /><button type="button" disabled={props.sectionCount > 0} onClick={props.onLookup}>Vessel 확인</button></div></label>
+        <label className="field"><span>IMO number</span><div className="input-action"><input aria-label="IMO number" value={props.imo} disabled={locked} onChange={(event) => props.setImo(event.target.value)} /><button type="button" disabled={locked} onClick={props.onLookup}>Vessel 확인</button></div></label>
         {props.vessel ? <div className="vessel-card"><div className="vessel-icon">MV</div><div><strong>{props.vessel.name}</strong><span>IMO {props.vessel.imo} · {props.vessel.type}</span></div><dl><div><dt>CLASS</dt><dd>{props.vessel.classSociety}</dd></div><div><dt>FLAG</dt><dd>{props.vessel.flag}</dd></div></dl></div> : <div className="empty-note">IMO 9876543 또는 9234567을 확인할 수 있습니다.</div>}
       </section>
-      <section className="panel scope-panel"><div className="panel-title"><span>02</span><div><h3>Service / Scope</h3><p>Phase와 Section을 한 번에 생성</p></div></div>
-        <label className="field"><span>Service</span><select aria-label="Service" value={props.service} disabled={props.sectionCount > 0} onChange={(event) => props.setService(event.target.value as ServiceKind)}>{SERVICES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-        <div className="phase-rule"><b>{props.service === 'INSPECTION' ? 'CURRENT' : 'BEFORE  →  AFTER'}</b><span>{props.service === 'INSPECTION' ? 'Inspection 단일 phase' : 'AFTER 기본값 CLEAN / R0'}</span></div>
-        <label className="general-toggle"><input type="checkbox" checked={props.includeGeneral} disabled={props.sectionCount > 0} onChange={(event) => props.setIncludeGeneral(event.target.checked)} /><div><b>GENERAL</b><span>FWD / FWD-MID / MID / MID-AFT / AFT × PORT / STBD / BOTTOM</span></div><em>15 FIXED</em></label>
-        <div className="niche-builder"><div className="mini-heading"><b>NICHE</b><span>4 TYPES</span></div><div className="niche-controls">
-          <select aria-label="Niche component" value={props.nicheDraft.component} disabled={props.sectionCount > 0} onChange={(event) => { const option = COMPONENT_OPTIONS.find((item) => item.name === event.target.value)!; props.setNicheDraft({ component: option.name, type: option.defaultType, quantity: option.defaultQuantity }); }}>{COMPONENT_OPTIONS.map((item) => <option key={item.name}>{item.name}</option>)}</select>
-          <select aria-label="Niche type" value={props.nicheDraft.type} disabled={props.sectionCount > 0} onChange={(event) => props.setNicheDraft({ ...props.nicheDraft, type: event.target.value as NicheType })}>{['SINGLE', 'SIDE', 'QUANTITY', 'SIDE_QUANTITY'].map((type) => <option key={type}>{type}</option>)}</select>
-          <input aria-label="Quantity" type="number" min="1" max="12" value={props.nicheDraft.quantity} disabled={props.sectionCount > 0} onChange={(event) => props.setNicheDraft({ ...props.nicheDraft, quantity: Number(event.target.value) })} />
-          <button type="button" className="icon-button" disabled={props.sectionCount > 0} onClick={props.addNiche}>＋</button>
-        </div>{props.nicheItems.length > 0 && <div className="tag-list">{props.nicheItems.map((item, index) => <button type="button" disabled={props.sectionCount > 0} key={`${item.component}-${index}`} onClick={() => props.removeNiche(index)}>{item.component} · {item.type}{item.type.includes('QUANTITY') ? ` ×${item.quantity}` : ''} ×</button>)}</div>}<p className="side-note">Side 없음: Propeller Blade, Rope Guard, Boss Cap, Transducer, Stern Frame</p></div>
-        <button type="button" className="primary full" disabled={!props.vessel || (!props.includeGeneral && props.nicheItems.length === 0)} onClick={props.onBuild}>Scope 만들기</button>
-        {props.sectionCount > 0 && <div className="scope-ready"><b><span>{props.includeGeneral ? 'GENERAL 15' : 'GENERAL 0'}</span> · 총 {props.sectionCount} sections</b><em>Condition과 phase가 준비되었습니다.</em><button type="button" className="text-button" onClick={props.onReset}>Scope 초기화</button></div>}
+      <section className="panel scope-panel"><div className="panel-title"><span>02</span><div><h3>Service / Scope</h3><p>작업을 선택하고 필요한 Section만 클릭</p></div></div>
+        <div className="service-brush" aria-label="Service 작업 선택">{SERVICES.map((item) => <button
+          type="button"
+          key={item.value}
+          disabled={locked}
+          aria-label={`${item.label} 작업 선택`}
+          aria-pressed={props.activeService === item.value}
+          className={props.activeService === item.value ? `active ${item.value.toLowerCase()}` : ''}
+          onClick={() => props.setActiveService(item.value)}
+        >{item.label}</button>)}</div>
+        <div className="phase-rule"><b>{props.activeService === 'INSPECTION' ? 'CURRENT' : 'BEFORE  →  AFTER'}</b><span>{props.activeService === 'INSPECTION' ? 'Inspection 단일 phase' : 'AFTER 기본값 CLEAN / R0'}</span></div>
+
+        <section className="general-builder"><div className="mini-heading"><b>GENERAL</b><span>15 AVAILABLE · 필요한 곳만 배정</span></div>
+          <div className="preset-row"><button type="button" disabled={locked} onClick={() => props.onGeneralPreset()}>전체 적용</button>{GENERAL_SIDES.map((side) => <button type="button" disabled={locked} key={side} onClick={() => props.onGeneralPreset(side)}>{side} 적용</button>)}<button type="button" disabled={locked} onClick={props.onGeneralClear}>모두 해제</button><button type="button" disabled={locked || !props.generalUndo} onClick={props.onGeneralUndo}>실행 취소</button></div>
+          <div className="general-matrix"><div className="matrix-corner">ZONE</div>{GENERAL_SIDES.map((side) => <b key={side}>{side}</b>)}{GENERAL_ZONES.map((zone) => <div className="general-matrix-row" key={zone}><strong>{zone}</strong>{GENERAL_SIDES.map((side) => { const target = props.generalTargets.find((item) => item.component === zone && item.side === side)!; return <TargetCell key={target.id} target={target} activeService={props.activeService} locked={locked} compact onReplace={() => props.onGeneralReplace(target.id)} onAppend={() => props.onGeneralAppend(target.id)} onRemove={(service) => props.onGeneralRemove(target.id, service)} />; })}</div>)}</div>
+        </section>
+
+        <section className="niche-builder"><div className="mini-heading"><b>NICHE</b><span>추가 시 현재 Service 전체 적용</span></div><div className="niche-controls">
+          <select aria-label="Niche component" value={props.nicheDraft.component} disabled={locked} onChange={(event) => { const option = COMPONENT_OPTIONS.find((item) => item.name === event.target.value)!; props.setNicheDraft({ component: option.name, type: option.defaultType, quantity: option.defaultQuantity }); }}>{COMPONENT_OPTIONS.map((item) => <option key={item.name}>{item.name}</option>)}</select>
+          <select aria-label="Niche type" value={props.nicheDraft.type} disabled={locked} onChange={(event) => props.setNicheDraft({ ...props.nicheDraft, type: event.target.value as NicheType })}>{['SINGLE', 'SIDE', 'QUANTITY', 'SIDE_QUANTITY'].map((type) => <option key={type}>{type}</option>)}</select>
+          <input aria-label="Quantity" type="number" min="1" max="12" value={props.nicheDraft.quantity} disabled={locked} onChange={(event) => props.setNicheDraft({ ...props.nicheDraft, quantity: Number(event.target.value) })} />
+          <button type="button" className="icon-button" aria-label="Niche 추가" disabled={locked} onClick={props.addNiche}>＋</button>
+        </div>{props.nicheItems.map((item) => <article className="niche-group" key={item.id}><header><div><b>{item.component}</b><span>{item.type}{item.type.includes('QUANTITY') ? ` ×${item.quantity}` : ''}</span></div><button type="button" disabled={locked} aria-label={`${item.component} 삭제`} onClick={() => props.removeNiche(item.id)}>×</button></header><div className="niche-targets">{item.targets.map((target) => <TargetCell key={target.id} target={target} activeService={props.activeService} locked={locked} onReplace={() => props.onNicheReplace(item.id, target.id)} onAppend={() => props.onNicheAppend(item.id, target.id)} onRemove={(service) => props.onNicheRemove(item.id, target.id, service)} />)}</div></article>)}<p className="side-note">Side 없음: Propeller Blade, Rope Guard, Boss Cap, Transducer, Stern Frame</p></section>
+
+        <div className="scope-summary" aria-label="Scope 배정 요약"><div>{serviceCounts.map((item) => <span key={item.value} className={item.value.toLowerCase()}>{item.value} {item.count}</span>)}</div><em>GENERAL 미배정 {unassignedGeneral}</em></div>
+        <button type="button" className="primary full" disabled={!props.vessel || props.draftSections.length === 0} onClick={props.onBuild}>Scope 만들기</button>
+        {locked && <div className="scope-ready"><b>총 {props.sectionCount} sections</b><em>Condition과 phase가 준비되었습니다.</em><button type="button" className="text-button" onClick={props.onReset}>Scope 초기화</button></div>}
       </section>
     </div>
-    <div className="actionbar"><span>{props.sectionCount ? 'Scope가 준비되었습니다.' : 'Vessel 확인 후 Scope를 만드세요.'}</span><div><button type="button" className="ghost" disabled={!props.sectionCount} onClick={props.onInput}>Report Input 바로가기</button><button type="button" className="primary" disabled={!props.sectionCount} onClick={props.onPhotos}>사진 입력으로</button></div></div>
+    <div className="actionbar"><span>{props.sectionCount ? 'Scope가 준비되었습니다.' : 'Vessel 확인 후 Section에 작업을 배정하세요.'}</span><div><button type="button" className="ghost" disabled={!props.sectionCount} onClick={props.onInput}>Report Input 바로가기</button><button type="button" className="primary" disabled={!props.sectionCount} onClick={props.onPhotos}>사진 입력으로</button></div></div>
   </div>;
 }
 
