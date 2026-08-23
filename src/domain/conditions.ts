@@ -1,4 +1,4 @@
-import type { Condition, FoulingCoverage, ObservedLevel } from './types';
+import type { Condition, FoulingCoverage, FoulingType, ObservedLevel } from './types';
 
 const foulingRatings: Record<Exclude<FoulingCoverage, ''>, string> = {
   '0%': '0',
@@ -7,6 +7,15 @@ const foulingRatings: Record<Exclude<FoulingCoverage, ''>, string> = {
   '6-25%': '3',
   '26-50%': '4',
   '51-100%': '5',
+};
+
+const foulingTypes: Record<Exclude<FoulingCoverage, ''>, FoulingType> = {
+  '0%': 'Clean / No Fouling',
+  '1-100% / Slime Only': 'Micro fouling',
+  '1-5%': 'Light Macro fouling',
+  '6-25%': 'Medium Macro Fouling',
+  '26-50%': 'Heavy Macro fouling',
+  '51-100%': 'Severe Macro Fouling',
 };
 
 const observedRatings: Record<Exclude<ObservedLevel, ''>, string> = {
@@ -19,16 +28,19 @@ const observedRatings: Record<Exclude<ObservedLevel, ''>, string> = {
 
 export const emptyCondition = (): Condition => ({
   fouling: { type: '', coverage: '' },
-  observed: { type: '', level: '' },
+  observed: { type: '', level: 'Normal / Trace' },
 });
 
 export const cleanCondition = (): Condition => ({
   fouling: { type: 'Clean / No Fouling', coverage: '0%' },
-  observed: { type: '', level: '' },
+  observed: { type: '', level: 'Normal / Trace' },
 });
 
 export const deriveFoulingRating = (coverage: FoulingCoverage): string =>
   coverage ? foulingRatings[coverage] : '';
+
+export const deriveFoulingType = (coverage: FoulingCoverage): FoulingType =>
+  coverage ? foulingTypes[coverage] : '';
 
 export const deriveObservedRating = (level: ObservedLevel): string =>
   level ? observedRatings[level] : '';
@@ -36,11 +48,12 @@ export const deriveObservedRating = (level: ObservedLevel): string =>
 export function formatConditionSummary(condition?: Condition): string {
   if (!condition) return '—';
   const foulingRating = deriveFoulingRating(condition.fouling.coverage);
+  const foulingType = deriveFoulingType(condition.fouling.coverage);
   const fouling = foulingRating
-    ? `Fouling R${foulingRating} ${condition.fouling.type || '—'} ${condition.fouling.coverage}`
+    ? `Fouling R${foulingRating} ${foulingType} ${condition.fouling.coverage}`
     : 'Fouling —';
   const observedRating = deriveObservedRating(condition.observed.level);
   return observedRating
-    ? `${fouling} · Observed R${observedRating} ${condition.observed.type || '—'}`
+    ? `${fouling} · Observed R${observedRating} ${condition.observed.type || condition.observed.level}`
     : fouling;
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  deriveFoulingType,
   deriveFoulingRating,
   deriveObservedRating,
+  emptyCondition,
   formatConditionSummary,
 } from './conditions';
 
@@ -11,6 +13,16 @@ describe('report conditions', () => {
     expect(deriveFoulingRating('1-5%')).toBe('2');
     expect(deriveFoulingRating('6-25%')).toBe('3');
     expect(deriveFoulingRating('51-100%')).toBe('5');
+  });
+
+  it('derives the fouling type from coverage including the separate slime range', () => {
+    expect(deriveFoulingType('1-100% / Slime Only')).toBe('Micro fouling');
+    expect(deriveFoulingType('6-25%')).toBe('Medium Macro Fouling');
+  });
+
+  it('starts every phase with a Normal / Trace observed condition', () => {
+    expect(emptyCondition().observed).toEqual({ type: '', level: 'Normal / Trace' });
+    expect(deriveObservedRating(emptyCondition().observed.level)).toBe('1');
   });
 
   it('derives the observed rating from the selected level', () => {

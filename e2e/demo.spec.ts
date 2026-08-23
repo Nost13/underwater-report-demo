@@ -204,11 +204,11 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   }
 
   await page.getByRole('button', { name: 'Report Input으로' }).click();
-  await page.getByLabel('BEFORE fouling type').selectOption('Light Macro fouling');
   await page.getByLabel('BEFORE fouling coverage').selectOption('1-5%');
+  await expect(page.getByLabel('BEFORE fouling type')).toHaveText('Light Macro fouling');
   await expect(page.getByLabel('BEFORE fouling rating')).toHaveText('R2');
-  await page.getByLabel('AFTER fouling type').selectOption('Micro fouling');
   await page.getByLabel('AFTER fouling coverage').selectOption('1-100% / Slime Only');
+  await expect(page.getByLabel('AFTER fouling type')).toHaveText('Micro fouling');
   await expect(page.getByLabel('AFTER fouling rating')).toHaveText('R1');
   await expect(page.locator('.page-badge b')).toHaveText('6P');
   const beforeBox = await page.locator('.phase-panel.before').boundingBox();

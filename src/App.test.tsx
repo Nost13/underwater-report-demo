@@ -214,6 +214,17 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('button', { name: 'AFTER에 사진 추가' })).toBeVisible();
   });
 
+  it('uses a clear phase-target button instead of a selected panel outline', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    expect(screen.getByRole('button', { name: 'BEFORE 사진 배정 대상' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'AFTER 이곳에 배정' }));
+    expect(screen.getByRole('button', { name: 'AFTER 사진 배정 대상' })).toBeVisible();
+  });
+
   it('switches Sections from the Report Input top bar', async () => {
     const user = userEvent.setup();
     render(<App />);
