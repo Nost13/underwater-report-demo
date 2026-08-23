@@ -60,6 +60,15 @@ describe('desktop report workflow', () => {
     expect(screen.getByText('16 SECTIONS')).toBeVisible();
   });
 
+  it('shows a photo-folder next action as soon as Scope is built', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await buildCleaningGeneral(user);
+
+    expect(screen.getByRole('button', { name: '사진 폴더로 이동' })).toBeVisible();
+  });
+
   it('applies the active Service to NICHE units and allows a Unit exception', async () => {
     const user = userEvent.setup();
     render(<App />);

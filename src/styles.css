@@ -139,6 +139,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .scope-ready { margin-top: 9px; padding: 8px 11px; display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; border-radius: 7px; background: #eef8f6; color: #40615f; font-size: 10px; }
 .scope-ready b span { color: var(--teal-700); }
 .scope-ready em { font-style: normal; }
+.scope-ready > div { display: flex; align-items: center; gap: 3px; }
 .scope-ready button { min-height: 28px; padding: 0 7px; font-size: 9px; }
 
 .primary, .ghost, .text-button { min-height: 38px; padding: 0 16px; border-radius: 8px; font-size: 11px; font-weight: 750; }

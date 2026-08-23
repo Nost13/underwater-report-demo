@@ -364,6 +364,7 @@ export default function App({ exporter = loadPdfExporter }: { exporter?: PdfExpo
         onNicheRemove={(groupId, targetId, service) => changeNicheTarget(groupId, targetId, (target) => removeTargetService(target, service))}
         onLookup={() => setVessel(DEMO_VESSELS.find((item) => item.imo === imo.trim()) ?? null)}
         onBuild={buildScope} onReset={resetScope} sectionCount={report.sections.length} draftSections={draftSections}
+        onPhotos={() => document.getElementById('photo-source')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}
       /><PhotoSource embedded
         photoCount={report.photos.length} matchedCount={report.photos.length - unmatched.length} unmatchedCount={unmatched.length}
         status={status} hasFolder={Boolean(folder)} folderName={folder?.name ?? null} sections={report.sections}
@@ -459,7 +460,7 @@ interface VesselScopeProps {
   onNicheAppend: (groupId: string, targetId: string) => void;
   onNicheRemove: (groupId: string, targetId: string, service: ServiceKind) => void;
   onLookup: () => void; onBuild: () => void; onReset: () => void;
-  sectionCount: number; draftSections: ReportSection[];
+  sectionCount: number; draftSections: ReportSection[]; onPhotos: () => void;
 }
 
 function VesselScope(props: VesselScopeProps) {
@@ -503,7 +504,7 @@ function VesselScope(props: VesselScopeProps) {
 
         <div className="scope-summary" aria-label="Scope 배정 요약"><div>{serviceCounts.map((item) => <span key={item.value} className={item.value.toLowerCase()}>{item.value} {item.count}</span>)}</div><em>GENERAL 미배정 {unassignedGeneral}</em></div>
         <button type="button" className="primary full" disabled={!props.vessel || props.draftSections.length === 0} onClick={props.onBuild}>Scope 만들기</button>
-        {locked && <div className="scope-ready"><b>총 {props.sectionCount} sections</b><em>Condition과 phase가 준비되었습니다.</em><button type="button" className="text-button" onClick={props.onReset}>Scope 초기화</button></div>}
+        {locked && <div className="scope-ready"><b>총 {props.sectionCount} sections</b><em>Condition과 phase가 준비되었습니다.</em><div><button type="button" className="ghost" onClick={props.onPhotos}>사진 폴더로 이동</button><button type="button" className="text-button" onClick={props.onReset}>Scope 초기화</button></div></div>}
       </section>
     </div>
   </div>;
