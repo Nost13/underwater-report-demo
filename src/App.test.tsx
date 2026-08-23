@@ -195,6 +195,44 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('AFTER rating')).toHaveValue('R1');
   });
 
+  it('switches Sections from the Report Input top bar', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input 바로가기' }));
+
+    const sectionSelect = screen.getByLabelText('Report section');
+    expect(sectionSelect).toHaveValue('CLEANING/GENERAL/FWD/PORT');
+    expect(screen.getByRole('button', { name: '이전 Section' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: '다음 Section' }));
+    expect(sectionSelect).toHaveValue('CLEANING/GENERAL/FWD/STBD');
+    expect(screen.getByRole('button', { name: '이전 Section' })).toBeEnabled();
+
+    await user.selectOptions(sectionSelect, 'CLEANING/GENERAL/AFT/BOTTOM');
+    expect(screen.getByRole('button', { name: '다음 Section' })).toBeDisabled();
+  });
+
+  it('keeps UNMATCHED hidden until its count button is opened', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: '사진 입력으로' }));
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    expect(screen.queryByLabelText('UNMATCHED 사진 배정')).not.toBeInTheDocument();
+    const unmatchedButton = screen.getByRole('button', { name: 'UNMATCHED 1' });
+    expect(unmatchedButton).toBeEnabled();
+
+    await user.click(unmatchedButton);
+    expect(screen.getByLabelText('UNMATCHED 사진 배정')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: '배정' }));
+    expect(screen.queryByLabelText('UNMATCHED 사진 배정')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
+  });
+
   it('uses one photo-folder flow with optional structure creation after selection', async () => {
     const user = userEvent.setup();
     render(<App />);

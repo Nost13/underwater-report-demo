@@ -88,18 +88,19 @@ test('the unified photo input imports UNMATCHED, assigns, unassigns, and reassig
   await directoryInput.setInputFiles('e2e/fixtures');
   await expect(page.locator('.status-line')).toContainText('UNMATCHED');
   await page.getByRole('button', { name: 'Report Input으로' }).click();
-  await expect(page.locator('.unmatched-head > span')).toHaveText('1');
+  await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
+  await expect(page.getByLabel('UNMATCHED 사진 배정')).toBeVisible();
   await page.getByRole('button', { name: '배정' }).click();
-  await expect(page.locator('.unmatched-head > span')).toHaveText('0');
+  await expect(page.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
   await expect(page.locator('.page-badge b')).toHaveText('1P');
 
   await page.getByRole('button', { name: 'manual.jpg 재배정' }).click();
-  await expect(page.locator('.unmatched-head > span')).toHaveText('1');
+  await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
   await page.getByLabel('manual.jpg section').selectOption('CLEANING/GENERAL/FWD/STBD');
   await page.getByLabel('manual.jpg phase').selectOption('AFTER');
   await page.getByRole('button', { name: '배정' }).click();
   await expect(page.locator('.page-badge b')).toHaveText('0P');
-  await page.locator('.section-row').filter({ hasText: 'STBD' }).first().click();
+  await page.getByLabel('Report section').selectOption('CLEANING/GENERAL/FWD/STBD');
   await expect(page.locator('.page-badge b')).toHaveText('1P');
   await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
 });
@@ -166,7 +167,7 @@ test('an Inspection exception uses CURRENT while other Sections keep BEFORE and 
 
   await expect(page.locator('.phase-panel.before')).toBeVisible();
   await expect(page.locator('.phase-panel.after')).toBeVisible();
-  await page.locator('.section-row').filter({ hasText: 'INSPECTION' }).click();
+  await page.getByLabel('Report section').selectOption('INSPECTION/GENERAL/AFT/STBD');
   await expect(page.locator('.phase-panel.current')).toBeVisible();
   await expect(page.locator('.phase-panel.before')).toHaveCount(0);
   await expect(page.locator('.phase-panel.after')).toHaveCount(0);
@@ -195,6 +196,13 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   await expect(page.getByLabel('AFTER condition')).toHaveValue('CLEAN');
   await expect(page.getByLabel('AFTER rating')).toHaveValue('R1');
   await expect(page.locator('.page-badge b')).toHaveText('5P');
+  const beforeBox = await page.locator('.phase-panel.before').boundingBox();
+  const afterBox = await page.locator('.phase-panel.after').boundingBox();
+  const thumbBox = await page.locator('.phase-panel.before .thumb').first().boundingBox();
+  expect(beforeBox).not.toBeNull();
+  expect(afterBox).not.toBeNull();
+  expect(thumbBox?.width).toBeGreaterThan(220);
+  expect(afterBox!.y).toBeGreaterThan(beforeBox!.y + beforeBox!.height);
   await page.screenshot({ path: 'e2e/report-input-1440.png', fullPage: true });
 
   await page.getByRole('button', { name: 'Check / Preview' }).last().click();
@@ -210,7 +218,7 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   await expect(issue).toBeVisible();
   await issue.click();
   await expect(page.locator('.input-heading')).toContainText('GENERAL/FWD/STBD');
-  await page.locator('.section-row').filter({ hasText: 'PORT' }).first().click();
+  await page.getByLabel('Report section').selectOption('CLEANING/GENERAL/FWD/PORT');
   await expect(page.locator('.page-badge b')).toHaveText('5P');
 
   const reportUseSwitches = page.locator('.switch');
