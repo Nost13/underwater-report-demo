@@ -85,6 +85,57 @@ describe('desktop report workflow', () => {
     expect(screen.getByText('INSPECTION 1')).toBeVisible();
   });
 
+  it('prepares a four-blade Propeller draft when Polishing is selected', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+
+    await user.selectOptions(screen.getByLabelText('Niche component'), 'Boss Cap');
+    await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
+
+    expect(screen.getByLabelText('Niche component')).toHaveValue('Propeller Blade');
+    expect(screen.getByLabelText('Niche type')).toHaveValue('QUANTITY');
+    expect(screen.getByLabelText('Quantity')).toHaveValue(4);
+  });
+
+  it('shows and clears the paired Fin Blade option only for a Polishing Propeller', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+
+    expect(screen.queryByRole('checkbox', { name: 'Fin Blade 포함' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
+    const finBlade = screen.getByRole('checkbox', { name: 'Fin Blade 포함' });
+    expect(finBlade).toBeVisible();
+    await user.click(finBlade);
+    expect(finBlade).toBeChecked();
+
+    await user.selectOptions(screen.getByLabelText('Niche component'), 'Boss Cap');
+    expect(screen.queryByRole('checkbox', { name: 'Fin Blade 포함' })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Niche component'), 'Propeller Blade');
+    expect(screen.getByRole('checkbox', { name: 'Fin Blade 포함' })).not.toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: 'Cleaning 작업 선택' }));
+    expect(screen.queryByRole('checkbox', { name: 'Fin Blade 포함' })).not.toBeInTheDocument();
+  });
+
+  it('adds Propeller and Fin Blade with one shared Polishing quantity', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+    await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Fin Blade 포함' }));
+    await user.click(screen.getByRole('button', { name: '수량 증가' }));
+    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+
+    expect(screen.getByLabelText('PROPELLER BLADE UNIT 05 배정 상태'))
+      .toHaveTextContent('POLISHING');
+    expect(screen.getByLabelText('FIN BLADE UNIT 05 배정 상태'))
+      .toHaveTextContent('POLISHING');
+    expect(screen.getAllByLabelText(/PROPELLER BLADE UNIT \d{2} 배정 상태/)).toHaveLength(5);
+    expect(screen.getAllByLabelText(/FIN BLADE UNIT \d{2} 배정 상태/)).toHaveLength(5);
+  });
+
   it('uses visible quantity controls for side-less Fin Blade units', async () => {
     const user = userEvent.setup();
     render(<App />);

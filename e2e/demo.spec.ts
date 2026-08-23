@@ -15,17 +15,23 @@ async function buildGeneralScope(page: import('@playwright/test').Page) {
   await expect(page.getByRole('button', { name: 'Cleaning 작업 선택' })).toBeDisabled();
 }
 
-test('Fin Blade uses clear quantity controls at 1440px', async ({ page }) => {
+test('Polishing prepares Propeller and can add matching Fin Blades at 1440px', async ({ page }) => {
   await page.goto('/');
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
-  await page.getByLabel('Niche component').selectOption('Fin Blade');
+  await page.getByLabel('Niche component').selectOption('Boss Cap');
+  await page.getByRole('button', { name: 'Polishing 작업 선택' }).click();
+  await expect(page.getByLabel('Niche component')).toHaveValue('Propeller Blade');
   await expect(page.getByLabel('Quantity')).toHaveValue('4');
   await expect(page.getByRole('button', { name: '수량 감소' })).toBeVisible();
   await expect(page.getByRole('button', { name: '수량 증가' })).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Fin Blade 포함' }).check();
   await page.getByRole('button', { name: '수량 증가' }).click();
   await expect(page.getByLabel('Quantity')).toHaveValue('5');
-  await page.screenshot({ path: 'e2e/fin-blade-stepper-1440.png', fullPage: true });
+  await page.getByRole('button', { name: 'Niche 추가' }).click();
+  await expect(page.getByLabel('PROPELLER BLADE UNIT 05 배정 상태')).toContainText('POLISHING');
+  await expect(page.getByLabel('FIN BLADE UNIT 05 배정 상태')).toContainText('POLISHING');
+  await page.screenshot({ path: 'e2e/polishing-propeller-fin-1440.png', fullPage: true });
 });
 
 test('the unified photo input creates the exact GENERAL directory tree', async ({ page }) => {

@@ -112,6 +112,11 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .quantity-stepper button { border: 0; background: #f3f7f8; color: var(--navy-900); font-size: 15px; font-weight: 900; line-height: 1; }
 .quantity-stepper button:hover:not(:disabled) { background: #dff2ef; color: var(--teal-700); }
 .icon-button { border: 0; border-radius: 7px; background: var(--navy-900); color: #fff; font-size: 18px; }
+.fin-blade-option { margin-top: 7px; padding: 8px 10px; display: flex; align-items: center; gap: 8px; border: 1px solid #c8dfdc; border-radius: 8px; background: #f3faf9; cursor: pointer; }
+.fin-blade-option input { width: 16px; height: 16px; margin: 0; accent-color: var(--teal-700); }
+.fin-blade-option span { display: flex; align-items: baseline; gap: 7px; }
+.fin-blade-option b { color: #174e4a; font-size: 9px; }
+.fin-blade-option small { color: #6b7f87; font-size: 8px; }
 .niche-group { margin-top: 9px; border: 1px solid #dbe4e7; border-radius: 8px; background: #f8fafb; overflow: hidden; }
 .niche-group > header { min-height: 34px; padding: 6px 8px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e3e9eb; background: #fff; }
 .niche-group > header div { display: flex; align-items: center; gap: 7px; }
