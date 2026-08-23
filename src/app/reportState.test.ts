@@ -42,13 +42,14 @@ describe('report state', () => {
       type: 'UPDATE_CONDITION',
       sectionId: section.id,
       phase: 'BEFORE',
-      patch: { class: 'BIOFOULING', rating: 'R3' },
+      patch: { fouling: { type: 'Medium Macro Fouling', coverage: '6-25%' } },
     });
     expect(next.sections[0].conditions.BEFORE).toMatchObject({
-      class: 'BIOFOULING',
-      rating: 'R3',
+      fouling: { type: 'Medium Macro Fouling', coverage: '6-25%' },
     });
-    expect(next.sections[0].conditions.AFTER).toMatchObject({ class: 'CLEAN', rating: 'R0' });
+    expect(next.sections[0].conditions.AFTER).toMatchObject({
+      fouling: { type: 'Clean / No Fouling', coverage: '0%' },
+    });
   });
 
   it('moves a manually assigned photo out of UNMATCHED without copying its File', () => {

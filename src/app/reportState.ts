@@ -1,5 +1,11 @@
 import { paginateSection, type ReportPage } from '../domain/pagination';
+import { emptyCondition } from '../domain/conditions';
 import type { Condition, Phase, PhotoData, ReportSection } from '../domain/types';
+
+type ConditionPatch = {
+  fouling?: Partial<Condition['fouling']>;
+  observed?: Partial<Condition['observed']>;
+};
 
 export interface ReportState {
   sections: ReportSection[];
@@ -14,7 +20,7 @@ export type ReportAction =
   | { type: 'UNASSIGN_PHOTO'; photoId: string }
   | { type: 'TOGGLE_REPORT_USE'; photoId: string }
   | { type: 'DELETE_PHOTO'; photoId: string }
-  | { type: 'UPDATE_CONDITION'; sectionId: string; phase: Phase; patch: Partial<Condition> }
+  | { type: 'UPDATE_CONDITION'; sectionId: string; phase: Phase; patch: ConditionPatch }
   | { type: 'FOCUS_SECTION'; sectionId: string };
 
 export const initialReportState: ReportState = {
@@ -48,9 +54,18 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
           conditions: {
             ...section.conditions,
             [action.phase]: {
-              class: '', rating: '', detail: '',
+              ...emptyCondition(),
               ...section.conditions[action.phase],
-              ...action.patch,
+              fouling: {
+                ...emptyCondition().fouling,
+                ...section.conditions[action.phase]?.fouling,
+                ...action.patch.fouling,
+              },
+              observed: {
+                ...emptyCondition().observed,
+                ...section.conditions[action.phase]?.observed,
+                ...action.patch.observed,
+              },
             },
           },
         } : section),

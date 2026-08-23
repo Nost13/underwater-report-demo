@@ -8,6 +8,7 @@ import type {
   ServiceKind,
   Side,
 } from './types';
+import { cleanCondition, emptyCondition } from './conditions';
 
 export const GENERAL_ZONES = ['FWD', 'FWD-MID', 'MID', 'MID-AFT', 'AFT'] as const;
 export const GENERAL_SIDES = ['PORT', 'STBD', 'BOTTOM'] as const;
@@ -19,9 +20,6 @@ export const SIDELESS_COMPONENTS = new Set([
   'TRANSDUCER',
   'STERN FRAME',
 ]);
-
-const emptyCondition = (): Condition => ({ class: '', rating: '', detail: '' });
-const cleanCondition = (): Condition => ({ class: 'CLEAN', rating: 'R0', detail: '' });
 
 export const phasesFor = (service: ServiceKind): Phase[] =>
   service === 'INSPECTION' ? ['CURRENT'] : ['BEFORE', 'AFTER'];

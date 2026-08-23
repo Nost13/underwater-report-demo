@@ -79,7 +79,7 @@ test('the unified photo input creates the exact GENERAL directory tree', async (
   expect(paths.filter((path) => /\/(BEFORE|AFTER)$/.test(path))).toHaveLength(30);
 });
 
-test('the unified photo input imports UNMATCHED, moves assigned photos, and adds to a chosen phase', async ({ page }) => {
+test('the unified photo input assigns UNMATCHED photos to the clicked phase, moves them, and adds directly', async ({ page }) => {
   await buildGeneralScope(page);
   const directoryInput = page.locator('input[type="file"][webkitdirectory]');
   await expect(directoryInput).toHaveAttribute('webkitdirectory', '');
@@ -99,9 +99,12 @@ test('the unified photo input imports UNMATCHED, moves assigned photos, and adds
   const beforeWidthWithoutDrawer = (await beforePanel.boundingBox())?.width ?? 0;
   expect(beforeWidthWithoutDrawer).toBeGreaterThan(beforeWidthWithDrawer);
   await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
-  await page.getByRole('button', { name: '배정' }).click();
+  await page.locator('.phase-panel.after').click();
+  await expect(page.locator('.assignment-target')).toContainText('AFTER');
+  await page.getByRole('button', { name: 'manual.jpg 사진 배정' }).click();
   await expect(page.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
   await expect(page.locator('.page-badge b')).toHaveText('1P');
+  await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
 
   await page.getByRole('button', { name: 'manual.jpg 이동' }).click();
   await page.getByLabel('manual.jpg 이동 Section').selectOption('CLEANING/GENERAL/FWD/STBD');
@@ -201,11 +204,12 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   }
 
   await page.getByRole('button', { name: 'Report Input으로' }).click();
-  await page.getByLabel('BEFORE condition').selectOption('BIOFOULING');
-  await page.getByLabel('BEFORE rating').selectOption('R2');
-  await page.getByLabel('AFTER rating').selectOption('R1');
-  await expect(page.getByLabel('AFTER condition')).toHaveValue('CLEAN');
-  await expect(page.getByLabel('AFTER rating')).toHaveValue('R1');
+  await page.getByLabel('BEFORE fouling type').selectOption('Light Macro fouling');
+  await page.getByLabel('BEFORE fouling coverage').selectOption('1-5%');
+  await expect(page.getByLabel('BEFORE fouling rating')).toHaveText('R2');
+  await page.getByLabel('AFTER fouling type').selectOption('Micro fouling');
+  await page.getByLabel('AFTER fouling coverage').selectOption('1-100% / Slime Only');
+  await expect(page.getByLabel('AFTER fouling rating')).toHaveText('R1');
   await expect(page.locator('.page-badge b')).toHaveText('6P');
   const beforeBox = await page.locator('.phase-panel.before').boundingBox();
   const afterBox = await page.locator('.phase-panel.after').boundingBox();

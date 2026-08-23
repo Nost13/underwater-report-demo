@@ -192,16 +192,16 @@ describe('desktop report workflow', () => {
     expect(screen.getByText('2 SECTIONS')).toBeVisible();
   });
 
-  it('shows editable AFTER CLEAN/R0 separately in Report Input', async () => {
+  it('shows AFTER Clean condition and derives its fouling rating from coverage', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     expect(screen.getByRole('heading', { name: 'Report Input' })).toBeVisible();
-    expect(screen.getByLabelText('AFTER condition')).toHaveValue('CLEAN');
-    expect(screen.getByLabelText('AFTER rating')).toHaveValue('R0');
-    await user.selectOptions(screen.getByLabelText('AFTER rating'), 'R1');
-    expect(screen.getByLabelText('AFTER rating')).toHaveValue('R1');
+    expect(screen.getByLabelText('AFTER fouling coverage')).toHaveValue('0%');
+    expect(screen.getByLabelText('AFTER fouling rating')).toHaveTextContent('R0');
+    await user.selectOptions(screen.getByLabelText('AFTER fouling coverage'), '1-5%');
+    expect(screen.getByLabelText('AFTER fouling rating')).toHaveTextContent('R2');
   });
 
   it('offers separate photo-add actions for the selected Section BEFORE and AFTER phases', async () => {
@@ -232,7 +232,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('button', { name: '다음 Section' })).toBeDisabled();
   });
 
-  it('keeps UNMATCHED hidden until its count button is opened', async () => {
+  it('assigns an UNMATCHED photo to the phase clicked in Report Input', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
     await buildCleaningGeneral(user);
@@ -246,9 +246,12 @@ describe('desktop report workflow', () => {
 
     await user.click(unmatchedButton);
     expect(screen.getByLabelText('UNMATCHED 사진 배정')).toBeVisible();
-    await user.click(screen.getByRole('button', { name: '배정' }));
+    await user.click(screen.getByLabelText('AFTER 사진 갤러리'));
+    expect(screen.getByText(/현재 사진 배정 위치.*AFTER/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'manual.jpg 사진 배정' }));
     expect(screen.queryByLabelText('UNMATCHED 사진 배정')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
+    expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveTextContent('manual.jpg');
   });
 
   it('uses one photo-folder flow with optional structure creation after selection', async () => {

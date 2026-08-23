@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { resizeForPdf } from '../browser/images';
 import { createCaption, phaseIndexForPhoto } from '../domain/photos';
+import { formatConditionSummary } from '../domain/conditions';
 import { paginateSection } from '../domain/pagination';
 import type { PhotoData, ReportSection } from '../domain/types';
 
@@ -97,7 +98,7 @@ function drawFooter(pdf: PdfWriter, section: ReportSection) {
   pdf.setFont('helvetica', 'normal');
   const value = section.phases.map((phase) => {
     const condition = section.conditions[phase];
-    return `${phase}: ${condition?.class || '-'} / ${condition?.rating || '-'}`;
+    return `${phase}: ${formatConditionSummary(condition)}`;
   }).join('     ');
   pdf.text(value, 12, 204);
 }

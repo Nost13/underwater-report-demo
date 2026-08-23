@@ -2,13 +2,20 @@ export type ServiceKind = 'INSPECTION' | 'CLEANING' | 'POLISHING' | 'REPAIR' | '
 export type Phase = 'CURRENT' | 'BEFORE' | 'AFTER';
 export type NicheType = 'SINGLE' | 'SIDE' | 'QUANTITY' | 'SIDE_QUANTITY';
 export type Side = 'PORT' | 'STBD' | 'BOTTOM';
-export type ConditionClass = '' | 'CLEAN' | 'BIOFOULING' | 'DAMAGE' | 'COATING';
-export type ConditionRating = '' | 'R0' | 'R1' | 'R2' | 'R3' | 'R4' | 'R5';
+export type FoulingCoverage = '' | '0%' | '1-100% / Slime Only' | '1-5%' | '6-25%' | '26-50%' | '51-100%';
+export type FoulingType = '' | 'Clean / No Fouling' | 'Micro fouling' | 'Light Macro fouling' | 'Medium Macro Fouling' | 'Heavy Macro fouling' | 'Severe Macro Fouling';
+export type ObservedLevel = '' | 'Normal / Trace' | 'Minor Observation' | 'Notable Observation' | 'Significant Observation' | 'Critical Observation';
+export type ObservedType = '' | 'Coating' | 'Damage' | 'Scratch' | 'Corrosion' | 'Other';
 
 export interface Condition {
-  class: ConditionClass;
-  rating: ConditionRating;
-  detail: string;
+  fouling: {
+    type: FoulingType;
+    coverage: FoulingCoverage;
+  };
+  observed: {
+    type: ObservedType;
+    level: ObservedLevel;
+  };
 }
 
 export interface ReportSection {

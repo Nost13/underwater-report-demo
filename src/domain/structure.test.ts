@@ -22,8 +22,8 @@ describe('report structure rules', () => {
 
   it('starts AFTER at editable CLEAN/R0 while BEFORE remains blank', () => {
     const conditions = defaultConditions('REPAIR');
-    expect(conditions.BEFORE).toEqual({ class: '', rating: '', detail: '' });
-    expect(conditions.AFTER).toEqual({ class: 'CLEAN', rating: 'R0', detail: '' });
+    expect(conditions.BEFORE).toEqual({ fouling: { type: '', coverage: '' }, observed: { type: '', level: '' } });
+    expect(conditions.AFTER).toEqual({ fouling: { type: 'Clean / No Fouling', coverage: '0%' }, observed: { type: '', level: '' } });
   });
 
   it('creates the fixed 15 GENERAL sections', () => {
@@ -86,7 +86,7 @@ describe('report structure rules', () => {
       }),
     ]));
     expect(sections.find((section) => section.service === 'POLISHING')?.conditions.AFTER)
-      .toEqual({ class: 'CLEAN', rating: 'R0', detail: '' });
+      .toEqual({ fouling: { type: 'Clean / No Fouling', coverage: '0%' }, observed: { type: '', level: '' } });
   });
 
   it('creates NICHE targets with the active service ready for per-target exceptions', () => {

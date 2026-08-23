@@ -25,7 +25,7 @@ export function checkReport(sections: ReportSection[], photos: PhotoData[]): QaI
         });
       }
       const condition = section.conditions[phase];
-      if (!condition?.class || !condition.rating) {
+      if (!condition?.fouling.type || !condition.fouling.coverage) {
         issues.push({
           id: `condition:${section.id}:${phase}`,
           kind: 'MISSING_CONDITION',

@@ -43,6 +43,7 @@ describe('sequential PDF export', () => {
     expect(maximum).toBe(1);
     expect(result.skipped).toEqual(['bad.jpg']);
     expect(renderedText).toEqual(expect.arrayContaining(['BEFORE', 'AFTER']));
+    expect(renderedText).toContain('BEFORE: Fouling —     AFTER: Fouling R0 Clean / No Fouling 0%');
   });
 
   it('draws an explicit CURRENT badge for Inspection photos', async () => {

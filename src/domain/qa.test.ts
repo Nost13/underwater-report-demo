@@ -11,7 +11,10 @@ describe('report check issues', () => {
       quantity: 1,
       service: 'CLEANING',
     });
-    section.conditions.BEFORE = { class: 'BIOFOULING', rating: '', detail: '' };
+    section.conditions.BEFORE = {
+      fouling: { type: 'Medium Macro Fouling', coverage: '' },
+      observed: { type: '', level: '' },
+    };
     const photos: PhotoData[] = [1, 2, 3, 4].map((number) => ({
       id: `P${number}`,
       sectionId: section.id,
@@ -39,5 +42,22 @@ describe('report check issues', () => {
         'UNMATCHED',
       ]),
     );
+  });
+
+  it('accepts a Fouling Condition when type and coverage are present without an Observed Condition', () => {
+    const [section] = createNicheSections({
+      component: 'Rudder',
+      type: 'SINGLE',
+      quantity: 1,
+      service: 'INSPECTION',
+    });
+    section.conditions.CURRENT = {
+      fouling: { type: 'Light Macro fouling', coverage: '1-5%' },
+      observed: { type: '', level: '' },
+    };
+
+    const issues = checkReport([section], []);
+
+    expect(issues.some((issue) => issue.kind === 'MISSING_CONDITION')).toBe(false);
   });
 });
