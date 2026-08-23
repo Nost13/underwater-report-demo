@@ -283,6 +283,8 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .switch input:checked + i::after { transform: translateX(12px); }
 .switch span { color: #819198; font-size: 5px; font-weight: 850; }
 .photo-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.photo-actions > div { display: flex; gap: 7px; }
+.photo-actions .delete-photo { color: #a94a3a; }
 .photo-actions > button { padding: 2px 4px; border: 0; background: transparent; color: #607982; font-size: 8px; text-decoration: underline; }
 .phase-empty { grid-column: 1 / -1; min-height: 126px; display: grid; place-items: center; align-content: center; border: 1px dashed #ccd7db; border-radius: 8px; color: #72838b; text-align: center; }
 .phase-empty > span { font-size: 20px; color: #8aa0a8; }

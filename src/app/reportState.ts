@@ -13,6 +13,7 @@ export type ReportAction =
   | { type: 'ASSIGN_PHOTO'; photoId: string; sectionId: string; phase: Phase }
   | { type: 'UNASSIGN_PHOTO'; photoId: string }
   | { type: 'TOGGLE_REPORT_USE'; photoId: string }
+  | { type: 'DELETE_PHOTO'; photoId: string }
   | { type: 'UPDATE_CONDITION'; sectionId: string; phase: Phase; patch: Partial<Condition> }
   | { type: 'FOCUS_SECTION'; sectionId: string };
 
@@ -37,6 +38,8 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
       return { ...state, photos: state.photos.map((photo) => photo.id === action.photoId ? { ...photo, sectionId: null, phase: null } : photo) };
     case 'TOGGLE_REPORT_USE':
       return { ...state, photos: state.photos.map((photo) => photo.id === action.photoId ? { ...photo, reportUse: !photo.reportUse } : photo) };
+    case 'DELETE_PHOTO':
+      return { ...state, photos: state.photos.filter((photo) => photo.id !== action.photoId) };
     case 'UPDATE_CONDITION':
       return {
         ...state,

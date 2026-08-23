@@ -21,7 +21,7 @@ const photo = (number: number): PhotoData => ({
 });
 
 describe('report state', () => {
-  it('recalculates pages immediately when Report Use changes', () => {
+  it('recalculates the affected phase pages immediately when Report Use changes', () => {
     const seeded = {
       ...initialReportState,
       sections: [section],
@@ -30,7 +30,10 @@ describe('report state', () => {
     };
     expect(selectedPages(seeded)).toHaveLength(2);
     const next = reportReducer(seeded, { type: 'TOGGLE_REPORT_USE', photoId: 'P5' });
-    expect(selectedPages(next)).toHaveLength(1);
+    expect(selectedPages(next).map((page) => page.photos.map((photo) => photo.id))).toEqual([
+      ['P1', 'P2', 'P3'],
+      ['P4'],
+    ]);
   });
 
   it('keeps BEFORE and AFTER conditions independent', () => {
@@ -67,5 +70,15 @@ describe('report state', () => {
     const next = reportReducer(seeded, { type: 'UNASSIGN_PHOTO', photoId: assigned.id });
     expect(next.photos[0]).toMatchObject({ sectionId: null, phase: null });
     expect(next.photos[0].file).toBe(assigned.file);
+  });
+
+  it('removes a deleted photo from the current report without changing other photos', () => {
+    const first = photo(1);
+    const second = photo(2);
+    const seeded = { ...initialReportState, sections: [section], photos: [first, second] };
+
+    const next = reportReducer(seeded, { type: 'DELETE_PHOTO', photoId: first.id });
+
+    expect(next.photos).toEqual([second]);
   });
 });

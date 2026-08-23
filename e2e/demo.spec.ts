@@ -112,6 +112,8 @@ test('the unified photo input imports UNMATCHED, assigns, unassigns, and reassig
   await page.getByLabel('Report section').selectOption('CLEANING/GENERAL/FWD/STBD');
   await expect(page.locator('.page-badge b')).toHaveText('1P');
   await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
+  await page.getByRole('button', { name: 'manual.jpg 삭제' }).click();
+  await expect(page.locator('.phase-panel.after')).not.toContainText('manual.jpg');
 });
 
 test('one physical target can carry two services with unambiguous folders', async ({ page }) => {
@@ -202,7 +204,7 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   await page.getByLabel('AFTER rating').selectOption('R1');
   await expect(page.getByLabel('AFTER condition')).toHaveValue('CLEAN');
   await expect(page.getByLabel('AFTER rating')).toHaveValue('R1');
-  await expect(page.locator('.page-badge b')).toHaveText('5P');
+  await expect(page.locator('.page-badge b')).toHaveText('6P');
   const beforeBox = await page.locator('.phase-panel.before').boundingBox();
   const afterBox = await page.locator('.phase-panel.after').boundingBox();
   const thumbBox = await page.locator('.phase-panel.before .thumb').first().boundingBox();
@@ -213,11 +215,11 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   await page.screenshot({ path: 'e2e/report-input-1440.png', fullPage: true });
 
   await page.getByRole('button', { name: 'Check / Preview' }).last().click();
-  await expect(page.locator('.pager b')).toHaveText('1 / 5');
+  await expect(page.locator('.pager b')).toHaveText('1 / 6');
   await expect(page.locator('.report-page')).toHaveCount(2);
   await page.locator('.pager button').last().click();
   await page.locator('.pager button').last().click();
-  await expect(page.locator('.pager b')).toHaveText('3 / 5');
+  await expect(page.locator('.pager b')).toHaveText('3 / 6');
   await expect(page.locator('.report-page')).toHaveCount(3);
   await page.screenshot({ path: 'e2e/preview-1440.png', fullPage: true });
 
@@ -226,7 +228,7 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   await issue.click();
   await expect(page.locator('.input-heading')).toContainText('GENERAL/FWD/STBD');
   await page.getByLabel('Report section').selectOption('CLEANING/GENERAL/FWD/PORT');
-  await expect(page.locator('.page-badge b')).toHaveText('5P');
+  await expect(page.locator('.page-badge b')).toHaveText('6P');
 
   const reportUseSwitches = page.locator('.switch');
   for (let index = 0; index < 24; index += 1) {
