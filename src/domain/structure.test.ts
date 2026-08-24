@@ -10,6 +10,7 @@ import {
   defaultConditions,
   phasesFor,
   replaceTargetService,
+  toggleTargetService,
 } from './structure';
 
 describe('report structure rules', () => {
@@ -66,6 +67,17 @@ describe('report structure rules', () => {
       'INSPECTION',
     ]);
     expect(next.filter((target) => target.services[0] === 'POLISHING')).toHaveLength(14);
+  });
+
+  it('toggles only the active Service without removing a combined Scope', () => {
+    const target = createGeneralTargets()[0];
+    const inspection = toggleTargetService(target, 'INSPECTION');
+    const combined = toggleTargetService(inspection, 'POLISHING');
+
+    expect(inspection.services).toEqual(['INSPECTION']);
+    expect(combined.services).toEqual(['INSPECTION', 'POLISHING']);
+    expect(toggleTargetService(combined, 'POLISHING').services).toEqual(['INSPECTION']);
+    expect(toggleTargetService(inspection, 'INSPECTION').services).toEqual([]);
   });
 
   it('expands replacement and appended services into unique phase-aware sections', () => {

@@ -42,6 +42,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByText('CLEANING 15')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Inspection 작업 선택' }));
     await user.click(screen.getByRole('button', { name: 'AFT STBD 작업 배정' }));
+    expect(screen.getByLabelText('AFT STBD 배정 상태')).toHaveTextContent('CLEANING');
     expect(screen.getByLabelText('AFT STBD 배정 상태')).toHaveTextContent('INSPECTION');
 
     await user.click(screen.getByRole('button', { name: '전체 적용' }));
@@ -51,6 +52,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: '실행 취소' }));
     expect(screen.getByLabelText('AFT STBD 배정 상태')).toHaveTextContent('CLEANING');
     await user.click(screen.getByRole('button', { name: 'AFT STBD 작업 배정' }));
+    await user.click(screen.getByRole('button', { name: 'AFT STBD CLEANING 제거' }));
     await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
 
     expect(screen.getByText('15 SECTIONS')).toBeVisible();
@@ -58,17 +60,24 @@ describe('desktop report workflow', () => {
     expect(screen.getByText('INSPECTION 1')).toBeVisible();
   });
 
-  it('adds a second Service to the same physical GENERAL target', async () => {
+  it('adds and removes the active Service by clicking the same GENERAL target', async () => {
     const user = userEvent.setup();
     render(<App />);
     await verifyVessel(user);
     await user.click(screen.getByRole('button', { name: '전체 적용' }));
     await user.click(screen.getByRole('button', { name: 'Inspection 작업 선택' }));
-    await user.click(screen.getByRole('button', { name: 'FWD PORT 작업 추가' }));
+    await user.click(screen.getByRole('button', { name: 'FWD PORT 작업 배정' }));
     expect(screen.getByLabelText('FWD PORT 배정 상태')).toHaveTextContent('CLEANING');
     expect(screen.getByLabelText('FWD PORT 배정 상태')).toHaveTextContent('INSPECTION');
+
+    await user.click(screen.getByRole('button', { name: 'FWD PORT 작업 배정' }));
+    expect(screen.getByLabelText('FWD PORT 배정 상태')).toHaveTextContent('CLEANING');
+    expect(screen.getByLabelText('FWD PORT 배정 상태')).not.toHaveTextContent('INSPECTION');
+
+    await user.click(screen.getByRole('button', { name: 'FWD PORT 작업 배정' }));
     await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
     expect(screen.getByText('16 SECTIONS')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'FWD PORT 작업 추가' })).not.toBeInTheDocument();
   });
 
   it('shows a photo-folder next action as soon as Scope is built', async () => {
@@ -80,7 +89,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('button', { name: '사진 폴더로 이동' })).toBeVisible();
   });
 
-  it('applies the active Service to NICHE units and allows a Unit exception', async () => {
+  it('applies the active Service to NICHE units and allows a combined Unit Scope', async () => {
     const user = userEvent.setup();
     render(<App />);
     await verifyVessel(user);
@@ -97,11 +106,13 @@ describe('desktop report workflow', () => {
       name: 'PROPELLER BLADE UNIT 03 작업 배정',
     }));
     expect(screen.getByLabelText('PROPELLER BLADE UNIT 03 배정 상태'))
+      .toHaveTextContent('POLISHING');
+    expect(screen.getByLabelText('PROPELLER BLADE UNIT 03 배정 상태'))
       .toHaveTextContent('INSPECTION');
 
     await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
-    expect(screen.getByText('5 SECTIONS')).toBeVisible();
-    expect(screen.getByText('POLISHING 3')).toBeVisible();
+    expect(screen.getByText('6 SECTIONS')).toBeVisible();
+    expect(screen.getByText('POLISHING 4')).toBeVisible();
     expect(screen.getByText('INSPECTION 2')).toBeVisible();
   });
 

@@ -98,6 +98,15 @@ export function appendTargetService(
     : { ...target, services: [...target.services, service] };
 }
 
+export function toggleTargetService(
+  target: ScopeTarget,
+  service: ServiceKind,
+): ScopeTarget {
+  return target.services.includes(service)
+    ? removeTargetService(target, service)
+    : appendTargetService(target, service);
+}
+
 export function removeTargetService(
   target: ScopeTarget,
   service: ServiceKind,
