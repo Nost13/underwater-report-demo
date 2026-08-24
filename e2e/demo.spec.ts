@@ -38,6 +38,40 @@ test('Polishing prepares Propeller and can add matching Fin Blades at 1440px', a
   await page.screenshot({ path: 'e2e/polishing-propeller-fin-1440.png', fullPage: true });
 });
 
+test('group defaults preserve unit overrides across direct Section navigation', async ({ page }) => {
+  await page.goto('./');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Vessel 확인' }).click();
+  await page.getByRole('button', { name: 'Polishing 작업 선택' }).click();
+  await page.getByRole('button', { name: 'Niche 추가' }).click();
+  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await page.getByRole('button', { name: 'Report Input으로' }).click();
+
+  await page.getByRole('button', {
+    name: 'POLISHING/NICHE/PROPELLER BLADE/01 Section 열기',
+  }).click();
+  await page.getByLabel('구역 기본 BEFORE fouling coverage').fill('15');
+  await page.getByRole('button', { name: 'BEFORE 기본값 적용' }).click();
+
+  await page.getByRole('button', {
+    name: 'POLISHING/NICHE/PROPELLER BLADE/02 Section 열기',
+  }).click();
+  await expect(page.getByLabel('BEFORE fouling coverage', { exact: true })).toHaveValue('15');
+  await page.getByLabel('BEFORE fouling coverage', { exact: true }).fill('40');
+
+  await page.getByRole('button', {
+    name: 'POLISHING/NICHE/PROPELLER BLADE/01 Section 열기',
+  }).click();
+  await page.getByLabel('구역 기본 BEFORE fouling coverage').fill('20');
+  await page.getByRole('button', { name: 'BEFORE 기본값 적용' }).click();
+  await page.getByRole('button', {
+    name: 'POLISHING/NICHE/PROPELLER BLADE/02 Section 열기',
+  }).click();
+  await expect(page.getByLabel('BEFORE fouling coverage', { exact: true })).toHaveValue('40');
+  await page.getByRole('button', { name: 'BEFORE 기본값으로 되돌리기' }).click();
+  await expect(page.getByLabel('BEFORE fouling coverage', { exact: true })).toHaveValue('20');
+});
+
 test('the unified photo input creates the exact GENERAL directory tree', async ({ page }) => {
   await page.addInitScript(() => {
     const created: string[] = [];
