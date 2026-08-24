@@ -379,8 +379,11 @@ describe('desktop report workflow', () => {
     expect(first).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: '이전 Section' })).toBeDisabled();
 
-    await user.click(screen.getByRole('button', {
-      name: 'CLEANING/GENERAL/AFT/BOTTOM Section 열기',
+    await user.click(screen.getByRole('button', { name: '전체 Section 목록 열기' }));
+    const picker = screen.getByRole('dialog', { name: '전체 Section' });
+    await user.type(within(picker).getByRole('searchbox', { name: 'Section 검색' }), 'AFT BOTTOM');
+    await user.click(within(picker).getByRole('button', {
+      name: 'CLEANING AFT · BOTTOM Section 열기',
     }));
     expect(screen.getByText('CLEANING/GENERAL/AFT/BOTTOM')).toBeVisible();
     expect(screen.getByRole('button', { name: '다음 Section' })).toBeDisabled();
@@ -458,6 +461,26 @@ describe('desktop report workflow', () => {
 
     expect(screen.getByLabelText('사진 입력 진행 상태'))
       .toHaveTextContent('사진 불러오기 완료 · 1장 · 표준 폴더 경로 없음');
+  });
+
+  it('shows a bounded Section rail and jumps through the searchable full list', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    const navigator = screen.getByRole('navigation', { name: 'Report Section 바로가기' });
+    expect(within(navigator).getAllByRole('button', { name: /Section 열기$/ })).toHaveLength(5);
+    expect(within(navigator).getByText('SECTION 1 / 15')).toBeVisible();
+
+    await user.click(within(navigator).getByRole('button', { name: '전체 Section 목록 열기' }));
+    const picker = screen.getByRole('dialog', { name: '전체 Section' });
+    await user.type(within(picker).getByRole('searchbox', { name: 'Section 검색' }), 'AFT BOTTOM');
+    await user.click(within(picker).getByRole('button', { name: /CLEANING AFT · BOTTOM Section 열기/ }));
+
+    expect(screen.queryByRole('dialog', { name: '전체 Section' })).not.toBeInTheDocument();
+    expect(within(navigator).getByText('SECTION 15 / 15')).toBeVisible();
+    expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFT · BOTTOM');
   });
 
   it('auto-matches a pre-existing standard folder path without creating the tree first', async () => {
