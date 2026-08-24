@@ -2,11 +2,20 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createDemoPhotos, COMPONENT_OPTIONS, DEMO_VESSELS, SERVICES } from './app/demoData';
+import { ConditionEditor } from './app/ConditionEditor';
+import {
+  cloneCondition,
+  conditionGroupKey,
+  conditionGroupMembers,
+  patchCondition,
+  type ConditionPatch,
+  type ConditionSource,
+} from './app/conditionDefaults';
 import { initialReportState, reportReducer, selectedPages, type ReportState } from './app/reportState';
 import { createSectionTree, folderRelativePath, pickDirectory, scanImages, type DirectoryHandleLike } from './browser/directory';
 import { ThumbnailPool, type ThumbnailLease } from './browser/images';
 import { createCaption, matchPhotoPath, phaseIndexForPhoto } from './domain/photos';
-import { deriveFoulingCondition, deriveFoulingRating, deriveFoulingType, deriveObservedRating, formatConditionSummary } from './domain/conditions';
+import { formatConditionSummary } from './domain/conditions';
 import { buildWordPhasePages } from './docx/reportModel';
 import { checkReport } from './domain/qa';
 import {
@@ -24,8 +33,7 @@ import {
 import type { WordExportInput, WordExportResult } from './docx/templateWriter';
 import type {
   NicheType,
-  ObservedLevel,
-  ObservedType,
+  Condition,
   Phase,
   PhotoData,
   ReportSection,
@@ -630,37 +638,79 @@ function ReportInput(props: ReportInputProps) {
   return <div className={`report-workspace${props.unmatchedOpen && props.unmatched.length > 0 ? ' unmatched-open' : ''}`}>
     <section className="input-canvas"><div className="input-heading"><div className="input-title"><p className="step-kicker">STEP 03 · {props.activeSection.area}</p><h2>Report Input</h2><span>{props.activeSection.id}</span></div><div className="section-switcher"><button type="button" aria-label="이전 Section" disabled={activeIndex === 0} onClick={() => focusSection(activeIndex - 1)}>←</button><label><span>SECTION {activeIndex + 1} / {props.report.sections.length}</span><select aria-label="Report section" value={props.activeSection.id} onChange={(event) => props.dispatch({ type: 'FOCUS_SECTION', sectionId: event.target.value })}>{props.report.sections.map((section) => <option key={section.id} value={section.id}>{section.id}</option>)}</select></label><button type="button" aria-label="다음 Section" disabled={activeIndex === props.report.sections.length - 1} onClick={() => focusSection(activeIndex + 1)}>→</button></div><div className="input-metrics"><div className="page-badge"><b>{props.pages.length}P</b><span>{props.activePhotos.filter((photo) => photo.reportUse).length} Report Use</span></div><button type="button" className="unmatched-trigger" aria-label={`UNMATCHED ${props.unmatched.length}`} aria-controls="unmatched" aria-expanded={props.unmatchedOpen && props.unmatched.length > 0} disabled={props.unmatched.length === 0} onClick={props.onToggleUnmatched}><span>UNMATCHED</span><b>{props.unmatched.length}</b></button></div></div>
       <p className="assignment-target" aria-live="polite">현재 사진 배정 위치: {props.activePhotoTarget?.sectionId ?? '—'} · {props.activePhotoTarget?.phase ?? '—'}</p>
-      <div className="phase-stack">{props.activeSection.phases.map((phase) => <PhasePanel key={phase} phase={phase} section={props.activeSection} sections={props.report.sections} photos={props.activePhotos.filter((photo) => photo.phase === phase)} dispatch={props.dispatch} onAddPhotos={props.onAddPhotos} selected={props.activePhotoTarget?.sectionId === props.activeSection.id && props.activePhotoTarget.phase === phase} onSelect={() => props.onSelectPhotoTarget({ sectionId: props.activeSection.id, phase })} />)}</div>
+      <GroupConditionPanel report={props.report} section={props.activeSection} dispatch={props.dispatch} />
+      <div className="phase-stack">{props.activeSection.phases.map((phase) => <PhasePanel key={phase} phase={phase} section={props.activeSection} sections={props.report.sections} photos={props.activePhotos.filter((photo) => photo.phase === phase)} dispatch={props.dispatch} source={props.report.conditionSources[props.activeSection.id]?.[phase] ?? 'GROUP'} onAddPhotos={props.onAddPhotos} selected={props.activePhotoTarget?.sectionId === props.activeSection.id && props.activePhotoTarget.phase === phase} onSelect={() => props.onSelectPhotoTarget({ sectionId: props.activeSection.id, phase })} />)}</div>
     </section>
     {props.unmatchedOpen && props.unmatched.length > 0 && <aside className="unmatched-drawer" id="unmatched" aria-label="UNMATCHED 사진 배정"><div className="unmatched-head"><div><p className="eyebrow">MANUAL ASSIGN</p><h3>UNMATCHED</h3></div><div><span>{props.unmatched.length}</span><button type="button" aria-label="UNMATCHED 닫기" onClick={props.onCloseUnmatched}>×</button></div></div><p className="unmatched-help">확실하지 않은 경로는 추측하지 않습니다. 사진을 클릭하면 현재 선택된 위치에 바로 배정됩니다.</p><div className="unmatched-list">{props.unmatched.map((photo) => <UnmatchedCard key={photo.id} photo={photo} onAssign={() => props.onAssignUnmatched(photo.id)} />)}</div><button type="button" className="ghost full" onClick={props.onOpen}>사진 더 불러오기</button></aside>}
     <div className="input-footer"><button type="button" className="text-button" onClick={props.onBack}>← 사진 입력</button><div><span>Report Check {props.issueCount} issues</span><button type="button" className="primary" onClick={props.onNext}>Check / Preview</button></div></div>
   </div>;
 }
 
-function PhasePanel({ phase, section, sections, photos, dispatch, onAddPhotos, selected, onSelect }: { phase: Phase; section: ReportSection; sections: ReportSection[]; photos: PhotoData[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; onAddPhotos: (sectionId: string, phase: Phase) => void; selected: boolean; onSelect: () => void }) {
-  const condition = section.conditions[phase];
-  const foulingRating = deriveFoulingRating(condition?.fouling.coverage ?? null, condition?.fouling.slimeOnly ?? false);
-  const foulingType = deriveFoulingType(condition?.fouling.coverage ?? null, condition?.fouling.slimeOnly ?? false);
-  const observedRating = deriveObservedRating(condition?.observed.level ?? '');
-  const changeCoverage = (coverage: number | null) => {
-    const slimeOnly = coverage === 0 ? false : condition?.fouling.slimeOnly ?? false;
-    const derived = deriveFoulingCondition(coverage, slimeOnly);
-    dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { fouling: { coverage, slimeOnly, type: derived.type } } });
+interface GroupConditionPanelProps {
+  report: ReportState;
+  section: ReportSection;
+  dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>;
+}
+
+function GroupConditionPanel({ report, section, dispatch }: GroupConditionPanelProps) {
+  const [phaseChoice, setPhaseChoice] = useState<Phase>(section.phases[0]);
+  const selectedPhase = section.phases.includes(phaseChoice) ? phaseChoice : section.phases[0];
+  const groupKey = conditionGroupKey(section);
+  const storedDefault = report.conditionDefaults[groupKey]?.[selectedPhase]
+    ?? section.conditions[selectedPhase];
+  const [draft, setDraft] = useState<Condition>(() => cloneCondition(storedDefault!));
+  const members = conditionGroupMembers(report.sections, section);
+
+  useEffect(() => {
+    if (storedDefault) setDraft(cloneCondition(storedDefault));
+  }, [groupKey, selectedPhase, storedDefault]);
+
+  if (!storedDefault) return null;
+
+  const changeDraft = (patch: ConditionPatch) => {
+    setDraft((current) => patchCondition(current, patch));
   };
-  const changeSlimeOnly = (slimeOnly: boolean) => {
-    const coverage = condition?.fouling.coverage ?? null;
-    const derived = deriveFoulingCondition(coverage, slimeOnly);
-    dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { fouling: { slimeOnly, type: derived.type } } });
-  };
-  return <section className={`phase-panel ${phase.toLowerCase()}`} aria-label={`${phase} 사진 갤러리`} onClick={onSelect}>
-    <div className="phase-head"><div><span>{phase}</span><b>{photos.filter((photo) => photo.reportUse).length} PHOTOS</b></div><div><button type="button" className={selected ? 'phase-target active' : 'phase-target'} aria-label={`${phase} ${selected ? '사진 배정 대상' : '이곳에 배정'}`} onClick={(event) => { event.stopPropagation(); onSelect(); }}>{selected ? '사진 배정 대상' : '이곳에 배정'}</button><button type="button" className="ghost phase-add" aria-label={`${phase}에 사진 추가`} onClick={(event) => { event.stopPropagation(); onAddPhotos(section.id, phase); }}>사진 추가</button></div></div>
-    <div className="condition-tables"><ConditionGroup title="FOULING CONDITION"><label><span>RATING</span><output aria-label={`${phase} fouling rating`} className={`rating-badge rating-${foulingRating || 'empty'}`}>{foulingRating ? `R${foulingRating}` : '—'}</output></label><label><span>TYPE</span><output aria-label={`${phase} fouling type`} className="condition-value">{foulingType || '선택'}</output></label><label><span>SURFACE COVERAGE</span><div className="coverage-input"><input aria-label={`${phase} fouling coverage`} type="number" min="0" max="100" step="1" value={condition?.fouling.coverage ?? ''} onChange={(event) => { const value = event.target.value; changeCoverage(value === '' ? null : Math.min(100, Math.max(0, Math.round(Number(value))))); }} /><span>%</span></div><label className="slime-toggle"><input aria-label={`${phase} Slime Only`} type="checkbox" checked={condition?.fouling.slimeOnly ?? false} disabled={condition?.fouling.coverage === null || condition?.fouling.coverage === 0} onChange={(event) => changeSlimeOnly(event.target.checked)} /><span>Slime Only</span></label></label></ConditionGroup><ConditionGroup title="OBSERVED CONDITION"><label><span>RATING</span><output aria-label={`${phase} observed rating`} className={`rating-badge rating-${observedRating || 'empty'}`}>{observedRating ? `R${observedRating}` : '—'}</output></label><label><span>LEVEL</span><select aria-label={`${phase} observed level`} value={condition?.observed.level ?? ''} onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { observed: { level: event.target.value as ObservedLevel } } })}><option value="">없음</option>{['Normal / Trace', 'Minor Observation', 'Notable Observation', 'Significant Observation', 'Critical Observation'].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>TYPE</span><select aria-label={`${phase} observed type`} value={condition?.observed.type ?? ''} onChange={(event) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch: { observed: { type: event.target.value as ObservedType } } })}><option value="">선택</option>{['Coating', 'Damage', 'Scratch', 'Corrosion', 'Other'].map((value) => <option key={value}>{value}</option>)}</select></label></ConditionGroup></div>
-    <div className="photo-list">{photos.length ? photos.map((photo) => <PhotoRow key={photo.id} photo={photo} phasePhotos={photos} section={section} phase={phase} sections={sections} dispatch={dispatch} />) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>이 Phase에 사진을 추가하거나 폴더에서 불러오세요.</p></div>}</div>
+
+  return <section className="group-condition-panel" aria-label="구역 기본 Condition">
+    <header className="group-condition-head">
+      <div><span>구역 기본 CONDITION</span><b>{section.service} · {section.area} · {section.component}</b><small>하위 {members.length}개 Section에 적용</small></div>
+      <div className="group-phase-tabs" role="tablist" aria-label="구역 기본 Condition Phase">
+        {section.phases.map((phase) => <button
+          type="button"
+          role="tab"
+          key={phase}
+          aria-selected={selectedPhase === phase}
+          className={selectedPhase === phase ? 'active' : ''}
+          onClick={() => setPhaseChoice(phase)}
+        >{phase}</button>)}
+      </div>
+    </header>
+    <ConditionEditor
+      ariaPrefix={`구역 기본 ${selectedPhase}`}
+      condition={draft}
+      onPatch={changeDraft}
+    />
+    <div className="group-condition-actions"><span>Side와 Unit 하위에서 개별 수정할 수 있습니다.</span><button
+      type="button"
+      className="primary"
+      onClick={() => dispatch({
+        type: 'APPLY_GROUP_CONDITION',
+        sectionId: section.id,
+        phase: selectedPhase,
+        condition: draft,
+      })}
+    >{selectedPhase} 기본값 적용</button></div>
   </section>;
 }
 
-function ConditionGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="condition-group"><header>{title}</header><div className="condition-columns">{children}</div></section>;
+function PhasePanel({ phase, section, sections, photos, dispatch, source, onAddPhotos, selected, onSelect }: { phase: Phase; section: ReportSection; sections: ReportSection[]; photos: PhotoData[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; source: ConditionSource; onAddPhotos: (sectionId: string, phase: Phase) => void; selected: boolean; onSelect: () => void }) {
+  const condition = section.conditions[phase];
+  if (!condition) return null;
+  return <section className={`phase-panel ${phase.toLowerCase()}`} aria-label={`${phase} 사진 갤러리`} onClick={onSelect}>
+    <div className="phase-head"><div><span>{phase}</span><b>{photos.filter((photo) => photo.reportUse).length} PHOTOS</b><em className={`condition-source ${source.toLowerCase()}`}>{source === 'OVERRIDE' ? '개별 수정' : '기본값 사용'}</em></div><div>{source === 'OVERRIDE' && <button type="button" className="condition-revert" aria-label={`${phase} 기본값으로 되돌리기`} onClick={(event) => { event.stopPropagation(); dispatch({ type: 'REVERT_CONDITION_TO_GROUP', sectionId: section.id, phase }); }}>기본값으로 되돌리기</button>}<button type="button" className={selected ? 'phase-target active' : 'phase-target'} aria-label={`${phase} ${selected ? '사진 배정 대상' : '이곳에 배정'}`} onClick={(event) => { event.stopPropagation(); onSelect(); }}>{selected ? '사진 배정 대상' : '이곳에 배정'}</button><button type="button" className="ghost phase-add" aria-label={`${phase}에 사진 추가`} onClick={(event) => { event.stopPropagation(); onAddPhotos(section.id, phase); }}>사진 추가</button></div></div>
+    <div className="phase-condition" onClick={(event) => event.stopPropagation()}><ConditionEditor ariaPrefix={phase} condition={condition} onPatch={(patch) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch })} /></div>
+    <div className="photo-list">{photos.length ? photos.map((photo) => <PhotoRow key={photo.id} photo={photo} phasePhotos={photos} section={section} phase={phase} sections={sections} dispatch={dispatch} />) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>이 Phase에 사진을 추가하거나 폴더에서 불러오세요.</p></div>}</div>
+  </section>;
 }
 
 function PhotoRow({ photo, phasePhotos, section, phase, sections, dispatch }: { photo: PhotoData; phasePhotos: PhotoData[]; section: ReportSection; phase: Phase; sections: ReportSection[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]> }) {

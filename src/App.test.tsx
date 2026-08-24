@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -278,6 +278,41 @@ describe('desktop report workflow', () => {
     expect(coverage).toHaveValue(37);
     expect(screen.getByLabelText('BEFORE fouling rating')).toHaveTextContent('R1');
     expect(screen.getByLabelText('BEFORE fouling type')).toHaveTextContent('Micro fouling');
+  });
+
+  it('applies a group Condition, preserves a child override, and can revert it', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    const groupCoverage = screen.getByLabelText('구역 기본 BEFORE fouling coverage');
+    await user.clear(groupCoverage);
+    await user.type(groupCoverage, '15');
+    await user.click(screen.getByRole('button', { name: 'BEFORE 기본값 적용' }));
+    expect(screen.getByLabelText('BEFORE fouling coverage')).toHaveValue(15);
+    expect(within(screen.getByLabelText('BEFORE 사진 갤러리')).getByText('기본값 사용'))
+      .toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: '다음 Section' }));
+    const childCoverage = screen.getByLabelText('BEFORE fouling coverage');
+    expect(childCoverage).toHaveValue(15);
+    await user.clear(childCoverage);
+    await user.type(childCoverage, '40');
+    expect(within(screen.getByLabelText('BEFORE 사진 갤러리')).getByText('개별 수정'))
+      .toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: '이전 Section' }));
+    await user.clear(screen.getByLabelText('구역 기본 BEFORE fouling coverage'));
+    await user.type(screen.getByLabelText('구역 기본 BEFORE fouling coverage'), '20');
+    await user.click(screen.getByRole('button', { name: 'BEFORE 기본값 적용' }));
+    await user.click(screen.getByRole('button', { name: '다음 Section' }));
+    expect(screen.getByLabelText('BEFORE fouling coverage')).toHaveValue(40);
+
+    await user.click(screen.getByRole('button', { name: 'BEFORE 기본값으로 되돌리기' }));
+    expect(screen.getByLabelText('BEFORE fouling coverage')).toHaveValue(20);
+    expect(within(screen.getByLabelText('BEFORE 사진 갤러리')).getByText('기본값 사용'))
+      .toBeVisible();
   });
 
   it('offers separate photo-add actions for the selected Section BEFORE and AFTER phases', async () => {

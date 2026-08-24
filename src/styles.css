@@ -254,6 +254,18 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .unmatched-trigger b { min-width: 20px; height: 20px; display: grid; place-items: center; border-radius: 5px; background: #f9e4c9; font-size: 8px; }
 .phase-stack { display: grid; gap: 16px; }
 .assignment-target { margin: 0 0 10px; padding: 9px 12px; border: 1px solid #b7dedd; border-radius: 8px; background: #f1fbfa; color: #176f6c; font-size: 9px; font-weight: 800; }
+.group-condition-panel { margin-bottom: 14px; border: 1px solid #c7dadd; border-radius: 11px; background: #fff; overflow: hidden; }
+.group-condition-head { min-height: 54px; padding: 10px 13px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid #dce6e8; background: #f3f8f8; }
+.group-condition-head > div:first-child { min-width: 0; display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 7px; }
+.group-condition-head span { color: var(--teal-700); font-size: 8px; font-weight: 900; letter-spacing: .08em; }
+.group-condition-head b { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.group-condition-head small { color: #71848c; font-size: 8px; }
+.group-phase-tabs { display: flex; gap: 5px; }
+.group-phase-tabs button { min-height: 28px; padding: 0 9px; border: 1px solid #bdcdd2; border-radius: 6px; background: #fff; color: #526b75; font-size: 8px; font-weight: 850; }
+.group-phase-tabs button.active { border-color: var(--teal-700); background: var(--teal-700); color: #fff; }
+.group-condition-actions { padding: 8px 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #e3eaec; }
+.group-condition-actions span { color: #6f828a; font-size: 8px; }
+.group-condition-actions .primary { min-height: 30px; padding: 0 11px; font-size: 9px; }
 .phase-panel { min-width: 0; border: 1px solid var(--line); border-top: 3px solid #55717b; border-radius: 11px; background: #fff; overflow: hidden; }
 .phase-panel.after { border-top-color: var(--teal-600); }
 .phase-panel.current { border-top-color: #2563a3; }
@@ -262,6 +274,9 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .phase-head div span { color: #36545f; font-size: 10px; font-weight: 900; letter-spacing: .09em; }
 .phase-panel.after .phase-head div span { color: var(--teal-700); }
 .phase-head div b { padding: 4px 6px; border-radius: 4px; background: #eef2f3; color: #667b84; font-size: 7px; }
+.condition-source { padding: 3px 6px; border-radius: 999px; color: #506b73; background: #edf3f4; font-size: 7px; font-style: normal; font-weight: 850; }
+.condition-source.override { color: #8c4d09; background: #fff0da; }
+.condition-revert { min-height: 26px; padding: 0 8px; border: 1px solid #d8b77e; border-radius: 6px; background: #fff9ee; color: #8b520e; font-size: 8px; font-weight: 800; }
 .phase-head p { margin: 0; color: #849198; font-size: 7px; }
 .phase-head > div:last-child { justify-content: flex-end; }
 .phase-target { min-height: 26px; padding: 0 8px; border: 1px solid #aebec4; border-radius: 6px; background: #fff; color: #55717b; font-size: 8px; font-weight: 850; }
@@ -271,9 +286,9 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .condition-group { min-width: 0; border: 1px solid #dbe5e8; border-radius: 7px; overflow: hidden; background: #fff; }
 .condition-group header { padding: 6px 8px; border-bottom: 1px solid #dbe5e8; background: #f0f3f4; color: #324d59; font-size: 8px; font-weight: 900; letter-spacing: .05em; text-align: center; }
 .condition-columns { display: grid; grid-template-columns: 56px minmax(110px, 1fr) minmax(110px, 1fr); }
-.condition-columns label { min-width: 0; display: grid; gap: 4px; padding: 6px 7px 7px; border-right: 1px solid #e6edef; }
-.condition-columns label:last-child { border-right: 0; }
-.condition-columns label > span { color: #71838c; font-size: 7px; font-weight: 850; letter-spacing: .06em; }
+.condition-columns > label, .condition-columns > .condition-field { min-width: 0; display: grid; gap: 4px; padding: 6px 7px 7px; border-right: 1px solid #e6edef; }
+.condition-columns > :last-child { border-right: 0; }
+.condition-columns > label > span, .condition-field > span { color: #71838c; font-size: 7px; font-weight: 850; letter-spacing: .06em; }
 .condition-columns select { width: 100%; min-width: 0; height: 29px; padding: 0 6px; font-size: 8px; }
 .coverage-input { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px; }
 .coverage-input input { width: 100%; min-width: 0; height: 29px; padding: 0 7px; border: 1px solid #b9cbd1; border-radius: 4px; background: #fff; color: #16333e; font-size: 9px; font-weight: 750; }
