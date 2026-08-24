@@ -1,5 +1,6 @@
 import { paginateSection, type ReportPage } from '../domain/pagination';
-import type { Condition, Phase, PhotoData, ReportSection } from '../domain/types';
+import type { Condition, Phase, PhotoData, ReportLabelMap, ReportLabels, ReportSection } from '../domain/types';
+import { initializeReportLabels } from './reportLabels';
 import {
   cloneCondition,
   conditionGroupKey,
@@ -16,6 +17,7 @@ export interface ReportState {
   focusedSectionId: string | null;
   conditionDefaults: ConditionDefaults;
   conditionSources: ConditionSources;
+  reportLabels: ReportLabelMap;
 }
 
 export type ReportAction =
@@ -28,6 +30,7 @@ export type ReportAction =
   | { type: 'UPDATE_CONDITION'; sectionId: string; phase: Phase; patch: ConditionPatch }
   | { type: 'APPLY_GROUP_CONDITION'; sectionId: string; phase: Phase; condition: Condition }
   | { type: 'REVERT_CONDITION_TO_GROUP'; sectionId: string; phase: Phase }
+  | { type: 'UPDATE_REPORT_LABELS'; groupKey: string; labels: Partial<ReportLabels> }
   | { type: 'FOCUS_SECTION'; sectionId: string };
 
 export const initialReportState: ReportState = {
@@ -36,6 +39,7 @@ export const initialReportState: ReportState = {
   focusedSectionId: null,
   conditionDefaults: {},
   conditionSources: {},
+  reportLabels: {},
 };
 
 export function reportReducer(state: ReportState, action: ReportAction): ReportState {
@@ -46,6 +50,7 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
         sections: action.sections,
         photos: [],
         focusedSectionId: action.sections[0]?.id ?? null,
+        reportLabels: initializeReportLabels(action.sections),
         ...inheritance,
       };
     }
@@ -135,6 +140,17 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
             ...state.conditionSources[action.sectionId],
             [action.phase]: 'GROUP',
           },
+        },
+      };
+    }
+    case 'UPDATE_REPORT_LABELS': {
+      const current = state.reportLabels[action.groupKey];
+      if (!current) return state;
+      return {
+        ...state,
+        reportLabels: {
+          ...state.reportLabels,
+          [action.groupKey]: { ...current, ...action.labels },
         },
       };
     }

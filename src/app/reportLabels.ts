@@ -1,4 +1,4 @@
-import type { ReportSection } from '../domain/types';
+import type { ReportLabelMap, ReportLabels, ReportSection } from '../domain/types';
 
 const shortComponent = (component: string): string => {
   if (component === 'PROPELLER BLADE') return 'PROPELLER';
@@ -15,4 +15,31 @@ export function conciseSectionLabel(section: ReportSection): string {
     return `${component} ${unit}`;
   }
   return [component, section.side, unit].filter(Boolean).join(' · ');
+}
+
+const titleCase = (value: string): string => value
+  .toLowerCase()
+  .split(' ')
+  .map((word) => word ? word[0].toUpperCase() + word.slice(1) : word)
+  .join(' ');
+
+export function reportLabelKey(section: ReportSection): string {
+  return `${section.area}/${section.component}`;
+}
+
+export function defaultReportLabels(section: ReportSection): ReportLabels {
+  const propellerPart = ['PROPELLER BLADE', 'FIN BLADE'].includes(section.component);
+  return {
+    upperAreaLabel: propellerPart ? 'PROPELLER' : section.component,
+    detailTitle: section.component,
+    photoCaption: titleCase(section.component),
+  };
+}
+
+export function initializeReportLabels(sections: ReportSection[]): ReportLabelMap {
+  return sections.reduce<ReportLabelMap>((labels, section) => {
+    const key = reportLabelKey(section);
+    if (!labels[key]) labels[key] = defaultReportLabels(section);
+    return labels;
+  }, {});
 }

@@ -234,8 +234,23 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 
 .input-canvas { min-width: 0; padding: 18px 24px 28px; overflow: auto; background: #f3f6f7; }
 .input-heading { position: sticky; z-index: 4; top: -18px; margin: -18px -24px 16px; padding: 13px 24px; display: grid; grid-template-columns: 180px minmax(360px, 1fr) auto; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.96); box-shadow: 0 7px 20px rgba(12,37,50,.05); backdrop-filter: blur(12px); }
+.input-title { position: relative; }
 .input-title h2 { margin: 3px 0 1px; font-size: 18px; }
 .input-title > span { display: block; max-width: 180px; overflow: hidden; color: var(--muted); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.report-label-trigger { margin-top: 5px; padding: 0; border: 0; background: transparent; color: var(--teal-700); font-size: 8px; font-weight: 850; }
+.report-label-settings { position: absolute; z-index: 14; top: calc(100% + 8px); left: 0; width: 370px; padding: 13px; display: grid; gap: 9px; border: 1px solid #b9cdd2; border-radius: 10px; background: #fff; box-shadow: 0 16px 38px rgba(12,37,50,.22); }
+.report-label-settings header { display: flex; align-items: flex-start; justify-content: space-between; }
+.report-label-settings header div { display: grid; gap: 2px; }
+.report-label-settings header b { font-size: 11px; }
+.report-label-settings header small { color: #71848c; font-size: 8px; }
+.report-label-settings header button { width: 27px; height: 27px; border: 0; border-radius: 6px; background: #edf2f3; color: #405b65; }
+.report-label-settings label { display: grid; gap: 4px; }
+.report-label-settings label span { color: #526b74; font-size: 8px; font-weight: 850; }
+.report-label-settings input { width: 100%; height: 34px; padding: 0 9px; border: 1px solid #cbd8dc; border-radius: 7px; }
+.report-label-settings output { padding: 10px; display: grid; gap: 4px; border-radius: 8px; background: #eef6f5; color: #294c56; }
+.report-label-settings output b { font-size: 9px; }
+.report-label-settings output span { font-size: 9px; font-weight: 850; }
+.report-label-settings output small { color: #627a83; font-size: 8px; }
 .section-navigator { min-width: 0; display: grid; grid-template-columns: 34px minmax(0, 1fr) 34px; align-items: end; gap: 6px; }
 .section-arrow { height: 42px; border: 1px solid #ccd7dc; border-radius: 8px; background: #fff; color: #3f5964; font-size: 14px; }
 .section-arrow:hover:not(:disabled) { border-color: #84bbb5; color: var(--teal-700); }

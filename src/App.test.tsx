@@ -501,6 +501,32 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFT · BOTTOM');
   });
 
+  it('edits one Word label set shared by every Propeller Blade Unit', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+    await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
+    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByRole('button', { name: '다음 Section' }));
+
+    await user.click(screen.getByRole('button', { name: '보고서 표기 설정' }));
+    const settings = screen.getByRole('dialog', { name: '보고서 표기 설정' });
+    expect(within(settings).getByLabelText('상위 구역명')).toHaveValue('PROPELLER');
+    expect(within(settings).getByLabelText('상세 제목')).toHaveValue('PROPELLER BLADE');
+    expect(within(settings).getByLabelText('사진 캡션')).toHaveValue('Propeller Blade');
+    await user.clear(within(settings).getByLabelText('상위 구역명'));
+    await user.type(within(settings).getByLabelText('상위 구역명'), 'PROPULSION');
+    expect(within(settings).getByLabelText('Word 표기 미리보기'))
+      .toHaveTextContent('NICHE AREAS & COMPONENTS / PROPULSION');
+    await user.click(within(settings).getByRole('button', { name: '표기 설정 닫기' }));
+
+    await user.click(screen.getByRole('button', { name: '다음 Section' }));
+    await user.click(screen.getByRole('button', { name: '보고서 표기 설정' }));
+    expect(screen.getByLabelText('상위 구역명')).toHaveValue('PROPULSION');
+  });
+
   it('auto-matches a pre-existing standard folder path without creating the tree first', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);

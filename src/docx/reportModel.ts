@@ -1,10 +1,12 @@
 import { deriveFoulingCondition, deriveObservedRating } from '../domain/conditions';
-import type { Phase, PhotoData, ReportSection, ServiceKind } from '../domain/types';
+import { defaultReportLabels, reportLabelKey } from '../app/reportLabels';
+import type { Phase, PhotoData, ReportLabelMap, ReportLabels, ReportSection, ServiceKind } from '../domain/types';
 
 export interface TemplateValues {
   bc: string;
   sideLabel: string;
   title: string;
+  photoCaption: string;
   work: string;
   fr: string;
   ft: string;
@@ -74,22 +76,28 @@ function orderSections(sections: ReportSection[]): ReportSection[] {
     .map(({ section }) => section);
 }
 
-export function templateValues(section: ReportSection, phase: Phase): TemplateValues {
+export function templateValues(
+  section: ReportSection,
+  phase: Phase,
+  labels: ReportLabels = defaultReportLabels(section),
+): TemplateValues {
   const condition = section.conditions[phase];
   const fouling = deriveFoulingCondition(
     condition?.fouling.coverage ?? null,
     condition?.fouling.slimeOnly ?? false,
   );
   const observedLevel = condition?.observed.level ?? '';
-  const label = section.component + (section.unit ? ' ' + section.unit : '');
+  const label = labels.detailTitle + (section.unit ? ' ' + section.unit : '');
+  const phaseSuffix = phase === 'CURRENT' ? '' : ` (${phaseLabel(phase)})`;
   return {
     bc: section.area === 'NICHE'
-      ? 'NICHE AREAS & COMPONENTS / ' + section.component
-      : 'GENERAL AREAS / ' + section.component,
+      ? 'NICHE AREAS & COMPONENTS / ' + labels.upperAreaLabel
+      : 'GENERAL AREAS / ' + labels.upperAreaLabel,
     sideLabel: section.side === 'PORT' ? 'PORT SIDE'
       : section.side === 'STBD' ? 'STBD SIDE'
         : section.side === 'BOTTOM' ? 'BOTTOM' : '',
-    title: label + ' (' + phaseLabel(phase) + ')',
+    title: label + phaseSuffix,
+    photoCaption: labels.photoCaption,
     work: serviceLabel(section.service),
     fr: fouling.rating,
     ft: fouling.type,
@@ -105,6 +113,7 @@ export function templateValues(section: ReportSection, phase: Phase): TemplateVa
 export function buildWordPhasePages(
   sections: ReportSection[],
   photos: PhotoData[],
+  reportLabels: ReportLabelMap = {},
 ): WordPhasePage[] {
   const pages: WordPhasePage[] = [];
   for (const section of orderSections(sections)) {
@@ -121,7 +130,11 @@ export function buildWordPhasePages(
           phase,
           kind,
           photos: phasePhotos.slice(start, start + capacity),
-          values: templateValues(section, phase),
+          values: templateValues(
+            section,
+            phase,
+            reportLabels[reportLabelKey(section)] ?? defaultReportLabels(section),
+          ),
         });
         start += capacity;
       }

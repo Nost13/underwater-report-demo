@@ -39,9 +39,10 @@ describe('Word report phase model', () => {
     };
 
     expect(templateValues(section, 'BEFORE')).toEqual({
-      bc: 'NICHE AREAS & COMPONENTS / PROPELLER BLADE',
+      bc: 'NICHE AREAS & COMPONENTS / PROPELLER',
       sideLabel: '',
       title: 'PROPELLER BLADE 1 (Before)',
+      photoCaption: 'Propeller Blade',
       work: 'Polishing',
       fr: '1',
       ft: 'Micro fouling',
@@ -49,6 +50,31 @@ describe('Word report phase model', () => {
       or: '1',
       ol: 'Normal / Trace',
       ot: '-',
+    });
+  });
+
+  it('omits Current from a one-phase Inspection title', () => {
+    const ropeGuard = createNicheSections({
+      component: 'Rope Guard', type: 'SINGLE', quantity: 1, service: 'INSPECTION',
+    })[0];
+
+    expect(templateValues(ropeGuard, 'CURRENT')).toMatchObject({
+      bc: 'NICHE AREAS & COMPONENTS / ROPE GUARD',
+      title: 'ROPE GUARD',
+      photoCaption: 'Rope Guard',
+      work: 'Inspection',
+    });
+  });
+
+  it('uses a component-level Word label override without changing the Section identity', () => {
+    expect(templateValues(section, 'AFTER', {
+      upperAreaLabel: 'PROPULSION',
+      detailTitle: 'BLADE',
+      photoCaption: 'Propeller Blade Detail',
+    })).toMatchObject({
+      bc: 'NICHE AREAS & COMPONENTS / PROPULSION',
+      title: 'BLADE 1 (After)',
+      photoCaption: 'Propeller Blade Detail',
     });
   });
 

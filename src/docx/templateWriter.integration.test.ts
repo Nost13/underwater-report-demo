@@ -58,7 +58,7 @@ describe('bundled Detail report template', () => {
       .documentElement.textContent ?? '';
     expect(result.pageCount).toBe(2);
     expect(documentText.match(/7\. DETAILED SERVICE RECORD/g)).toHaveLength(2);
-    expect(documentText).toContain('NICHE AREAS & COMPONENTS / PROPELLER BLADE');
+    expect(documentText).toContain('NICHE AREAS & COMPONENTS / PROPELLER');
     expect(documentText).toContain('PROPELLER BLADE 1 (Before)');
     expect(documentText).toContain('Polishing');
     expect(documentText).not.toContain('Propeller Polishing');

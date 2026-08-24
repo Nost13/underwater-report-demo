@@ -154,4 +154,31 @@ describe('report state', () => {
       [second[0].id]: { CURRENT: 'GROUP' },
     });
   });
+
+  it('updates one Word label set shared by every Unit of a component', () => {
+    const blades = createNicheSections({
+      component: 'Propeller Blade',
+      type: 'QUANTITY',
+      quantity: 2,
+      service: 'POLISHING',
+    });
+    const seeded = reportReducer(initialReportState, { type: 'SET_SCOPE', sections: blades });
+
+    expect(seeded.reportLabels['NICHE/PROPELLER BLADE']).toEqual({
+      upperAreaLabel: 'PROPELLER',
+      detailTitle: 'PROPELLER BLADE',
+      photoCaption: 'Propeller Blade',
+    });
+
+    const next = reportReducer(seeded, {
+      type: 'UPDATE_REPORT_LABELS',
+      groupKey: 'NICHE/PROPELLER BLADE',
+      labels: { upperAreaLabel: 'PROPULSION' },
+    });
+    expect(next.reportLabels['NICHE/PROPELLER BLADE']).toEqual({
+      upperAreaLabel: 'PROPULSION',
+      detailTitle: 'PROPELLER BLADE',
+      photoCaption: 'Propeller Blade',
+    });
+  });
 });

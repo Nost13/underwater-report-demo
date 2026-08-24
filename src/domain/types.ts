@@ -31,6 +31,14 @@ export interface ReportSection {
   conditions: Partial<Record<Phase, Condition>>;
 }
 
+export interface ReportLabels {
+  upperAreaLabel: string;
+  detailTitle: string;
+  photoCaption: string;
+}
+
+export type ReportLabelMap = Record<string, ReportLabels>;
+
 export interface ScopeTarget {
   id: string;
   area: 'GENERAL' | 'NICHE';

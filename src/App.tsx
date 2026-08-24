@@ -12,7 +12,7 @@ import {
   type ConditionSource,
 } from './app/conditionDefaults';
 import { initialReportState, reportReducer, selectedPages, type ReportState } from './app/reportState';
-import { conciseSectionLabel } from './app/reportLabels';
+import { conciseSectionLabel, defaultReportLabels, reportLabelKey } from './app/reportLabels';
 import { filterSections, groupSections, sectionWindow } from './app/sectionNavigator';
 import { createSectionTree, folderRelativePath, pickDirectory, scanImages, type DirectoryHandleLike } from './browser/directory';
 import { ThumbnailPool, type ThumbnailLease } from './browser/images';
@@ -430,6 +430,7 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
         vesselName: scopeMeta?.vesselName ?? 'UNDERWATER REPORT',
         sections: report.sections,
         photos: report.photos,
+        reportLabels: report.reportLabels,
         templateUrl: 'templates/Detail_report_template.docx',
       });
       setStatus(result.skipped.length
@@ -662,8 +663,16 @@ function ReportInput(props: ReportInputProps) {
   const activeSectionButtonRef = useRef<HTMLButtonElement>(null);
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [sectionQuery, setSectionQuery] = useState('');
+  const [labelSettingsOpen, setLabelSettingsOpen] = useState(false);
   const visibleSections = sectionWindow(props.report.sections, props.activeSection.id);
   const sectionGroups = groupSections(filterSections(props.report.sections, sectionQuery));
+  const labelKey = reportLabelKey(props.activeSection);
+  const labels = props.report.reportLabels[labelKey] ?? defaultReportLabels(props.activeSection);
+  const defaults = defaultReportLabels(props.activeSection);
+  const previewPhase = props.activeSection.phases[0];
+  const previewSuffix = previewPhase === 'CURRENT' ? '' : ` (${previewPhase === 'BEFORE' ? 'Before' : 'After'})`;
+  const previewTitle = `${labels.detailTitle}${props.activeSection.unit ? ` ${props.activeSection.unit}` : ''}${previewSuffix}`;
+  const previewBc = `${props.activeSection.area === 'NICHE' ? 'NICHE AREAS & COMPONENTS' : 'GENERAL AREAS'} / ${labels.upperAreaLabel}`;
   const focusSection = (index: number) => {
     const section = props.report.sections[index];
     if (section) props.dispatch({ type: 'FOCUS_SECTION', sectionId: section.id });
@@ -677,10 +686,11 @@ function ReportInput(props: ReportInputProps) {
 
   useEffect(() => {
     activeSectionButtonRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+    setLabelSettingsOpen(false);
   }, [props.activeSection.id]);
 
   return <div className={`report-workspace${props.unmatchedOpen && props.unmatched.length > 0 ? ' unmatched-open' : ''}`}>
-    <section className="input-canvas"><div className="input-heading"><div className="input-title"><p className="step-kicker">STEP 03 · {props.activeSection.area}</p><h2>Report Input</h2><span>{props.activeSection.id}</span></div><nav className="section-navigator" aria-label="Report Section 바로가기"><button type="button" className="section-arrow" aria-label="이전 Section" disabled={activeIndex === 0} onClick={() => focusSection(activeIndex - 1)}>←</button><div className="section-strip"><div className="section-strip-meta"><span className="section-count">SECTION {activeIndex + 1} / {props.report.sections.length}</span><button type="button" className="section-picker-trigger" aria-label="전체 Section 목록 열기" aria-expanded={sectionPickerOpen} onClick={() => setSectionPickerOpen((open) => !open)}>전체 Section</button></div><div className="section-tabs">{visibleSections.map((section) => {
+    <section className="input-canvas"><div className="input-heading"><div className="input-title"><p className="step-kicker">STEP 03 · {props.activeSection.area}</p><h2>Report Input</h2><span>{props.activeSection.id}</span><button type="button" className="report-label-trigger" aria-expanded={labelSettingsOpen} onClick={() => setLabelSettingsOpen((open) => !open)}>보고서 표기 설정</button>{labelSettingsOpen && <div className="report-label-settings" role="dialog" aria-label="보고서 표기 설정"><header><div><b>보고서 표기 설정</b><small>같은 컴포넌트의 모든 Side·Unit에 적용</small></div><button type="button" aria-label="표기 설정 닫기" onClick={() => setLabelSettingsOpen(false)}>×</button></header><label><span>상위 구역명</span><input aria-label="상위 구역명" value={labels.upperAreaLabel} onChange={(event) => props.dispatch({ type: 'UPDATE_REPORT_LABELS', groupKey: labelKey, labels: { upperAreaLabel: event.target.value } })} /></label><label><span>상세 제목</span><input aria-label="상세 제목" value={labels.detailTitle} onChange={(event) => props.dispatch({ type: 'UPDATE_REPORT_LABELS', groupKey: labelKey, labels: { detailTitle: event.target.value } })} /></label><label><span>사진 캡션</span><input aria-label="사진 캡션" value={labels.photoCaption} onChange={(event) => props.dispatch({ type: 'UPDATE_REPORT_LABELS', groupKey: labelKey, labels: { photoCaption: event.target.value } })} /></label><output aria-label="Word 표기 미리보기"><b>{previewBc}</b><span>{previewTitle}</span><small>사진 캡션: {labels.photoCaption}</small></output><button type="button" className="ghost full" onClick={() => props.dispatch({ type: 'UPDATE_REPORT_LABELS', groupKey: labelKey, labels: defaults })}>기본값으로 복원</button></div>}</div><nav className="section-navigator" aria-label="Report Section 바로가기"><button type="button" className="section-arrow" aria-label="이전 Section" disabled={activeIndex === 0} onClick={() => focusSection(activeIndex - 1)}>←</button><div className="section-strip"><div className="section-strip-meta"><span className="section-count">SECTION {activeIndex + 1} / {props.report.sections.length}</span><button type="button" className="section-picker-trigger" aria-label="전체 Section 목록 열기" aria-expanded={sectionPickerOpen} onClick={() => setSectionPickerOpen((open) => !open)}>전체 Section</button></div><div className="section-tabs">{visibleSections.map((section) => {
       const active = section.id === props.activeSection.id;
       return <button
         type="button"
@@ -841,6 +851,6 @@ function CheckPreview(props: CheckPreviewProps) {
 }
 
 function ExportScreen({ vesselName, report, status, onBack, onExport, busy }: { vesselName: string; report: ReportState; status: string; onBack: () => void; onExport: () => void; busy: boolean }) {
-  const wordPageCount = buildWordPhasePages(report.sections, report.photos).length;
+  const wordPageCount = buildWordPhasePages(report.sections, report.photos, report.reportLabels).length;
   return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 05</p><h2>Word 보고서 다운로드</h2><p>공식 Detail Service Record 템플릿에 Phase별 사진과 Condition을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>Detail Service Record 템플릿 · {wordPageCount} Word pages · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Layout</dt><dd>A4 Portrait · Phase-first</dd></div><div><dt>Page rule</dt><dd>4 + 6 / phase</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p>{status}</p></div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Check / Preview</button></div></div>;
 }

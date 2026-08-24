@@ -1,13 +1,14 @@
 import JSZip from 'jszip';
 import { resizeForReport } from '../browser/images';
 import { buildWordPhasePages } from './reportModel';
-import type { PhotoData, ReportSection } from '../domain/types';
+import type { PhotoData, ReportLabelMap, ReportSection } from '../domain/types';
 
 export interface WordExportInput {
   vesselName: string;
   sections: ReportSection[];
   photos: PhotoData[];
   templateUrl: string;
+  reportLabels?: ReportLabelMap;
   fileName?: string;
 }
 
@@ -70,19 +71,6 @@ const RATING_FILLS: Record<string, string> = {
   '4': 'E34217',
   '5': 'BD1820',
 };
-const COMPONENT_CAPTIONS: Record<string, string> = {
-  'SEA CHEST': 'Sea Chest',
-  'PROPELLER BLADE': 'Propeller Blade',
-  'FIN BLADE': 'Fin Blade',
-  'ROPE GUARD': 'Rope Guard',
-  'BOSS CAP': 'Boss Cap',
-  TRANSDUCER: 'Transducer',
-  'STERN FRAME': 'Stern Frame',
-  'BILGE KEEL': 'Bilge Keel',
-  'THRUSTER GRATING': 'Thruster Grating',
-  RUDDER: 'Rudder',
-};
-
 const drawingXml = (relationshipId: string, imageIndex: number) => [
   '<w:r><w:drawing>',
   '<wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0">',
@@ -260,7 +248,7 @@ export async function writeTemplateReport(
   const contentTypesEntry = zip.file('[Content_Types].xml');
   if (!documentEntry || !relationshipEntry || !contentTypesEntry) throw new Error('TEMPLATE_INVALID');
 
-  const pages = buildWordPhasePages(input.sections, input.photos);
+  const pages = buildWordPhasePages(input.sections, input.photos, input.reportLabels);
   if (!pages.length) throw new Error('NO_REPORT_PHOTOS');
   const templateXml = await documentEntry.async('text');
   const documentParts = splitTemplateDocument(templateXml);
@@ -282,9 +270,7 @@ export async function writeTemplateReport(
       '@FR': page.values.fr, '{{FT}}': page.values.ft, '{{FC}}': page.values.fc,
       '@OR': page.values.or, '{{OL}}': page.values.ol, '{{OT}}': page.values.ot,
     });
-    const caption = page.section.area === 'GENERAL'
-      ? page.section.component
-      : COMPONENT_CAPTIONS[page.section.component] ?? page.section.component;
+    const caption = page.values.photoCaption;
     for (let index = 0; index < page.photos.length; index += 1) {
       const photo = page.photos[index];
       const slot = page.kind === 'first' ? index + 1 : index + 5;
