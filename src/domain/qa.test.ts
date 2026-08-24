@@ -77,4 +77,41 @@ describe('report check issues', () => {
 
     expect(issues.some((issue) => issue.kind === 'MISSING_CONDITION')).toBe(true);
   });
+
+  it('identifies the Phase for photo and condition issues so Report Input can focus it', () => {
+    const [section] = createNicheSections({
+      component: 'Boss Cap',
+      type: 'SINGLE',
+      quantity: 1,
+      service: 'CLEANING',
+    });
+
+    const issues = checkReport([section], []);
+
+    expect(issues.find((issue) => issue.id.endsWith(':BEFORE'))?.phase).toBe('BEFORE');
+    expect(issues.find((issue) => issue.id.endsWith(':AFTER'))?.phase).toBe('AFTER');
+  });
+
+  it('focuses a phase imbalance on the side with fewer Report Use photos', () => {
+    const [section] = createNicheSections({
+      component: 'Boss Cap',
+      type: 'SINGLE',
+      quantity: 1,
+      service: 'CLEANING',
+    });
+    const photos: PhotoData[] = [1, 2, 3, 4].map((number) => ({
+      id: `P${number}`,
+      sectionId: section.id,
+      phase: 'BEFORE',
+      file: new File(['x'], `${number}.jpg`, { type: 'image/jpeg' }),
+      reportUse: true,
+      order: number,
+      relativePath: `${number}.jpg`,
+    }));
+
+    const imbalance = checkReport([section], photos)
+      .find((issue) => issue.kind === 'PHASE_IMBALANCE');
+
+    expect(imbalance?.phase).toBe('AFTER');
+  });
 });

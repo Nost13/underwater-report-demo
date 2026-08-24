@@ -22,6 +22,7 @@ export function checkReport(sections: ReportSection[], photos: PhotoData[]): QaI
           kind: 'MISSING_PHASE_PHOTO',
           message: `${section.id} · ${phase} 사진이 없습니다.`,
           sectionId: section.id,
+          phase,
         });
       }
       const condition = section.conditions[phase];
@@ -33,6 +34,7 @@ export function checkReport(sections: ReportSection[], photos: PhotoData[]): QaI
           kind: 'MISSING_CONDITION',
           message: `${section.id} · ${phase} Condition을 확인하세요.`,
           sectionId: section.id,
+          phase,
         });
       }
     }
@@ -45,6 +47,7 @@ export function checkReport(sections: ReportSection[], photos: PhotoData[]): QaI
           kind: 'PHASE_IMBALANCE',
           message: `${section.id} · BEFORE ${before} / AFTER ${after} 수량 차이가 큽니다.`,
           sectionId: section.id,
+          phase: before < after ? 'BEFORE' : 'AFTER',
         });
       }
     }

@@ -37,6 +37,7 @@ import type {
   Condition,
   Phase,
   PhotoData,
+  QaIssue,
   ReportSection,
   ScopeTarget,
   ServiceKind,
@@ -482,7 +483,7 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
       {stage === 2 && activeSection && <ReportInput
         report={report} activeSection={activeSection} activePhotos={activePhotos}
         unmatched={unmatched} unmatchedOpen={unmatchedOpen}
-        pages={pages} issueCount={issues.length}
+        pages={pages} issues={issues}
         activePhotoTarget={activePhotoTarget}
         onToggleUnmatched={() => setUnmatchedOpen((open) => !open)} onCloseUnmatched={() => setUnmatchedOpen(false)}
         onSelectPhotoTarget={(target) => setActivePhotoPhase(target.phase)} onAssignUnmatched={assignUnmatchedToActivePhase}
@@ -652,7 +653,7 @@ function PhotoSource(props: PhotoSourceProps) {
 interface ReportInputProps {
   report: ReportState; activeSection: ReportSection; activePhotos: PhotoData[];
   unmatched: PhotoData[]; unmatchedOpen: boolean; pages: ReturnType<typeof selectedPages>;
-  issueCount: number; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; onOpen: () => void;
+  issues: QaIssue[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; onOpen: () => void;
   activePhotoTarget: { sectionId: string; phase: Phase } | null;
   onToggleUnmatched: () => void; onCloseUnmatched: () => void; onAddPhotos: (sectionId: string, phase: Phase) => void;
   onSelectPhotoTarget: (target: { sectionId: string; phase: Phase }) => void; onAssignUnmatched: (photoId: string) => void; onBack: () => void; onNext: () => void;
@@ -669,6 +670,7 @@ function ReportInput(props: ReportInputProps) {
   const labelKey = reportLabelKey(props.activeSection);
   const labels = props.report.reportLabels[labelKey] ?? defaultReportLabels(props.activeSection);
   const defaults = defaultReportLabels(props.activeSection);
+  const sectionIssues = props.issues.filter((issue) => issue.sectionId === props.activeSection.id);
   const previewPhase = props.activeSection.phases[0];
   const previewSuffix = previewPhase === 'CURRENT' ? '' : ` (${previewPhase === 'BEFORE' ? 'Before' : 'After'})`;
   const previewTitle = `${labels.detailTitle}${props.activeSection.unit ? ` ${props.activeSection.unit}` : ''}${previewSuffix}`;
@@ -706,13 +708,43 @@ function ReportInput(props: ReportInputProps) {
       ><span className={`service-badge ${section.service.toLowerCase()}`}>{section.service}</span><b>{conciseSectionLabel(section)}</b></button>;
     })}</div>{sectionPickerOpen && <div className="section-picker" role="dialog" aria-label="전체 Section"><div className="section-picker-head"><b>전체 Section</b><button type="button" aria-label="전체 Section 닫기" onClick={() => setSectionPickerOpen(false)}>×</button></div><input type="search" aria-label="Section 검색" placeholder="Service, 구역, Side, Unit 검색" value={sectionQuery} onChange={(event) => setSectionQuery(event.target.value)} autoFocus /><div className="section-picker-list">{sectionGroups.length ? sectionGroups.map((group) => <section key={group.key}><header><span className={`service-badge ${group.service.toLowerCase()}`}>{group.service}</span><b>{group.component}</b><em>{group.sections.length}</em></header>{group.sections.map((section) => <button type="button" key={section.id} className={section.id === props.activeSection.id ? 'active' : ''} aria-label={`${section.service} ${conciseSectionLabel(section)} Section 열기`} onClick={() => selectSection(section.id)}><span>{conciseSectionLabel(section)}</span><small>{section.id}</small></button>)}</section>) : <p>검색 결과가 없습니다.</p>}</div></div>}</div><button type="button" className="section-arrow" aria-label="다음 Section" disabled={activeIndex === props.report.sections.length - 1} onClick={() => focusSection(activeIndex + 1)}>→</button></nav><div className="input-metrics"><div className="page-badge"><b>{props.pages.length}P</b><span>{props.activePhotos.filter((photo) => photo.reportUse).length} Report Use</span></div><button type="button" className="unmatched-trigger" aria-label={`UNMATCHED ${props.unmatched.length}`} aria-controls="unmatched" aria-expanded={props.unmatchedOpen && props.unmatched.length > 0} disabled={props.unmatched.length === 0} onClick={props.onToggleUnmatched}><span>UNMATCHED</span><b>{props.unmatched.length}</b></button></div></div>
       <p className={`assignment-target ${props.activePhotoTarget?.phase.toLowerCase() ?? ''}`} aria-label="현재 사진 배정 위치" aria-live="polite"><b>{props.activePhotoTarget?.phase ?? '—'} 사진 배정 대상</b><span>{conciseSectionLabel(props.activeSection)}</span><small>{props.activePhotoTarget?.sectionId ?? '—'} · {props.activePhotoTarget?.phase ?? '—'}</small></p>
-      <GroupConditionPanel report={props.report} section={props.activeSection} dispatch={props.dispatch} />
+      <div className="report-input-top-grid">
+        <GroupConditionPanel report={props.report} section={props.activeSection} dispatch={props.dispatch} />
+        <SectionQaPanel
+          section={props.activeSection}
+          issues={sectionIssues}
+          onFocusPhase={(phase) => props.onSelectPhotoTarget({ sectionId: props.activeSection.id, phase })}
+        />
+      </div>
       <div className="phase-stack">{props.activeSection.phases.map((phase) => <PhasePanel key={phase} phase={phase} section={props.activeSection} sections={props.report.sections} photos={props.activePhotos.filter((photo) => photo.phase === phase)} dispatch={props.dispatch} source={props.report.conditionSources[props.activeSection.id]?.[phase] ?? 'GROUP'} onAddPhotos={props.onAddPhotos} selected={props.activePhotoTarget?.sectionId === props.activeSection.id && props.activePhotoTarget.phase === phase} onSelect={() => props.onSelectPhotoTarget({ sectionId: props.activeSection.id, phase })} />)}</div>
       <p className="photo-delete-note">삭제는 보고서 참조만 제거하며 원본 파일은 유지됩니다.</p>
     </section>
     {props.unmatchedOpen && props.unmatched.length > 0 && <aside className="unmatched-drawer" id="unmatched" aria-label="UNMATCHED 사진 배정"><div className="unmatched-head"><div><p className="eyebrow">MANUAL ASSIGN</p><h3>UNMATCHED</h3></div><div><span>{props.unmatched.length}</span><button type="button" aria-label="UNMATCHED 닫기" onClick={props.onCloseUnmatched}>×</button></div></div><p className="unmatched-help">확실하지 않은 경로는 추측하지 않습니다. 사진을 클릭하면 현재 선택된 위치에 바로 배정됩니다.</p><div className="unmatched-list">{props.unmatched.map((photo) => <UnmatchedCard key={photo.id} photo={photo} onAssign={() => props.onAssignUnmatched(photo.id)} />)}</div><button type="button" className="ghost full" onClick={props.onOpen}>사진 더 불러오기</button></aside>}
-    <div className="input-footer"><button type="button" className="text-button" onClick={props.onBack}>← 사진 입력</button><div><span>Report Check {props.issueCount} issues</span><button type="button" className="primary" onClick={props.onNext}>Check / Preview</button></div></div>
+    <div className="input-footer"><button type="button" className="text-button" onClick={props.onBack}>← 사진 입력</button><div><span>Report Check {props.issues.length} issues</span><button type="button" className="primary" onClick={props.onNext}>Check / Preview</button></div></div>
   </div>;
+}
+
+function SectionQaPanel({ section, issues, onFocusPhase }: {
+  section: ReportSection;
+  issues: QaIssue[];
+  onFocusPhase: (phase: Phase) => void;
+}) {
+  const actionLabel = (issue: QaIssue) => {
+    if (issue.kind === 'MISSING_PHASE_PHOTO') return `${issue.phase} 사진 없음`;
+    if (issue.kind === 'MISSING_CONDITION') return `${issue.phase} Condition 누락`;
+    return 'BEFORE / AFTER 사진 수량 차이';
+  };
+  return <aside className={`section-qa-panel${issues.length ? '' : ' clear'}`} aria-label="현재 Section 점검">
+    <header aria-label="현재 Section 점검 요약" aria-live="polite"><div><span>SECTION CHECK</span><b>{issues.length ? `현재 Section 오류 ${issues.length}` : '현재 Section 이상 없음'}</b></div><em>{issues.length}</em></header>
+    <p>{section.service} · {conciseSectionLabel(section)}</p>
+    {issues.length ? <div className="section-qa-list">{issues.map((issue) => <button
+      type="button"
+      key={issue.id}
+      aria-label={`${actionLabel(issue)}${issue.phase ? ` · ${issue.phase} Phase 확인` : ''}`}
+      onClick={() => issue.phase && onFocusPhase(issue.phase)}
+    ><span>!</span><span><b>{issue.kind.replaceAll('_', ' ')}</b><small>{issue.message}</small></span>{issue.phase && <em>{issue.phase} →</em>}</button>)}</div> : <div className="section-qa-clear"><span>✓</span><div><b>입력 상태가 정상입니다.</b><small>Condition과 필수 Phase 사진이 모두 준비되었습니다.</small></div></div>}
+    <footer>전체 오류는 Check / Preview에서 한 번에 확인합니다.</footer>
+  </aside>;
 }
 
 interface GroupConditionPanelProps {

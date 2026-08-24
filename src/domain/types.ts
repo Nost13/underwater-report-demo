@@ -71,9 +71,19 @@ export type QaIssueKind =
   | 'PHASE_IMBALANCE'
   | 'UNMATCHED';
 
-export interface QaIssue {
+interface QaIssueBase {
   id: string;
-  kind: QaIssueKind;
   message: string;
-  sectionId: string | null;
 }
+
+export type QaIssue =
+  | (QaIssueBase & {
+    kind: Exclude<QaIssueKind, 'UNMATCHED'>;
+    sectionId: string;
+    phase: Phase;
+  })
+  | (QaIssueBase & {
+    kind: 'UNMATCHED';
+    sectionId: null;
+    phase?: never;
+  });

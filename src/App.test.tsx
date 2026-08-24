@@ -396,6 +396,28 @@ describe('desktop report workflow', () => {
       .toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('shows only the active Section issues beside the group Condition and focuses their Phase', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    const sectionCheck = screen.getByLabelText('현재 Section 점검');
+    expect(sectionCheck).not.toHaveAttribute('aria-live');
+    expect(within(sectionCheck).getByLabelText('현재 Section 점검 요약'))
+      .toHaveAttribute('aria-live', 'polite');
+    expect(sectionCheck).toHaveTextContent('현재 Section 오류');
+    expect(sectionCheck).toHaveTextContent('FWD · PORT');
+    expect(sectionCheck).not.toHaveTextContent('FWD · STBD');
+
+    await user.click(within(sectionCheck).getByRole('button', {
+      name: /AFTER 사진 없음.*AFTER Phase 확인/,
+    }));
+
+    expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFTER');
+    expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveClass('selected');
+  });
+
   it('opens any Report Section with one click and keeps sequential arrows', async () => {
     const user = userEvent.setup();
     render(<App />);
