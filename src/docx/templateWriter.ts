@@ -77,7 +77,7 @@ export async function writeTemplateReport(
     });
     for (let index = 0; index < page.photos.length; index += 1) {
       const photo = page.photos[index];
-      const slot = index + 1;
+      const slot = page.kind === 'first' ? index + 1 : index + 5;
       const token = '{{P' + slot + '}}';
       imageIndex += 1;
       try {
@@ -93,7 +93,11 @@ export async function writeTemplateReport(
         pageXml = pageXml.replaceAll(token, '');
       }
     }
-    for (let slot = page.photos.length + 1; slot <= 10; slot += 1) pageXml = pageXml.replaceAll('{{P' + slot + '}}', '');
+    const firstSlot = page.kind === 'first' ? 1 : 5;
+    const usedSlots = new Set(page.photos.map((_, index) => firstSlot + index));
+    for (let slot = 1; slot <= 10; slot += 1) {
+      if (!usedSlots.has(slot)) pageXml = pageXml.replaceAll('{{P' + slot + '}}', '');
+    }
     renderedBodies.push(pageXml);
   }
   const pageBreak = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
