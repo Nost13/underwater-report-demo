@@ -300,7 +300,7 @@ Expected: every command exits 0.
 
 Run the export fixture, open its ZIP package, verify header/footer XML equals the template originals, verify media and image relationships exist, and verify no named placeholder remains. Render to PDF and inspect the first and continuation page only if a compatible local Word/LibreOffice renderer is available; otherwise record structural verification.
 
-- [ ] **Step 6: Commit and publish**
+- [x] **Step 6: Commit and publish**
 
 \`\`\`bash
 git add e2e README.md
