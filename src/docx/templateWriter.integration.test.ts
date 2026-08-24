@@ -21,6 +21,7 @@ describe('bundled Detail report template', () => {
         .filter((path) => /^word\/footer\d+\.xml$/.test(path))
         .map(async (path) => [path, await original.file(path)?.async('uint8array')] as const),
     );
+    const originalStyles = await original.file('word/styles.xml')?.async('uint8array');
     const section = createNicheSections({
       component: 'Propeller Blade',
       type: 'QUANTITY',
@@ -71,6 +72,9 @@ describe('bundled Detail report template', () => {
     for (const [path, bytes] of [...originalHeaders, ...originalFooters]) {
       expect(await output.file(path)?.async('uint8array')).toEqual(bytes);
     }
+    expect(await output.file('word/styles.xml')?.async('uint8array')).toEqual(originalStyles);
+    expect(documentXml).not.toContain('w:type="page"');
+    expect(documentXml.match(/pageBreakBefore/g)).toHaveLength(1);
   });
 
   it('fills the gray image cell above the component caption and colors both rating cells', async () => {
@@ -109,7 +113,7 @@ describe('bundled Detail report template', () => {
     const documentXml = await output.file('word/document.xml')?.async('text') ?? '';
     const document = new DOMParser().parseFromString(documentXml, 'application/xml');
     const rows = Array.from(document.getElementsByTagNameNS('*', 'tr'));
-    const captionRow = rows.find((row) => row.textContent?.trim() === 'Rope Guard');
+    const captionRow = rows.find((row) => row.textContent?.includes('Rope Guard'));
     expect(captionRow).toBeDefined();
     expect(captionRow?.getElementsByTagNameNS('*', 'drawing')).toHaveLength(0);
     const imageRow = captionRow?.previousElementSibling;

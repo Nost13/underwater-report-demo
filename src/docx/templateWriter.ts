@@ -155,6 +155,21 @@ function serializeFragment(document: Document): string {
     .join('');
 }
 
+function markPageStart(document: Document): void {
+  const paragraph = Array.from(document.documentElement.children)
+    .find((element) => element.localName === 'p')
+    ?? Array.from(document.getElementsByTagNameNS('*', 'p'))[0];
+  if (!paragraph) throw new Error('TEMPLATE_PAGE_START_INVALID');
+  let properties = directChildren(paragraph, 'pPr')[0];
+  if (!properties) {
+    properties = document.createElementNS(WORD_NAMESPACE, 'w:pPr');
+    paragraph.insertBefore(properties, paragraph.firstChild);
+  }
+  if (!directChildren(properties, 'pageBreakBefore').length) {
+    properties.appendChild(document.createElementNS(WORD_NAMESPACE, 'w:pageBreakBefore'));
+  }
+}
+
 function paragraphText(paragraph: Element): string {
   return Array.from(paragraph.getElementsByTagNameNS('*', 't'))
     .map((node) => node.textContent ?? '')
@@ -262,6 +277,7 @@ export async function writeTemplateReport(
   const renderedBodies: string[] = [];
   for (const page of pages) {
     const pageDocument = parseFragment(page.kind === 'first' ? documentParts.firstBody : documentParts.continuationBody);
+    if (renderedBodies.length > 0) markPageStart(pageDocument);
     setRatingCellFill(pageDocument, '@FR', page.values.fr);
     setRatingCellFill(pageDocument, '@OR', page.values.or);
     replaceText(pageDocument, {
@@ -285,18 +301,17 @@ export async function writeTemplateReport(
         insertPhotoAboveCaption(pageDocument, token, relationId, imageIndex, caption);
       } catch {
         skipped.push(photo.file.name);
-        replaceText(pageDocument, { [token]: '' });
+        replaceText(pageDocument, { [token]: 'N/A' });
       }
     }
     const firstSlot = page.kind === 'first' ? 1 : 5;
     const usedSlots = new Set(page.photos.map((_, index) => firstSlot + index));
     for (let slot = 1; slot <= 10; slot += 1) {
-      if (!usedSlots.has(slot)) replaceText(pageDocument, { ['{{P' + slot + '}}']: '' });
+      if (!usedSlots.has(slot)) replaceText(pageDocument, { ['{{P' + slot + '}}']: 'N/A' });
     }
     renderedBodies.push(serializeFragment(pageDocument));
   }
-  const pageBreak = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
-  const documentXml = documentParts.prefix + renderedBodies.join(pageBreak) + documentParts.sectionProperties + documentParts.suffix;
+  const documentXml = documentParts.prefix + renderedBodies.join('') + documentParts.sectionProperties + documentParts.suffix;
   zip.file('word/document.xml', documentXml);
   zip.file('word/_rels/document.xml.rels', relationshipsXml);
   zip.file('[Content_Types].xml', contentTypesXml);

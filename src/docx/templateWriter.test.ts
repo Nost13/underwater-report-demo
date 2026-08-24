@@ -13,9 +13,9 @@ async function fixtureTemplate(): Promise<ArrayBuffer> {
     + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>@FR {{FT}} {{FC}} @OR {{OL}} {{OT}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
     + '<w:tbl>'
     + '<w:tr><w:trPr><w:trHeight w:val="3686"/></w:trPr><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc></w:tr>'
-    + '<w:tr><w:tc><w:p><w:r><w:t>{{P1}}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>{{P2}}</w:t></w:r></w:p></w:tc></w:tr>'
+    + '<w:tr><w:tc><w:p><w:r><w:rPr><w:sz w:val="18"/></w:rPr><w:t>{{P1}}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:rPr><w:sz w:val="18"/></w:rPr><w:t>{{P2}}</w:t></w:r></w:p></w:tc></w:tr>'
     + '<w:tr><w:trPr><w:trHeight w:val="3686"/></w:trPr><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc></w:tr>'
-    + '<w:tr><w:tc><w:p><w:r><w:t>{{P3}}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>{{P4}}</w:t></w:r></w:p></w:tc></w:tr>'
+    + '<w:tr><w:tc><w:p><w:r><w:rPr><w:sz w:val="18"/></w:rPr><w:t>{{P3}}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:rPr><w:sz w:val="18"/></w:rPr><w:t>{{P4}}</w:t></w:r></w:p></w:tc></w:tr>'
     + '</w:tbl>'
     + '<w:p><w:r><w:t>7. DETAILED SERVICE RECORD</w:t></w:r></w:p>'
     + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>{{BC}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
@@ -30,6 +30,7 @@ async function fixtureTemplate(): Promise<ArrayBuffer> {
     + '<w:sectPr/></w:body></w:document>');
   zip.file('word/header1.xml', '<header>ORIGINAL HEADER</header>');
   zip.file('word/footer1.xml', '<footer>ORIGINAL FOOTER</footer>');
+  zip.file('word/styles.xml', '<styles>ORIGINAL STYLES</styles>');
   zip.file('word/_rels/document.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>');
   zip.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
   return zip.generateAsync({ type: 'arraybuffer' });
@@ -60,6 +61,7 @@ describe('template Word writer', () => {
     const zip = await JSZip.loadAsync(result.blob);
     expect(await zip.file('word/header1.xml')?.async('text')).toBe('<header>ORIGINAL HEADER</header>');
     expect(await zip.file('word/footer1.xml')?.async('text')).toBe('<footer>ORIGINAL FOOTER</footer>');
+    expect(await zip.file('word/styles.xml')?.async('text')).toBe('<styles>ORIGINAL STYLES</styles>');
     const documentXml = await zip.file('word/document.xml')?.async('text') ?? '';
     expect(documentXml).toContain('NICHE AREAS &amp; COMPONENTS / BOSS CAP');
     expect(documentXml).not.toContain('{{P1}}');
@@ -69,7 +71,7 @@ describe('template Word writer', () => {
     expect(documentXml).toContain('<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>');
     const document = new DOMParser().parseFromString(documentXml, 'application/xml');
     const captionRow = Array.from(document.getElementsByTagNameNS('*', 'tr'))
-      .find((row) => row.textContent?.trim() === 'Boss Cap');
+      .find((row) => row.textContent?.includes('Boss Cap'));
     expect(captionRow).toBeDefined();
     expect(captionRow?.getElementsByTagNameNS('*', 'drawing')).toHaveLength(0);
     expect(captionRow?.previousElementSibling?.getElementsByTagNameNS('*', 'drawing')).toHaveLength(1);
@@ -78,6 +80,13 @@ describe('template Word writer', () => {
     expect(extent?.getAttribute('cy')).toBe('2340000');
     expect(await zip.file('word/media/image1.jpg')?.async('uint8array')).toEqual(new Uint8Array([1, 2, 3]));
     expect(await zip.file('[Content_Types].xml')?.async('text')).toContain('Extension="jpg"');
+    const naParagraph = Array.from(document.getElementsByTagNameNS('*', 'p'))
+      .find((paragraph) => paragraph.textContent?.trim() === 'N/A');
+    expect(naParagraph).toBeDefined();
+    expect(naParagraph?.getElementsByTagNameNS('*', 'sz')[0]?.getAttributeNS(
+      'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+      'val',
+    )).toBe('18');
   });
 
   it('writes a separate template body for Before and After in phase order', async () => {
@@ -94,6 +103,28 @@ describe('template Word writer', () => {
     expect(xml).toContain('BOSS CAP (Before)');
     expect(xml).toContain('BOSS CAP (After)');
     expect(xml?.indexOf('BOSS CAP (Before)')).toBeLessThan(xml?.indexOf('BOSS CAP (After)') ?? 0);
+    expect(xml).not.toContain('w:type="page"');
+    expect(xml?.match(/pageBreakBefore/g)).toHaveLength(1);
+  });
+
+  it('marks a failed image as skipped and leaves N/A in its caption slot', async () => {
+    const section = createNicheSections({ component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'CLEANING' })[0];
+    const failed: PhotoData = {
+      id: 'FAILED', sectionId: section.id, phase: 'BEFORE', reportUse: true, order: 1,
+      relativePath: 'failed.jpg', file: new File(['bad'], 'failed.jpg', { type: 'image/jpeg' }),
+    };
+    const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos: [failed], templateUrl: '/template.docx' }, {
+      fetchTemplate: fixtureTemplate,
+      resize: async () => { throw new Error('bad image'); },
+    });
+    const xml = await (await JSZip.loadAsync(result.blob)).file('word/document.xml')?.async('text') ?? '';
+    const document = new DOMParser().parseFromString(xml, 'application/xml');
+    const captions = Array.from(document.getElementsByTagNameNS('*', 'p'))
+      .map((paragraph) => paragraph.textContent?.trim())
+      .filter((text) => text === 'N/A');
+
+    expect(result.skipped).toEqual(['failed.jpg']);
+    expect(captions).toHaveLength(4);
   });
 
   it('uses the first template block once and the continuation block for photos five through ten', async () => {
