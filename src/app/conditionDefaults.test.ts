@@ -22,8 +22,18 @@ describe('condition defaults', () => {
   });
 
   it('groups Side and Unit children by Service, Area, and Component only', () => {
+    const differentArea = { ...polishing[0], area: 'GENERAL' as const };
+    const differentComponent = createNicheSections({
+      component: 'Boss Cap',
+      type: 'SINGLE',
+      quantity: 1,
+      service: 'POLISHING',
+    })[0];
+
     expect(conditionGroupKey(polishing[0])).toBe(conditionGroupKey(polishing[1]));
     expect(conditionGroupKey(polishing[0])).not.toBe(conditionGroupKey(inspection[0]));
+    expect(conditionGroupKey(polishing[0])).not.toBe(conditionGroupKey(differentArea));
+    expect(conditionGroupKey(polishing[0])).not.toBe(conditionGroupKey(differentComponent));
     expect(conditionGroupMembers([...polishing, ...inspection], polishing[0]))
       .toEqual(polishing);
   });

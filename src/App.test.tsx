@@ -16,6 +16,17 @@ async function buildCleaningGeneral(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('desktop report workflow', () => {
+  it('keeps the photo workflow disabled until a Scope exists', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(screen.getByRole('button', { name: '사진 폴더 선택' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '샘플 사진 7장 불러오기' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Report Input으로', exact: true })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /Report Input$/ }));
+    expect(screen.getByRole('heading', { name: 'Vessel / Scope' })).toBeVisible();
+  });
+
   it('assigns GENERAL by Service brush without overwriting exceptions and supports undo', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -446,6 +457,8 @@ describe('desktop report workflow', () => {
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
     await user.upload(manualInput, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
 
+    expect(screen.getByRole('checkbox', { name: 'manual.jpg Report Use' }))
+      .toHaveClass('switch-input');
     const move = screen.getAllByRole('button', { name: /이동$/ })[0];
     const remove = screen.getAllByRole('button', { name: /삭제$/ })[0];
     expect(move).toHaveClass('photo-action-button', 'move');
@@ -453,6 +466,31 @@ describe('desktop report workflow', () => {
     await user.click(move);
     expect(screen.getByRole('button', { name: '이동 완료' })).toHaveClass('move-confirm');
     expect(screen.getByRole('button', { name: '이동 취소' })).toHaveClass('move-cancel');
+    expect(screen.getByText('삭제는 보고서 참조만 제거하며 원본 파일은 유지됩니다.'))
+      .toBeVisible();
+  });
+
+  it('resets a cancelled photo move to the current Section and Phase', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByRole('button', { name: 'BEFORE에 사진 추가' }));
+    const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
+    await user.upload(manualInput, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
+
+    await user.click(screen.getByRole('button', { name: 'manual.jpg 이동' }));
+    await user.selectOptions(
+      screen.getByLabelText('manual.jpg 이동 Section'),
+      'CLEANING/GENERAL/FWD/STBD',
+    );
+    await user.selectOptions(screen.getByLabelText('manual.jpg 이동 Phase'), 'AFTER');
+    await user.click(screen.getByRole('button', { name: '이동 취소' }));
+
+    await user.click(screen.getByRole('button', { name: 'manual.jpg 이동' }));
+    expect(screen.getByLabelText('manual.jpg 이동 Section'))
+      .toHaveValue('CLEANING/GENERAL/FWD/PORT');
+    expect(screen.getByLabelText('manual.jpg 이동 Phase')).toHaveValue('BEFORE');
   });
 
   it('uses one photo-folder flow with optional structure creation after selection', async () => {

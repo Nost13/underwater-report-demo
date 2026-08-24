@@ -297,7 +297,11 @@ test('complete 1440px flow covers preview, QA focus, repagination, and Word down
   await expect(page.locator('.page-badge b')).toHaveText('6P');
 
   const reportUseSwitches = page.locator('.switch');
-  for (let index = 0; index < 24; index += 1) {
+  const firstReportUse = page.locator('.switch-input').first();
+  await firstReportUse.focus();
+  await page.keyboard.press('Space');
+  await expect(firstReportUse).not.toBeChecked();
+  for (let index = 1; index < 24; index += 1) {
     await reportUseSwitches.nth(index).click();
   }
   await expect(page.locator('.page-badge b')).toHaveText('1P');
