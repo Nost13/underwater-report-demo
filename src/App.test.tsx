@@ -437,6 +437,24 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('사진 불러오기 완료 · 1장');
   });
 
+  it('styles photo action controls consistently', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByRole('button', { name: 'BEFORE에 사진 추가' }));
+    const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
+    await user.upload(manualInput, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
+
+    const move = screen.getAllByRole('button', { name: /이동$/ })[0];
+    const remove = screen.getAllByRole('button', { name: /삭제$/ })[0];
+    expect(move).toHaveClass('photo-action-button', 'move');
+    expect(remove).toHaveClass('photo-action-button', 'danger');
+    await user.click(move);
+    expect(screen.getByRole('button', { name: '이동 완료' })).toHaveClass('move-confirm');
+    expect(screen.getByRole('button', { name: '이동 취소' })).toHaveClass('move-cancel');
+  });
+
   it('uses one photo-folder flow with optional structure creation after selection', async () => {
     const user = userEvent.setup();
     render(<App />);

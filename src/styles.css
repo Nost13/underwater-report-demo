@@ -13,11 +13,16 @@
   --warning: #b45309;
   --danger: #b42318;
   --shadow: 0 18px 50px rgba(14, 34, 45, .08);
+  --font-ui-xs: 10px;
+  --font-ui-sm: 11px;
+  --font-ui-base: 12px;
+  --font-ui-md: 14px;
+  --font-ui-lg: 16px;
 }
 
 * { box-sizing: border-box; }
 html, body { min-height: 100%; }
-body { margin: 0; background: #edf1f3; color: var(--ink); font-family: Inter, Pretendard, "Segoe UI", Arial, sans-serif; font-size: 14px; }
+body { margin: 0; background: #edf1f3; color: var(--ink); font-family: Inter, Pretendard, "Segoe UI", Arial, sans-serif; font-size: var(--font-ui-base); }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
@@ -325,7 +330,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .rating-empty { background: #9aacb2; }
 .rating-0 { background: #00aee5; }.rating-1 { background: #02ae4f; }.rating-2 { background: #ffbd23; color: #543900; }.rating-3 { background: #ff7a00; }.rating-4 { background: #e34217; }.rating-5 { background: #bd1820; }
 .photo-list { padding: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.photo-row { min-width: 0; padding: 8px; display: grid; grid-template-rows: auto minmax(35px, auto) 26px; gap: 7px; border: 1px solid #e1e7ea; border-radius: 9px; background: #fff; content-visibility: auto; contain-intrinsic-size: auto 250px; transition: .15s; }
+.photo-row { min-width: 0; padding: 8px; display: grid; grid-template-rows: auto minmax(42px, auto) minmax(38px, auto); gap: 7px; border: 1px solid #e1e7ea; border-radius: 9px; background: #fff; content-visibility: auto; contain-intrinsic-size: auto 270px; transition: .15s; }
 .photo-row.excluded { opacity: .45; background: #f2f4f5; }
 .thumb { position: relative; width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: 6px; background: #dbe4e7; overflow: hidden; }
 .thumb img, .unmatched-thumb img, .preview-photo img { width: 100%; height: 100%; display: block; object-fit: cover; }
@@ -338,18 +343,24 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .photo-info span { margin-top: 4px; color: #6f8189; font-size: 8px; }
 .switch { display: grid; justify-items: center; gap: 2px; cursor: pointer; }
 .switch input { display: none; }
-.switch i { position: relative; width: 27px; height: 15px; border-radius: 999px; background: #bdc9cd; }
-.switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 9px; height: 9px; border-radius: 50%; background: #fff; transition: .15s; }
+.switch i { position: relative; width: 34px; height: 19px; border-radius: 999px; background: #bdc9cd; }
+.switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: .15s; }
 .switch input:checked + i { background: var(--teal-600); }
-.switch input:checked + i::after { transform: translateX(12px); }
-.switch span { color: #819198; font-size: 5px; font-weight: 850; }
+.switch input:checked + i::after { transform: translateX(15px); }
+.switch span { color: #6f858e; font-size: var(--font-ui-xs); font-weight: 850; }
 .photo-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.photo-actions > div { display: flex; gap: 7px; }
-.photo-actions .delete-photo { color: #a94a3a; }
-.photo-actions > button { padding: 2px 4px; border: 0; background: transparent; color: #607982; font-size: 8px; text-decoration: underline; }
+.photo-action-buttons { display: flex; gap: 7px; }
+.photo-action-button { min-height: 34px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid #8299a2; border-radius: 7px; background: #fff; color: #365761; font-size: var(--font-ui-base); font-weight: 800; }
+.photo-action-button.move:hover { border-color: var(--navy-800); background: #edf3f5; color: var(--navy-800); }
+.photo-action-button.danger { border-color: #dcaaa4; background: #fff8f7; color: var(--danger); }
+.photo-action-button.danger:hover { border-color: var(--danger); background: #fff0ee; }
+.photo-action-button span { font-size: 14px; line-height: 1; }
 .photo-row:has(.photo-move) { grid-template-rows: auto minmax(35px, auto) auto; }
-.photo-actions .photo-move { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.photo-move select, .photo-move button { min-width: 0; height: 25px; padding: 0 4px; font-size: 7px; }
+.photo-actions .photo-move { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.photo-move select, .photo-move button { min-width: 0; height: 34px; padding: 0 7px; border-radius: 6px; font-size: var(--font-ui-base); }
+.photo-move select { grid-column: 1 / -1; }
+.move-confirm { border: 1px solid var(--teal-700); background: var(--teal-700); color: #fff; font-weight: 800; }
+.move-cancel { border: 1px solid #bccbd0; background: #fff; color: #526c75; font-weight: 800; }
 .phase-empty { grid-column: 1 / -1; min-height: 126px; display: grid; place-items: center; align-content: center; border: 1px dashed #ccd7db; border-radius: 8px; color: #72838b; text-align: center; }
 .phase-empty > span { font-size: 20px; color: #8aa0a8; }
 .phase-empty b { margin: 5px 0 2px; font-size: 9px; }
@@ -403,7 +414,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .preview-toolbar select { width: 100%; height: 34px; font-size: 9px; }
 .preview-count { color: var(--teal-700); font-size: 9px; white-space: nowrap; }
 .preview-stage { min-height: 0; padding: 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 20px; overflow: auto; background: #dfe5e7; }
-.report-page { width: 100%; aspect-ratio: 1.414 / 1; padding: 16px; display: grid; grid-template-rows: 41px minmax(0, 1fr) 34px; border-radius: 2px; background: #fff; box-shadow: 0 12px 28px rgba(15,35,44,.16); }
+.report-page { width: 100%; aspect-ratio: 1.414 / 1; padding: 16px; display: grid; grid-template-rows: 41px minmax(0, 1fr) 34px; border-radius: 2px; background: #fff; box-shadow: 0 12px 28px rgba(15,35,44,.16); font-size: 14px; }
 .report-page header { display: flex; justify-content: space-between; border-bottom: 2px solid var(--navy-900); }
 .report-page header b, .report-page header span { display: block; }
 .report-page header b { font-size: 10px; letter-spacing: .08em; }
@@ -437,9 +448,49 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .export-card dd { margin: 4px 0 0; font-size: 11px; font-weight: 750; }
 .export-button { width: 100%; min-height: 46px; }
 
+/* Application typography scale. Report preview typography remains isolated below. */
+.app-shell button, .app-shell input, .app-shell select { font-size: var(--font-ui-base); }
+.stage-item span, .local-only, .general-matrix > b, .matrix-corner,
+.target-main, .target-status, .service-chip, .niche-group > header span,
+.scope-summary span, .scope-summary em, .photo-progress i, .section-count,
+.service-badge, .unmatched-trigger span, .phase-head div b, .condition-source,
+.condition-columns > label > span, .condition-field > span, .slime-toggle span,
+.thumb > span, .thumb-loading { font-size: var(--font-ui-xs); }
+.eyebrow, .step-kicker, .top-meta span, .privacy-chip, .field > span,
+.condition-row label > span, .detail-field > span, .phase-rule span,
+.general-matrix-row > strong, .mini-heading span, .polishing-set-note,
+.fin-blade-option small, .side-note, .scope-ready button, .method-top em,
+.photo-progress small, .photo-progress strong, .photo-scope-summary p,
+.scope-work-list span, .photo-scope-summary small, .demo-strip span,
+.photo-status-detail, .input-title > span, .section-tab b, .page-badge span,
+.unmatched-trigger b, .assignment-target span, .assignment-target small,
+.group-condition-head span, .group-condition-head small,
+.group-condition-actions span, .condition-group header, .photo-info span,
+.phase-empty p, .unmatched-help, .unmatched-card > b, .unmatched-card > span,
+.unmatched-empty span, .input-footer > div span, .qa-panel > p,
+.qa-summary span, .issue-icon, .qa-list em, .qa-clear span,
+.preview-toolbar select, .preview-count, .preview-footer > span,
+.export-doc p, .export-card > p, .export-card dt { font-size: var(--font-ui-sm); }
+.panel-title > span, .panel-title p, .input-action button, .empty-note,
+.vessel-card span, .vessel-card dd, .phase-rule b, .mini-heading,
+.niche-controls select, .niche-controls input, .fin-blade-option b,
+.niche-group > header b, .scope-ready, .primary, .ghost, .text-button,
+.actionbar > span, .method-card > p, .folder-tree code,
+.photo-progress li > span, .photo-progress b, .scope-work-list b,
+.demo-strip b, .status-line, .sidebar-head > span, .section-search,
+.assignment-target b, .group-condition-head b, .phase-head div span,
+.condition-value, .rating-badge, .photo-info b, .phase-empty b,
+.unmatched-head > div:last-child span, .qa-title > span, .qa-summary,
+.qa-list b, .preview-empty span, .export-doc > span, .export-card dd {
+  font-size: var(--font-ui-base);
+}
+.condition-columns select, .coverage-input input { min-height: 34px; font-size: var(--font-ui-base); }
+.condition-value, .rating-badge { min-height: 34px; }
+.phase-add, .condition-revert, .group-phase-tabs button { min-height: 34px; }
+
 @media (max-width: 1180px) {
   .app-shell { min-width: 1024px; grid-template-columns: 148px minmax(0, 1fr); }
-  .stage-item { padding-left: 40px; font-size: 10px; }
+  .stage-item { padding-left: 40px; font-size: var(--font-ui-base); }
   .actionbar { left: 178px; }
   .scope-grid { grid-template-columns: 1fr; }
   .report-workspace { grid-template-columns: minmax(0, 1fr); }

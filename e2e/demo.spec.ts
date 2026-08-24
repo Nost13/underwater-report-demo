@@ -86,6 +86,21 @@ test('the unified photo input creates the exact GENERAL directory tree', async (
   expect(paths.filter((path) => /\/(BEFORE|AFTER)$/.test(path))).toHaveLength(30);
 });
 
+test('12px application typography keeps photo controls readable without overflow', async ({ page }) => {
+  await buildGeneralScope(page);
+  await page.getByRole('button', { name: '샘플 사진 7장 불러오기' }).click();
+  await page.getByRole('button', { name: 'Report Input으로' }).click();
+
+  expect(await page.locator('body').evaluate((node) => getComputedStyle(node).fontSize)).toBe('12px');
+  expect(await page.locator('.phase-select').first().evaluate((node) => getComputedStyle(node).fontSize)).toBe('12px');
+  expect(await page.locator('.photo-action-button').first().evaluate((node) => getComputedStyle(node).fontSize)).toBe('12px');
+  expect((await page.locator('.photo-action-button').first().boundingBox())?.height).toBeGreaterThanOrEqual(34);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+
+  await page.getByRole('button', { name: 'Check / Preview' }).last().click();
+  expect(await page.locator('.report-page').first().evaluate((node) => getComputedStyle(node).fontSize)).toBe('14px');
+});
+
 test('the unified photo input assigns UNMATCHED photos to the clicked phase, moves them, and adds directly', async ({ page }) => {
   await buildGeneralScope(page);
   const directoryInput = page.locator('input[type="file"][webkitdirectory]');
