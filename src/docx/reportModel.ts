@@ -23,6 +23,24 @@ export interface WordPhasePage {
 }
 
 const phaseOrder: Phase[] = ['BEFORE', 'AFTER', 'CURRENT'];
+const generalOrder = ['FWD', 'FWD-MID', 'MID', 'MID-AFT', 'AFT'];
+const sideOrder = ['PORT', 'STBD', 'BOTTOM'];
+const nicheOrder = [
+  'BULBOUS BOW',
+  'BOW THRUSTER',
+  'THRUSTER GRATING',
+  'BILGE KEEL',
+  'SEA CHEST',
+  'DISCHARGE PIPE',
+  'ANODE / ICCP',
+  'TRANSDUCER',
+  'STERN FRAME',
+  'ROPE GUARD',
+  'PROPELLER BLADE',
+  'FIN BLADE',
+  'BOSS CAP',
+  'RUDDER',
+];
 
 const titleCase = (value: string) => value
   .toLowerCase()
@@ -34,9 +52,27 @@ const phaseLabel = (phase: Phase) => phase[0] + phase.slice(1).toLowerCase();
 
 const serviceLabel = (service: ServiceKind) => titleCase(service);
 
-const workComponentLabel = (component: string) => (
-  component === 'PROPELLER BLADE' ? 'Propeller' : titleCase(component)
-);
+const rank = (values: string[], value?: string) => {
+  const index = value ? values.indexOf(value) : -1;
+  return index < 0 ? values.length : index;
+};
+
+function orderSections(sections: ReportSection[]): ReportSection[] {
+  return sections
+    .map((section, sourceIndex) => ({ section, sourceIndex }))
+    .sort((left, right) => {
+      if (left.section.area !== right.section.area) return left.section.area === 'GENERAL' ? -1 : 1;
+      const componentDifference = left.section.area === 'GENERAL'
+        ? rank(generalOrder, left.section.component) - rank(generalOrder, right.section.component)
+        : rank(nicheOrder, left.section.component) - rank(nicheOrder, right.section.component);
+      if (componentDifference) return componentDifference;
+      const sideDifference = rank(sideOrder, left.section.side) - rank(sideOrder, right.section.side);
+      if (sideDifference) return sideDifference;
+      const unitDifference = (left.section.unit ?? 0) - (right.section.unit ?? 0);
+      return unitDifference || left.sourceIndex - right.sourceIndex;
+    })
+    .map(({ section }) => section);
+}
 
 export function templateValues(section: ReportSection, phase: Phase): TemplateValues {
   const condition = section.conditions[phase];
@@ -54,7 +90,7 @@ export function templateValues(section: ReportSection, phase: Phase): TemplateVa
       : section.side === 'STBD' ? 'STBD SIDE'
         : section.side === 'BOTTOM' ? 'BOTTOM' : '',
     title: label + ' (' + phaseLabel(phase) + ')',
-    work: workComponentLabel(section.component) + ' ' + serviceLabel(section.service),
+    work: serviceLabel(section.service),
     fr: fouling.rating,
     ft: fouling.type,
     fc: condition?.fouling.coverage === null || condition?.fouling.coverage === undefined
@@ -71,7 +107,7 @@ export function buildWordPhasePages(
   photos: PhotoData[],
 ): WordPhasePage[] {
   const pages: WordPhasePage[] = [];
-  for (const section of sections) {
+  for (const section of orderSections(sections)) {
     for (const phase of phaseOrder) {
       if (!section.phases.includes(phase)) continue;
       const phasePhotos = photos

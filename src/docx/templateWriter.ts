@@ -59,8 +59,29 @@ function splitTemplateDocument(xml: string): DocumentParts {
   };
 }
 
-const PHOTO_WIDTH_EMU = 2_825_750;
-const PHOTO_HEIGHT_EMU = 2_119_312;
+const WORD_NAMESPACE = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const PHOTO_WIDTH_EMU = 3_236_400;
+const PHOTO_HEIGHT_EMU = 2_340_000;
+const RATING_FILLS: Record<string, string> = {
+  '0': '00AEE5',
+  '1': '02AE4F',
+  '2': 'FFBD23',
+  '3': 'FF7A00',
+  '4': 'E34217',
+  '5': 'BD1820',
+};
+const COMPONENT_CAPTIONS: Record<string, string> = {
+  'SEA CHEST': 'Sea Chest',
+  'PROPELLER BLADE': 'Propeller Blade',
+  'FIN BLADE': 'Fin Blade',
+  'ROPE GUARD': 'Rope Guard',
+  'BOSS CAP': 'Boss Cap',
+  TRANSDUCER: 'Transducer',
+  'STERN FRAME': 'Stern Frame',
+  'BILGE KEEL': 'Bilge Keel',
+  'THRUSTER GRATING': 'Thruster Grating',
+  RUDDER: 'Rudder',
+};
 
 const drawingXml = (relationshipId: string, imageIndex: number) => [
   '<w:r><w:drawing>',
@@ -133,18 +154,88 @@ function replaceTokenInParagraph(paragraph: Element, token: string, value: strin
   }
 }
 
-function replaceText(xml: string, values: Record<string, string>): string {
-  const namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
-  const document = new DOMParser().parseFromString(`<root xmlns:w="${namespace}">${xml}</root>`, 'application/xml');
+function parseFragment(xml: string): Document {
+  const document = new DOMParser().parseFromString(`<root xmlns:w="${WORD_NAMESPACE}">${xml}</root>`, 'application/xml');
   if (document.querySelector('parsererror')) throw new Error('TEMPLATE_FRAGMENT_INVALID');
-  const paragraphs = Array.from(document.getElementsByTagNameNS('*', 'p'));
-  for (const paragraph of paragraphs) {
-    for (const [token, value] of Object.entries(values)) replaceTokenInParagraph(paragraph, token, value);
-  }
+  return document;
+}
+
+function serializeFragment(document: Document): string {
   const serializer = new XMLSerializer();
   return Array.from(document.documentElement.childNodes)
     .map((node) => serializer.serializeToString(node))
     .join('');
+}
+
+function paragraphText(paragraph: Element): string {
+  return Array.from(paragraph.getElementsByTagNameNS('*', 't'))
+    .map((node) => node.textContent ?? '')
+    .join('');
+}
+
+function closestElement(element: Element, localName: string): Element | null {
+  let current: Element | null = element;
+  while (current && current.localName !== localName) current = current.parentElement;
+  return current;
+}
+
+function directChildren(element: Element, localName: string): Element[] {
+  return Array.from(element.children).filter((child) => child.localName === localName);
+}
+
+function setRatingCellFill(document: Document, token: string, rating: string): void {
+  const fill = RATING_FILLS[rating];
+  if (!fill) return;
+  const paragraph = Array.from(document.getElementsByTagNameNS('*', 'p'))
+    .find((item) => paragraphText(item).includes(token));
+  const cell = paragraph ? closestElement(paragraph, 'tc') : null;
+  const cellProperties = cell ? directChildren(cell, 'tcPr')[0] : undefined;
+  if (!cellProperties) return;
+  let shading = directChildren(cellProperties, 'shd')[0];
+  if (!shading) {
+    shading = document.createElementNS(WORD_NAMESPACE, 'w:shd');
+    cellProperties.appendChild(shading);
+  }
+  shading.setAttributeNS(WORD_NAMESPACE, 'w:fill', fill);
+}
+
+function replaceText(document: Document, values: Record<string, string>): void {
+  const paragraphs = Array.from(document.getElementsByTagNameNS('*', 'p'));
+  for (const paragraph of paragraphs) {
+    for (const [token, value] of Object.entries(values)) replaceTokenInParagraph(paragraph, token, value);
+  }
+}
+
+function insertPhotoAboveCaption(
+  document: Document,
+  token: string,
+  relationshipId: string,
+  imageIndex: number,
+  caption: string,
+): void {
+  const captionParagraph = Array.from(document.getElementsByTagNameNS('*', 'p'))
+    .find((paragraph) => paragraphText(paragraph).includes(token));
+  const captionCell = captionParagraph ? closestElement(captionParagraph, 'tc') : null;
+  const captionRow = captionCell ? closestElement(captionCell, 'tr') : null;
+  const imageRow = captionRow?.previousElementSibling;
+  if (!captionParagraph || !captionCell || !captionRow || imageRow?.localName !== 'tr') {
+    throw new Error('TEMPLATE_PHOTO_SLOT_INVALID');
+  }
+  const captionCells = directChildren(captionRow, 'tc');
+  const imageCells = directChildren(imageRow, 'tc');
+  const cellIndex = captionCells.indexOf(captionCell);
+  const imageCell = imageCells[cellIndex];
+  const imageParagraph = imageCell ? directChildren(imageCell, 'p')[0] : undefined;
+  if (!imageParagraph) throw new Error('TEMPLATE_PHOTO_SLOT_INVALID');
+
+  const drawingDocument = new DOMParser().parseFromString(
+    `<root xmlns:w="${WORD_NAMESPACE}">${drawingXml(relationshipId, imageIndex)}</root>`,
+    'application/xml',
+  );
+  const drawingRun = drawingDocument.documentElement.firstElementChild;
+  if (!drawingRun || drawingDocument.querySelector('parsererror')) throw new Error('PHOTO_XML_INVALID');
+  imageParagraph.appendChild(document.importNode(drawingRun, true));
+  replaceTokenInParagraph(captionParagraph, token, caption);
 }
 
 function addRelationship(xml: string, id: string, target: string): string {
@@ -182,12 +273,18 @@ export async function writeTemplateReport(
   let imageIndex = 0;
   const renderedBodies: string[] = [];
   for (const page of pages) {
-    let pageXml = replaceText(page.kind === 'first' ? documentParts.firstBody : documentParts.continuationBody, {
+    const pageDocument = parseFragment(page.kind === 'first' ? documentParts.firstBody : documentParts.continuationBody);
+    setRatingCellFill(pageDocument, '@FR', page.values.fr);
+    setRatingCellFill(pageDocument, '@OR', page.values.or);
+    replaceText(pageDocument, {
       '{{BC}}': page.values.bc, '{{SIDE_LABEL}}': page.values.sideLabel,
       '{{TITLE}}': page.values.title, '{{WORK}}': page.values.work,
       '@FR': page.values.fr, '{{FT}}': page.values.ft, '{{FC}}': page.values.fc,
       '@OR': page.values.or, '{{OL}}': page.values.ol, '{{OT}}': page.values.ot,
     });
+    const caption = page.section.area === 'GENERAL'
+      ? page.section.component
+      : COMPONENT_CAPTIONS[page.section.component] ?? page.section.component;
     for (let index = 0; index < page.photos.length; index += 1) {
       const photo = page.photos[index];
       const slot = page.kind === 'first' ? index + 1 : index + 5;
@@ -199,19 +296,18 @@ export async function writeTemplateReport(
         const relationId = 'rIdReportImage' + imageIndex;
         zip.file('word/media/' + name, bytes);
         relationshipsXml = addRelationship(relationshipsXml, relationId, name);
-        const placeholderRun = new RegExp(`<w:r(?:\\s[^>]*)?>(?:(?!</w:r>)[\\s\\S])*?<w:t(?:\\s[^>]*)?>\\{\\{P${slot}\\}\\}</w:t>(?:(?!</w:r>)[\\s\\S])*?</w:r>`);
-        pageXml = pageXml.replace(placeholderRun, drawingXml(relationId, imageIndex));
+        insertPhotoAboveCaption(pageDocument, token, relationId, imageIndex, caption);
       } catch {
         skipped.push(photo.file.name);
-        pageXml = pageXml.replaceAll(token, '');
+        replaceText(pageDocument, { [token]: '' });
       }
     }
     const firstSlot = page.kind === 'first' ? 1 : 5;
     const usedSlots = new Set(page.photos.map((_, index) => firstSlot + index));
     for (let slot = 1; slot <= 10; slot += 1) {
-      if (!usedSlots.has(slot)) pageXml = pageXml.replaceAll('{{P' + slot + '}}', '');
+      if (!usedSlots.has(slot)) replaceText(pageDocument, { ['{{P' + slot + '}}']: '' });
     }
-    renderedBodies.push(pageXml);
+    renderedBodies.push(serializeFragment(pageDocument));
   }
   const pageBreak = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
   const documentXml = documentParts.prefix + renderedBodies.join(pageBreak) + documentParts.sectionProperties + documentParts.suffix;

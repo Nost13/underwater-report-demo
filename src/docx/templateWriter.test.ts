@@ -11,10 +11,22 @@ async function fixtureTemplate(): Promise<ArrayBuffer> {
     + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>{{BC}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
     + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>{{TITLE}}</w:t></w:r></w:p><w:p><w:r><w:t>{{WORK}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
     + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>@FR {{FT}} {{FC}} @OR {{OL}} {{OT}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
-    + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>{{P1}}</w:t></w:r></w:p><w:p><w:r><w:t>{{P2}}</w:t></w:r></w:p><w:p><w:r><w:t>{{P3}}</w:t></w:r></w:p><w:p><w:r><w:t>{{P4}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
+    + '<w:tbl>'
+    + '<w:tr><w:trPr><w:trHeight w:val="3686"/></w:trPr><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc></w:tr>'
+    + '<w:tr><w:tc><w:p><w:r><w:t>{{P1}}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>{{P2}}</w:t></w:r></w:p></w:tc></w:tr>'
+    + '<w:tr><w:trPr><w:trHeight w:val="3686"/></w:trPr><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc></w:tr>'
+    + '<w:tr><w:tc><w:p><w:r><w:t>{{P3}}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>{{P4}}</w:t></w:r></w:p></w:tc></w:tr>'
+    + '</w:tbl>'
     + '<w:p><w:r><w:t>7. DETAILED SERVICE RECORD</w:t></w:r></w:p>'
     + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>{{BC}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
-    + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>{{P5}}</w:t></w:r></w:p><w:p><w:r><w:t>{{P6}}</w:t></w:r></w:p><w:p><w:r><w:t>{{P7}}</w:t></w:r></w:p><w:p><w:r><w:t>{{P8}}</w:t></w:r></w:p><w:p><w:r><w:t>{{P9}}</w:t></w:r></w:p><w:p><w:r><w:t>{{P10}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
+    + '<w:tbl>'
+    + '<w:tr><w:trPr><w:trHeight w:val="3686"/></w:trPr><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc></w:tr>'
+    + '<w:tr><w:tc><w:p><w:r><w:t>{{P5}}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>{{P6}}</w:t></w:r></w:p></w:tc></w:tr>'
+    + '<w:tr><w:trPr><w:trHeight w:val="3686"/></w:trPr><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc></w:tr>'
+    + '<w:tr><w:tc><w:p><w:r><w:t>{{P7}}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>{{P8}}</w:t></w:r></w:p></w:tc></w:tr>'
+    + '<w:tr><w:trPr><w:trHeight w:val="3686"/></w:trPr><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc></w:tr>'
+    + '<w:tr><w:tc><w:p><w:r><w:t>{{P9}}</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>{{P10}}</w:t></w:r></w:p></w:tc></w:tr>'
+    + '</w:tbl>'
     + '<w:sectPr/></w:body></w:document>');
   zip.file('word/header1.xml', '<header>ORIGINAL HEADER</header>');
   zip.file('word/footer1.xml', '<footer>ORIGINAL FOOTER</footer>');
@@ -55,6 +67,15 @@ describe('template Word writer', () => {
     expect(documentXml).toContain('<a:stretch><a:fillRect/></a:stretch>');
     expect(documentXml).toContain('<a:xfrm>');
     expect(documentXml).toContain('<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>');
+    const document = new DOMParser().parseFromString(documentXml, 'application/xml');
+    const captionRow = Array.from(document.getElementsByTagNameNS('*', 'tr'))
+      .find((row) => row.textContent?.trim() === 'Boss Cap');
+    expect(captionRow).toBeDefined();
+    expect(captionRow?.getElementsByTagNameNS('*', 'drawing')).toHaveLength(0);
+    expect(captionRow?.previousElementSibling?.getElementsByTagNameNS('*', 'drawing')).toHaveLength(1);
+    const extent = captionRow?.previousElementSibling?.getElementsByTagNameNS('*', 'extent')[0];
+    expect(extent?.getAttribute('cx')).toBe('3236400');
+    expect(extent?.getAttribute('cy')).toBe('2340000');
     expect(await zip.file('word/media/image1.jpg')?.async('uint8array')).toEqual(new Uint8Array([1, 2, 3]));
     expect(await zip.file('[Content_Types].xml')?.async('text')).toContain('Extension="jpg"');
   });

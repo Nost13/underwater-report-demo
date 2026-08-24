@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cleanCondition } from '../domain/conditions';
-import { createNicheSections } from '../domain/structure';
-import type { PhotoData } from '../domain/types';
+import { createGeneralSections, createNicheSections } from '../domain/structure';
+import type { PhotoData, ReportSection } from '../domain/types';
 import { buildWordPhasePages, templateValues } from './reportModel';
 
 const section = createNicheSections({
@@ -21,6 +21,16 @@ const photo = (id: string, phase: 'BEFORE' | 'AFTER', order: number): PhotoData 
   relativePath: id + '.jpg',
 });
 
+const sectionPhoto = (reportSection: ReportSection, order: number): PhotoData => ({
+  id: reportSection.id,
+  sectionId: reportSection.id,
+  phase: reportSection.phases[0],
+  file: new File(['image'], reportSection.id + '.jpg', { type: 'image/jpeg' }),
+  reportUse: true,
+  order,
+  relativePath: reportSection.id + '.jpg',
+});
+
 describe('Word report phase model', () => {
   it('maps a niche Before phase to the approved template placeholders', () => {
     section.conditions.BEFORE = {
@@ -32,7 +42,7 @@ describe('Word report phase model', () => {
       bc: 'NICHE AREAS & COMPONENTS / PROPELLER BLADE',
       sideLabel: '',
       title: 'PROPELLER BLADE 1 (Before)',
-      work: 'Propeller Polishing',
+      work: 'Polishing',
       fr: '1',
       ft: 'Micro fouling',
       fc: '70%',
@@ -40,6 +50,31 @@ describe('Word report phase model', () => {
       ol: 'Normal / Trace',
       ot: '-',
     });
+  });
+
+  it('orders report pages by the Overall Summary sequence instead of scope input order', () => {
+    const general = createGeneralSections('INSPECTION');
+    const fwdPort = general.find((item) => item.component === 'FWD' && item.side === 'PORT')!;
+    const fwdStbd = general.find((item) => item.component === 'FWD' && item.side === 'STBD')!;
+    const aftBottom = general.find((item) => item.component === 'AFT' && item.side === 'BOTTOM')!;
+    const ropeGuard = createNicheSections({ component: 'Rope Guard', type: 'SINGLE', quantity: 1, service: 'INSPECTION' })[0];
+    const propeller = createNicheSections({ component: 'Propeller Blade', type: 'QUANTITY', quantity: 1, service: 'INSPECTION' })[0];
+    const finBlade = createNicheSections({ component: 'Fin Blade', type: 'QUANTITY', quantity: 1, service: 'INSPECTION' })[0];
+    const bossCap = createNicheSections({ component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'INSPECTION' })[0];
+    const shuffled = [bossCap, aftBottom, finBlade, propeller, fwdStbd, ropeGuard, fwdPort];
+
+    expect(buildWordPhasePages(
+      shuffled,
+      shuffled.map((item, index) => sectionPhoto(item, index + 1)),
+    ).map((page) => [page.section.component, page.section.side ?? ''])).toEqual([
+      ['FWD', 'PORT'],
+      ['FWD', 'STBD'],
+      ['AFT', 'BOTTOM'],
+      ['ROPE GUARD', ''],
+      ['PROPELLER BLADE', ''],
+      ['FIN BLADE', ''],
+      ['BOSS CAP', ''],
+    ]);
   });
 
   it('groups each phase as four photos then six and places Before before After', () => {
