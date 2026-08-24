@@ -4,7 +4,7 @@ import {
   createNicheSections,
   createReportSections,
 } from './structure';
-import { createCaption, matchPhotoPath, phaseIndexForPhoto } from './photos';
+import { createCaption, matchPhotoPath, phaseIndexForPhoto, summarizePhotoImport } from './photos';
 import type { PhotoData } from './types';
 
 describe('photo matching and captions', () => {
@@ -76,5 +76,37 @@ describe('photo matching and captions', () => {
     })) as PhotoData[];
     expect(phaseIndexForPhoto(values[0], values)).toBe(1);
     expect(phaseIndexForPhoto(values[2], values)).toBe(2);
+  });
+
+  it('reports exact standard paths independently of who created the folder tree', () => {
+    const exact = {
+      id: 'EXACT',
+      sectionId: sections[0].id,
+      phase: 'BEFORE',
+      file: new File(['x'], 'exact.jpg', { type: 'image/jpeg' }),
+      reportUse: true,
+      order: 1,
+      relativePath: 'NICHE/SEA CHEST/PORT/01/BEFORE/exact.jpg',
+    } as PhotoData;
+    const unmatched = {
+      ...exact,
+      id: 'LOOSE',
+      sectionId: null,
+      phase: null,
+      relativePath: 'loose.jpg',
+    };
+
+    expect(summarizePhotoImport([exact, unmatched])).toEqual({
+      total: 2,
+      matched: 1,
+      unmatched: 1,
+      standardPathsDetected: true,
+    });
+    expect(summarizePhotoImport([unmatched])).toEqual({
+      total: 1,
+      matched: 0,
+      unmatched: 1,
+      standardPathsDetected: false,
+    });
   });
 });

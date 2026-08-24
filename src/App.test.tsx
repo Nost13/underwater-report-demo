@@ -444,7 +444,7 @@ describe('desktop report workflow', () => {
     const fallback = container.querySelector('input[type="file"][webkitdirectory]') as HTMLInputElement;
     await user.upload(fallback, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
     expect(screen.getByLabelText('사진 입력 진행 상태'))
-      .toHaveTextContent('사진 불러오기 완료 · 1장 / UNMATCHED 1장');
+      .toHaveTextContent('사진 불러오기 완료 · 1장 · 표준 폴더 경로 없음 · 0장 자동 매칭 · UNMATCHED 1장');
     vi.unstubAllGlobals();
   });
 
@@ -456,7 +456,25 @@ describe('desktop report workflow', () => {
 
     await user.upload(input, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
 
-    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('사진 불러오기 완료 · 1장');
+    expect(screen.getByLabelText('사진 입력 진행 상태'))
+      .toHaveTextContent('사진 불러오기 완료 · 1장 · 표준 폴더 경로 없음');
+  });
+
+  it('auto-matches a pre-existing standard folder path without creating the tree first', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    const input = container.querySelector('input[type="file"][webkitdirectory]') as HTMLInputElement;
+    const photo = new File(['photo'], 'existing.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(photo, 'webkitRelativePath', {
+      configurable: true,
+      value: '기존사진/GENERAL/FWD/PORT/BEFORE/existing.jpg',
+    });
+
+    await user.upload(input, photo);
+
+    expect(screen.getByLabelText('사진 입력 진행 상태'))
+      .toHaveTextContent('표준 폴더 경로 감지 · 1장 자동 매칭 · UNMATCHED 0장');
   });
 
   it('styles photo action controls consistently', async () => {

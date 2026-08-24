@@ -71,3 +71,18 @@ export function phaseIndexForPhoto(photo: PhotoData, photos: PhotoData[]): numbe
   const index = phasePhotos.findIndex((candidate) => candidate.id === photo.id);
   return index >= 0 ? index + 1 : 1;
 }
+
+export function summarizePhotoImport(photos: PhotoData[]): {
+  total: number;
+  matched: number;
+  unmatched: number;
+  standardPathsDetected: boolean;
+} {
+  const matched = photos.filter((photo) => Boolean(photo.sectionId && photo.phase)).length;
+  return {
+    total: photos.length,
+    matched,
+    unmatched: photos.length - matched,
+    standardPathsDetected: matched > 0,
+  };
+}

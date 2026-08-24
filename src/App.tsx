@@ -15,7 +15,7 @@ import { initialReportState, reportReducer, selectedPages, type ReportState } fr
 import { conciseSectionLabel } from './app/reportLabels';
 import { createSectionTree, folderRelativePath, pickDirectory, scanImages, type DirectoryHandleLike } from './browser/directory';
 import { ThumbnailPool, type ThumbnailLease } from './browser/images';
-import { createCaption, matchPhotoPath, phaseIndexForPhoto } from './domain/photos';
+import { createCaption, matchPhotoPath, phaseIndexForPhoto, summarizePhotoImport } from './domain/photos';
 import { formatConditionSummary } from './domain/conditions';
 import { buildWordPhasePages } from './docx/reportModel';
 import { checkReport } from './domain/qa';
@@ -166,6 +166,7 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
   const [folder, setFolder] = useState<DirectoryHandleLike | null>(null);
   const [folderStructureCreated, setFolderStructureCreated] = useState(false);
   const [photoImportComplete, setPhotoImportComplete] = useState(false);
+  const [standardPathsDetected, setStandardPathsDetected] = useState(false);
   const [status, setStatus] = useState('사진 폴더를 선택하거나 샘플 사진으로 흐름을 확인하세요.');
   const [unmatchedOpen, setUnmatchedOpen] = useState(false);
   const [activePhotoPhase, setActivePhotoPhase] = useState<Phase>('BEFORE');
@@ -197,6 +198,7 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
     setScopeMeta({ vesselName: vessel?.name ?? 'UNDERWATER REPORT' });
     setFolderStructureCreated(false);
     setPhotoImportComplete(false);
+    setStandardPathsDetected(false);
   };
 
   const resetScope = () => {
@@ -205,6 +207,7 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
     setFolder(null);
     setFolderStructureCreated(false);
     setPhotoImportComplete(false);
+    setStandardPathsDetected(false);
     setUnmatchedOpen(false);
     setActivePhotoPhase('BEFORE');
     setStatus('사진 폴더를 선택하거나 샘플 사진으로 흐름을 확인하세요.');
@@ -320,9 +323,10 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
     const scanned = await scanImages(selected);
     const photos = photoRecords(scanned, report.sections, autoMatch, report.photos.length + 1);
     dispatch({ type: 'IMPORT_PHOTOS', photos });
-    const matched = photos.filter((photo) => photo.sectionId).length;
+    const summary = summarizePhotoImport(photos);
     setPhotoImportComplete(true);
-    setStatus(`${photos.length}장 불러옴 · ${matched}장 자동 매칭 · ${photos.length - matched}장 UNMATCHED`);
+    setStandardPathsDetected(summary.standardPathsDetected);
+    setStatus(`${summary.total}장 불러옴 · ${summary.matched}장 자동 매칭 · ${summary.unmatched}장 UNMATCHED`);
   };
 
   const reloadFolder = async () => {
@@ -347,6 +351,7 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
       setFolder(selected);
       setFolderStructureCreated(false);
       setPhotoImportComplete(false);
+      setStandardPathsDetected(false);
       setStatus(`“${selected.name}” 폴더를 선택했습니다. 사진을 불러오거나 표준 구조를 생성하세요.`);
     } catch (error) {
       if (error instanceof Error && error.message === 'FILE_SYSTEM_ACCESS_UNAVAILABLE') fallbackInput.current?.click();
@@ -361,9 +366,10 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
       .map((file) => ({ file, relativePath: folderRelativePath((file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name) }));
     const photos = photoRecords(images, report.sections, true, report.photos.length + 1);
     dispatch({ type: 'IMPORT_PHOTOS', photos });
-    const matched = photos.filter((photo) => photo.sectionId).length;
+    const summary = summarizePhotoImport(photos);
     setPhotoImportComplete(true);
-    setStatus(`${photos.length}장 불러옴 · ${matched}장 자동 매칭 · ${photos.length - matched}장 UNMATCHED`);
+    setStandardPathsDetected(summary.standardPathsDetected);
+    setStatus(`${summary.total}장 불러옴 · ${summary.matched}장 자동 매칭 · ${summary.unmatched}장 UNMATCHED`);
   };
 
   const addPhotosToPhase = (sectionId: string, phase: Phase) => {
@@ -460,14 +466,14 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
         onPhotos={() => document.getElementById('photo-source')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}
       /><PhotoSource embedded
         photoCount={report.photos.length} matchedCount={report.photos.length - unmatched.length} unmatchedCount={unmatched.length}
-        status={status} hasFolder={Boolean(folder)} structureCreated={folderStructureCreated} importComplete={photoImportComplete} folderName={folder?.name ?? null} sections={report.sections}
+        status={status} hasFolder={Boolean(folder)} structureCreated={folderStructureCreated} importComplete={photoImportComplete} standardPathsDetected={standardPathsDetected} folderName={folder?.name ?? null} sections={report.sections}
         onSelect={selectPhotoFolder} onCreate={createFolders} onLoad={reloadFolder}
         onDemo={loadDemo} onBack={() => setStage(0)} onNext={openReportInput}
       /></>}
 
       {stage === 1 && <PhotoSource
         photoCount={report.photos.length} matchedCount={report.photos.length - unmatched.length} unmatchedCount={unmatched.length}
-        status={status} hasFolder={Boolean(folder)} structureCreated={folderStructureCreated} importComplete={photoImportComplete} folderName={folder?.name ?? null} sections={report.sections}
+        status={status} hasFolder={Boolean(folder)} structureCreated={folderStructureCreated} importComplete={photoImportComplete} standardPathsDetected={standardPathsDetected} folderName={folder?.name ?? null} sections={report.sections}
         onSelect={selectPhotoFolder} onCreate={createFolders} onLoad={reloadFolder}
         onDemo={loadDemo} onBack={() => setStage(0)} onNext={openReportInput}
       />}
@@ -601,7 +607,7 @@ function VesselScope(props: VesselScopeProps) {
 }
 
 interface PhotoSourceProps {
-  photoCount: number; matchedCount: number; unmatchedCount: number; status: string; hasFolder: boolean; structureCreated: boolean; importComplete: boolean; folderName: string | null; sections: ReportSection[];
+  photoCount: number; matchedCount: number; unmatchedCount: number; status: string; hasFolder: boolean; structureCreated: boolean; importComplete: boolean; standardPathsDetected: boolean; folderName: string | null; sections: ReportSection[];
   onSelect: () => void; onCreate: () => void; onLoad: () => void;
   onDemo: () => void; onBack: () => void; onNext: () => void;
   embedded?: boolean;
@@ -628,12 +634,12 @@ function PhotoSource(props: PhotoSourceProps) {
     ? `구조 생성 완료 · ${props.sections.length} Sections / ${phaseFolderCount} Phase folders`
     : props.hasFolder ? '폴더 구조를 아직 생성하지 않음' : '폴더 선택 후 생성 가능';
   const importResult = props.importComplete
-    ? `사진 불러오기 완료 · ${props.photoCount}장 / UNMATCHED ${props.unmatchedCount}장`
+    ? `사진 불러오기 완료 · ${props.photoCount}장 · ${props.standardPathsDetected ? '표준 폴더 경로 감지' : '표준 폴더 경로 없음'} · ${props.matchedCount}장 자동 매칭 · UNMATCHED ${props.unmatchedCount}장`
     : '사진을 아직 불러오지 않음';
 
   return <div id={props.embedded ? 'photo-source' : undefined} className={props.embedded ? 'photo-source-section' : 'workspace wide'}>{!props.embedded && <div className="page-heading"><div><p className="step-kicker">STEP 02</p><h2>사진 폴더</h2><p>원본은 로컬 File 참조로만 유지하며 서버로 전송하지 않습니다.</p></div><span className="privacy-chip">{props.photoCount} PHOTOS</span></div>}
     <section className="method-card recommended photo-folder-card"><div className="method-top"><span>03</span><em>PHOTO INPUT</em></div><h3>사진 폴더</h3><p>사진을 넣기 전 폴더 구조로 분류하거나, 이미 있는 사진을 불러온 뒤 경로로 분류할 수 있습니다.</p>
-      <ol className="photo-progress" aria-label="사진 입력 진행 상태"><li className={props.hasFolder ? 'done' : scopeReady ? 'current' : 'pending'}><span>{props.hasFolder ? '✓' : '1'}</span><div><b>사진 폴더 선택</b><small>사진이 저장된 폴더를 선택합니다.</small><strong>{folderResult}</strong><button type="button" className={props.hasFolder ? 'ghost' : 'primary'} disabled={!scopeReady} onClick={props.onSelect}>{props.hasFolder ? '다른 사진 폴더 선택' : '사진 폴더 선택'}</button></div></li><li className={props.structureCreated ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.structureCreated ? '✓' : '2'}</span><div><b>표준 폴더 구조 생성 <i>선분류</i></b><small>선택 폴더 안에 선택된 Scope와 구역의 폴더 구조를 생성합니다.</small><strong>{structureResult}</strong><button type="button" className={props.hasFolder && !props.structureCreated ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onCreate}>{props.structureCreated ? '폴더 구조 다시 생성' : '표준 폴더 구조 생성'}</button></div></li><li className={props.importComplete ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.importComplete ? '✓' : '3'}</span><div><b>사진 불러오기 <i>후분류</i></b><small>선택 폴더의 사진을 불러와 경로 기준으로 자동 매칭합니다.</small><strong>{importResult}</strong><button type="button" className={props.hasFolder && !props.importComplete ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onLoad}>{props.importComplete ? '사진 다시 불러오기' : '사진 불러오기'}</button></div></li></ol>
+      <ol className="photo-progress" aria-label="사진 입력 진행 상태"><li className={props.hasFolder ? 'done' : scopeReady ? 'current' : 'pending'}><span>{props.hasFolder ? '✓' : '1'}</span><div><b>사진 폴더 선택</b><small>사진이 저장된 폴더를 선택합니다.</small><strong>{folderResult}</strong><button type="button" className={props.hasFolder ? 'ghost' : 'primary'} disabled={!scopeReady} onClick={props.onSelect}>{props.hasFolder ? '다른 사진 폴더 선택' : '사진 폴더 선택'}</button></div></li><li className={props.structureCreated ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.structureCreated ? '✓' : '2'}</span><div><b>표준 폴더 구조 생성 <i>선분류</i></b><small>선택 폴더 안에 선택된 Scope와 구역의 폴더 구조를 생성합니다.</small><strong>{structureResult}</strong><button type="button" className={props.hasFolder && !props.structureCreated ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onCreate}>{props.structureCreated ? '폴더 구조 다시 생성' : '표준 폴더 구조 생성'}</button></div></li><li className={props.importComplete ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.importComplete ? '✓' : '3'}</span><div><b>사진 불러오기 <i>후분류</i></b><small>기존 폴더도 표준 경로가 있으면 자동 매칭하고, 나머지만 UNMATCHED로 분리합니다.</small><strong>{importResult}</strong><button type="button" className={props.hasFolder && !props.importComplete ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onLoad}>{props.importComplete ? '사진 다시 불러오기' : '사진 불러오기'}</button></div></li></ol>
       <section className="photo-scope-summary" aria-label="현재 작업 범위"><p>현재 작업 범위</p><div className="scope-work-list">{scopeGroups.map((group) => <div key={`${group.service}-${group.label}`}><b>{group.service}</b><span>{group.label} · {group.count}개 구역 · {group.phases.join(' / ')}</span></div>)}</div><small>총 {props.sections.length}개 Section · {phaseFolderCount}개 사진 폴더 · SERVICE 폴더는 같은 위치에 여러 Service가 있을 때만 추가됩니다.</small></section>
       <p className="folder-help"><b>선분류</b>는 사진을 넣기 전 표준 폴더를 만드는 방식이고, <b>후분류</b>는 기존 사진을 불러온 뒤 경로로 자동 분류하는 방식입니다.</p></section>
     <section className={`demo-strip${props.hasFolder || props.importComplete ? ' muted' : ''}`}><div><b>빠른 동작 확인</b><span>선택된 첫 Section에 BEFORE 3장 + AFTER 4장을 생성합니다.</span></div><button type="button" className="ghost" disabled={!scopeReady} onClick={props.onDemo}>샘플 사진 7장 불러오기</button></section>
