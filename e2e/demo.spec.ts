@@ -4,7 +4,7 @@ import { request as rawRequest } from 'node:http';
 import JSZip from 'jszip';
 
 async function buildGeneralScope(page: import('@playwright/test').Page) {
-  await page.goto('/');
+  await page.goto('./');
   await page.waitForLoadState('networkidle');
   await expect(page.locator('[data-nextjs-dialog], .vite-error-overlay')).toHaveCount(0);
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
@@ -17,7 +17,7 @@ async function buildGeneralScope(page: import('@playwright/test').Page) {
 }
 
 test('Polishing prepares Propeller and can add matching Fin Blades at 1440px', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('./');
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByLabel('Niche component').selectOption('Boss Cap');
@@ -146,7 +146,7 @@ test('one physical target can carry two services with unambiguous folders', asyn
     demoWindow.showDirectoryPicker = async () => new MemoryDirectory('사진');
   });
 
-  await page.goto('/');
+  await page.goto('./');
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByRole('button', { name: '전체 적용' }).click();
@@ -172,7 +172,7 @@ test('one physical target can carry two services with unambiguous folders', asyn
 });
 
 test('an Inspection exception uses CURRENT while other Sections keep BEFORE and AFTER', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('./');
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByRole('button', { name: '전체 적용' }).click();
@@ -194,7 +194,13 @@ test('complete 1440px flow covers preview, QA focus, repagination, and Word down
   const browserErrors: string[] = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));
   page.on('console', (message) => {
-    if (message.type() === 'error') browserErrors.push(message.text());
+    if (message.type() === 'error') {
+      const location = message.location();
+      browserErrors.push(`${message.text()} @ ${location.url}:${location.lineNumber}`);
+    }
+  });
+  page.on('response', (response) => {
+    if (response.status() >= 400) browserErrors.push(`${response.status()} ${response.url()}`);
   });
 
   await buildGeneralScope(page);
