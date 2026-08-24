@@ -91,7 +91,7 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   const directoryInput = page.locator('input[type="file"][webkitdirectory]');
   await expect(directoryInput).toHaveAttribute('webkitdirectory', '');
   await directoryInput.setInputFiles('e2e/fixtures');
-  await expect(page.locator('.status-line')).toContainText('UNMATCHED');
+  await expect(page.getByLabel('사진 입력 진행 상태')).toContainText('UNMATCHED');
   await page.getByRole('button', { name: 'Report Input으로' }).click();
   await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
   await expect(page.getByLabel('UNMATCHED 사진 배정')).toBeVisible();
@@ -106,7 +106,7 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   const beforeWidthWithoutDrawer = (await beforePanel.boundingBox())?.width ?? 0;
   expect(beforeWidthWithoutDrawer).toBeGreaterThan(beforeWidthWithDrawer);
   await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
-  await page.getByRole('button', { name: 'AFTER 이곳에 배정' }).click();
+  await page.getByRole('button', { name: 'AFTER 이곳에 사진 배정' }).click();
   await expect(page.locator('.assignment-target')).toContainText('AFTER');
   await page.getByRole('button', { name: 'manual.jpg 사진 배정' }).click();
   await expect(page.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();

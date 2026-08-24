@@ -325,15 +325,24 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('button', { name: 'AFTER에 사진 추가' })).toBeVisible();
   });
 
-  it('uses a clear phase-target button instead of a selected panel outline', async () => {
+  it('uses a phase-colored header target and Condition edits do not change it', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
-    expect(screen.getByRole('button', { name: 'BEFORE 사진 배정 대상' })).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'AFTER 이곳에 배정' }));
-    expect(screen.getByRole('button', { name: 'AFTER 사진 배정 대상' })).toBeVisible();
+    const before = screen.getByRole('button', { name: 'BEFORE 현재 사진 배정 위치' });
+    expect(before).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('BEFORE 사진 갤러리')).toHaveClass('selected');
+
+    await user.clear(screen.getByLabelText('AFTER fouling coverage'));
+    await user.type(screen.getByLabelText('AFTER fouling coverage'), '4');
+    expect(before).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'AFTER 이곳에 사진 배정' }));
+    expect(screen.getByRole('button', { name: 'AFTER 현재 사진 배정 위치' }))
+      .toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveClass('selected');
   });
 
   it('opens any Report Section with one click and keeps sequential arrows', async () => {
@@ -374,8 +383,8 @@ describe('desktop report workflow', () => {
 
     await user.click(unmatchedButton);
     expect(screen.getByLabelText('UNMATCHED 사진 배정')).toBeVisible();
-    await user.click(screen.getByLabelText('AFTER 사진 갤러리'));
-    expect(screen.getByText(/현재 사진 배정 위치.*AFTER/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'AFTER 이곳에 사진 배정' }));
+    expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFTER');
     await user.click(screen.getByRole('button', { name: 'manual.jpg 사진 배정' }));
     expect(screen.queryByLabelText('UNMATCHED 사진 배정')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
