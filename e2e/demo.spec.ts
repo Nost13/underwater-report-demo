@@ -29,9 +29,12 @@ test('Polishing prepares Propeller and can add matching Fin Blades at 1440px', a
   await page.getByRole('checkbox', { name: 'Fin Blade 포함' }).check();
   await page.getByRole('button', { name: '수량 증가' }).click();
   await expect(page.getByLabel('Quantity')).toHaveValue('5');
+  await expect(page.getByText('자동 세트: Propeller Polishing + Boss Cap Polishing + Rope Guard Inspection')).toBeVisible();
   await page.getByRole('button', { name: 'Niche 추가' }).click();
   await expect(page.getByLabel('PROPELLER BLADE UNIT 05 배정 상태')).toContainText('POLISHING');
   await expect(page.getByLabel('FIN BLADE UNIT 05 배정 상태')).toContainText('POLISHING');
+  await expect(page.getByLabel('BOSS CAP 배정 상태')).toContainText('POLISHING');
+  await expect(page.getByLabel('ROPE GUARD 배정 상태')).toContainText('INSPECTION');
   await page.screenshot({ path: 'e2e/polishing-propeller-fin-1440.png', fullPage: true });
 });
 
@@ -122,7 +125,7 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
 });
 
-test('one physical target can carry two services with unambiguous folders', async ({ page }) => {
+test('one physical target can carry Cleaning and Inspection with unambiguous folders', async ({ page }) => {
   await page.addInitScript(() => {
     const created: string[] = [];
     class MemoryDirectory {
@@ -150,25 +153,24 @@ test('one physical target can carry two services with unambiguous folders', asyn
   await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByRole('button', { name: '전체 적용' }).click();
-  await page.getByRole('button', { name: 'Polishing 작업 선택' }).click();
+  await page.getByRole('button', { name: 'Inspection 작업 선택' }).click();
   await page.getByRole('button', { name: 'FWD PORT 작업 추가' }).click();
   await page.screenshot({ path: 'e2e/scope-mixed-1440.png', fullPage: true });
   await page.getByRole('button', { name: 'Scope 만들기' }).click();
   await expect(page.locator('.scope-ready')).toContainText('총 16 sections');
   await expect(page.locator('.scope-summary')).toContainText('CLEANING 15');
-  await expect(page.locator('.scope-summary')).toContainText('POLISHING 1');
+  await expect(page.locator('.scope-summary')).toContainText('INSPECTION 1');
 
   await page.getByRole('button', { name: '사진 폴더 선택' }).click();
   await page.getByRole('button', { name: '표준 폴더 구조 생성' }).click();
   const paths = await page.evaluate(() => (window as unknown as Window & { __createdPaths: string[] }).__createdPaths);
   expect(paths).toEqual(expect.arrayContaining([
-    'CLEANING/GENERAL/FWD/PORT/BEFORE',
-    'CLEANING/GENERAL/FWD/PORT/AFTER',
-    'POLISHING/GENERAL/FWD/PORT/BEFORE',
-    'POLISHING/GENERAL/FWD/PORT/AFTER',
+    'GENERAL/FWD/PORT/BEFORE',
+    'GENERAL/FWD/PORT/AFTER',
+    'GENERAL/FWD/PORT/CURRENT',
     'GENERAL/FWD/STBD/BEFORE',
   ]));
-  expect(paths.filter((path) => /\/(BEFORE|AFTER)$/.test(path))).toHaveLength(32);
+  expect(paths.filter((path) => /\/(CURRENT|BEFORE|AFTER)$/.test(path))).toHaveLength(31);
 });
 
 test('an Inspection exception uses CURRENT while other Sections keep BEFORE and AFTER', async ({ page }) => {

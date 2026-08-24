@@ -102,6 +102,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .service-chip { min-width: 0; max-width: 100%; height: 17px; padding: 0 4px; border: 1px solid #b9d9d5; border-radius: 999px; background: #fff; color: #276861; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 6px; font-weight: 850; }
 .service-chip:hover:not(:disabled) { border-color: #d8a4a1; color: var(--danger); }
 .niche-builder { margin: 12px 0; padding: 13px; border: 1px solid var(--line); border-radius: 10px; }
+.general-builder.restricted { opacity: .62; }
 .mini-heading { margin-bottom: 9px; display: flex; justify-content: space-between; font-size: 10px; }
 .mini-heading span { color: var(--teal-700); font-size: 8px; font-weight: 850; }
 .niche-controls { display: grid; grid-template-columns: 1.2fr 1fr 108px 40px; gap: 6px; }
@@ -112,6 +113,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .quantity-stepper button { border: 0; background: #f3f7f8; color: var(--navy-900); font-size: 15px; font-weight: 900; line-height: 1; }
 .quantity-stepper button:hover:not(:disabled) { background: #dff2ef; color: var(--teal-700); }
 .icon-button { border: 0; border-radius: 7px; background: var(--navy-900); color: #fff; font-size: 18px; }
+.polishing-set-note { margin-top: 7px; padding: 7px 10px; border: 1px solid #d8cce2; border-radius: 8px; background: #f8f4fb; color: #694e7f; font-size: 8px; font-weight: 850; }
 .fin-blade-option { margin-top: 7px; padding: 8px 10px; display: flex; align-items: center; gap: 8px; border: 1px solid #c8dfdc; border-radius: 8px; background: #f3faf9; cursor: pointer; }
 .fin-blade-option input { width: 16px; height: 16px; margin: 0; accent-color: var(--teal-700); }
 .fin-blade-option span { display: flex; align-items: baseline; gap: 7px; }

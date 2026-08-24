@@ -89,9 +89,9 @@ describe('desktop report workflow', () => {
       .toHaveTextContent('INSPECTION');
 
     await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
-    expect(screen.getByText('3 SECTIONS')).toBeVisible();
-    expect(screen.getByText('POLISHING 2')).toBeVisible();
-    expect(screen.getByText('INSPECTION 1')).toBeVisible();
+    expect(screen.getByText('5 SECTIONS')).toBeVisible();
+    expect(screen.getByText('POLISHING 3')).toBeVisible();
+    expect(screen.getByText('INSPECTION 2')).toBeVisible();
   });
 
   it('prepares a four-blade Propeller draft when Polishing is selected', async () => {
@@ -105,6 +105,64 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('Niche component')).toHaveValue('Propeller Blade');
     expect(screen.getByLabelText('Niche type')).toHaveValue('QUANTITY');
     expect(screen.getByLabelText('Quantity')).toHaveValue(4);
+  });
+
+  it('limits Polishing assignment to Propeller and Boss Cap while keeping Inspection available elsewhere', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+
+    await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
+
+    expect([...screen.getByLabelText<HTMLSelectElement>('Niche component').options]
+      .map((option) => option.value)).toEqual(['Propeller Blade', 'Boss Cap']);
+    expect(screen.getByRole('button', { name: '전체 적용' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'FWD PORT 작업 배정' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Inspection 작업 선택' }));
+
+    expect(screen.getByRole('button', { name: '전체 적용' })).toBeEnabled();
+    expect(screen.getByRole('option', { name: 'Sea Chest' })).toBeVisible();
+  });
+
+  it('adds the Propeller Polishing set with Boss Cap Polishing and Rope Guard Inspection', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+    await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
+
+    expect(screen.getByText('자동 세트: Propeller Polishing + Boss Cap Polishing + Rope Guard Inspection'))
+      .toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+
+    expect(screen.getByLabelText('PROPELLER BLADE UNIT 04 배정 상태'))
+      .toHaveTextContent('POLISHING');
+    expect(screen.getByLabelText('BOSS CAP 배정 상태')).toHaveTextContent('POLISHING');
+    expect(screen.getByLabelText('ROPE GUARD 배정 상태')).toHaveTextContent('INSPECTION');
+    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    expect(screen.getByText('6 SECTIONS')).toBeVisible();
+    expect(screen.getByText('POLISHING 5')).toBeVisible();
+    expect(screen.getByText('INSPECTION 1')).toBeVisible();
+  });
+
+  it('merges Inspection into the existing Propeller Polishing targets', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+    await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
+    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    await user.click(screen.getByRole('button', { name: 'Inspection 작업 선택' }));
+    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+
+    expect(screen.getAllByRole('button', { name: 'Propeller Blade 삭제' })).toHaveLength(1);
+    expect(screen.getByLabelText('PROPELLER BLADE UNIT 01 배정 상태'))
+      .toHaveTextContent('POLISHING');
+    expect(screen.getByLabelText('PROPELLER BLADE UNIT 01 배정 상태'))
+      .toHaveTextContent('INSPECTION');
+    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    expect(screen.getByText('10 SECTIONS')).toBeVisible();
+    expect(screen.getByText('POLISHING 5')).toBeVisible();
+    expect(screen.getByText('INSPECTION 5')).toBeVisible();
   });
 
   it('shows and clears the paired Fin Blade option only for a Polishing Propeller', async () => {
@@ -141,6 +199,8 @@ describe('desktop report workflow', () => {
       .toHaveTextContent('POLISHING');
     expect(screen.getByLabelText('FIN BLADE UNIT 05 배정 상태'))
       .toHaveTextContent('POLISHING');
+    expect(screen.getByLabelText('BOSS CAP 배정 상태')).toHaveTextContent('POLISHING');
+    expect(screen.getByLabelText('ROPE GUARD 배정 상태')).toHaveTextContent('INSPECTION');
     expect(screen.getAllByLabelText(/PROPELLER BLADE UNIT \d{2} 배정 상태/)).toHaveLength(5);
     expect(screen.getAllByLabelText(/FIN BLADE UNIT \d{2} 배정 상태/)).toHaveLength(5);
   });
