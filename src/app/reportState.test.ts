@@ -82,4 +82,76 @@ describe('report state', () => {
 
     expect(next.photos).toEqual([second]);
   });
+
+  it('applies a phase default to matching children while preserving overrides', () => {
+    const blades = createNicheSections({
+      component: 'Propeller Blade',
+      type: 'QUANTITY',
+      quantity: 2,
+      service: 'POLISHING',
+    });
+    let state = reportReducer(initialReportState, { type: 'SET_SCOPE', sections: blades });
+
+    state = reportReducer(state, {
+      type: 'APPLY_GROUP_CONDITION',
+      sectionId: blades[0].id,
+      phase: 'BEFORE',
+      condition: {
+        fouling: { type: 'Medium Macro Fouling', coverage: 20, slimeOnly: false },
+        observed: { type: '', level: 'Normal / Trace' },
+      },
+    });
+    expect(state.sections.map((item) => item.conditions.BEFORE?.fouling.coverage))
+      .toEqual([20, 20]);
+
+    state = reportReducer(state, {
+      type: 'UPDATE_CONDITION',
+      sectionId: blades[1].id,
+      phase: 'BEFORE',
+      patch: { fouling: { coverage: 40 } },
+    });
+    expect(state.conditionSources[blades[1].id].BEFORE).toBe('OVERRIDE');
+
+    state = reportReducer(state, {
+      type: 'APPLY_GROUP_CONDITION',
+      sectionId: blades[0].id,
+      phase: 'BEFORE',
+      condition: {
+        fouling: { type: 'Light Macro fouling', coverage: 5, slimeOnly: false },
+        observed: { type: '', level: 'Normal / Trace' },
+      },
+    });
+    expect(state.sections.map((item) => item.conditions.BEFORE?.fouling.coverage))
+      .toEqual([5, 40]);
+
+    state = reportReducer(state, {
+      type: 'REVERT_CONDITION_TO_GROUP',
+      sectionId: blades[1].id,
+      phase: 'BEFORE',
+    });
+    expect(state.sections[1].conditions.BEFORE?.fouling.coverage).toBe(5);
+    expect(state.conditionSources[blades[1].id].BEFORE).toBe('GROUP');
+  });
+
+  it('rebuilds condition inheritance when Scope is replaced', () => {
+    const first = createNicheSections({
+      component: 'Boss Cap',
+      type: 'SINGLE',
+      quantity: 1,
+      service: 'CLEANING',
+    });
+    const second = createNicheSections({
+      component: 'Rope Guard',
+      type: 'SINGLE',
+      quantity: 1,
+      service: 'INSPECTION',
+    });
+    const seeded = reportReducer(initialReportState, { type: 'SET_SCOPE', sections: first });
+    const reset = reportReducer(seeded, { type: 'SET_SCOPE', sections: second });
+
+    expect(Object.keys(reset.conditionDefaults)).toHaveLength(1);
+    expect(reset.conditionSources).toEqual({
+      [second[0].id]: { CURRENT: 'GROUP' },
+    });
+  });
 });
