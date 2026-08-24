@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { request as rawRequest } from 'node:http';
+import JSZip from 'jszip';
 
 async function buildGeneralScope(page: import('@playwright/test').Page) {
   await page.goto('/');
@@ -188,7 +189,7 @@ test('an Inspection exception uses CURRENT while other Sections keep BEFORE and 
   await expect(page.locator('.phase-panel.after')).toHaveCount(0);
 });
 
-test('complete 1440px flow covers five-page virtualization, QA focus, shrink, and PDF', async ({ page }) => {
+test('complete 1440px flow covers preview, QA focus, repagination, and Word download', async ({ page }) => {
   test.setTimeout(90_000);
   const browserErrors: string[] = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));
@@ -204,11 +205,11 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   }
 
   await page.getByRole('button', { name: 'Report Input으로' }).click();
-  await page.getByLabel('BEFORE fouling coverage').selectOption('1-5%');
+  await page.getByLabel('BEFORE fouling coverage').fill('4');
   await expect(page.getByLabel('BEFORE fouling type')).toHaveText('Light Macro fouling');
   await expect(page.getByLabel('BEFORE fouling rating')).toHaveText('R2');
-  await page.getByLabel('AFTER fouling coverage').selectOption('1-100% / Slime Only');
-  await page.getByLabel('AFTER slime coverage').fill('37');
+  await page.getByLabel('AFTER fouling coverage').fill('37');
+  await page.getByLabel('AFTER Slime Only').check();
   await expect(page.getByLabel('AFTER fouling type')).toHaveText('Micro fouling');
   await expect(page.getByLabel('AFTER fouling rating')).toHaveText('R1');
   await expect(page.locator('.page-badge b')).toHaveText('6P');
@@ -244,15 +245,21 @@ test('complete 1440px flow covers five-page virtualization, QA focus, shrink, an
   await page.getByRole('button', { name: 'Check / Preview' }).last().click();
   await expect(page.getByLabel('전체 Report Preview')).toBeVisible();
   await expect(page.locator('.report-page')).toHaveCount(1);
-  await page.getByRole('button', { name: 'PDF 준비' }).click();
-  const exportButton = page.getByRole('button', { name: 'PDF 다운로드' });
+  await page.getByRole('button', { name: 'Word 준비' }).click();
+  await expect(page.locator('.export-doc')).toContainText('Detail Service Record 템플릿');
+  const exportButton = page.getByRole('button', { name: 'Word 보고서 다운로드' });
   const downloadPromise = page.waitForEvent('download');
   await exportButton.click();
-  await expect(page.getByRole('button', { name: 'PDF 생성 중…' })).toBeDisabled();
   const download = await downloadPromise;
-  await download.saveAs('e2e/generated-report.pdf');
-  expect((await stat('e2e/generated-report.pdf')).size).toBeGreaterThan(10_000);
-  await expect(page.getByText('PDF 다운로드가 완료되었습니다.')).toBeVisible();
+  const outputPath = 'e2e/generated-report.docx';
+  await download.saveAs(outputPath);
+  expect(download.suggestedFilename()).toMatch(/UNDERWATER_SERVICE_REPORT\.docx$/);
+  expect((await stat(outputPath)).size).toBeGreaterThan(500_000);
+  const outputZip = await JSZip.loadAsync(await readFile(outputPath));
+  const documentXml = await outputZip.file('word/document.xml')?.async('text') ?? '';
+  expect(documentXml).toContain('GENERAL AREAS / FWD');
+  expect(documentXml).not.toMatch(/\{\{(?:P\d+|BC|TITLE|WORK|FT|FC|OL|OT|SIDE_LABEL)\}\}|@(?:FR|OR)/);
+  await expect(page.getByText('Word 보고서 다운로드가 완료되었습니다.')).toBeVisible();
   await page.screenshot({ path: 'e2e/final-1440.png', fullPage: true });
 
   expect(browserErrors).toEqual([]);

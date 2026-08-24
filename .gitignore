@@ -41,5 +41,6 @@ next-env.d.ts
 /test-results/
 /tmp/
 /e2e/*.pdf
+/e2e/*.docx
 /e2e/*.png
 *.tsbuildinfo

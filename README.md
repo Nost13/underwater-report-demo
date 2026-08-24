@@ -21,9 +21,10 @@ ZIP에 실행 런타임이 포함되어 있어 별도 Node.js 설치나 서버 �
 4. `사진 입력으로` 이동 후 `사진 폴더 선택`
 5. 새 작업이면 `표준 폴더 구조 생성`, 기존 폴더면 `사진 불러오기` 선택
 6. Report Input에서 BEFORE/AFTER 또는 CURRENT Condition과 Report Use 확인
-   - 잘못 배정한 사진은 `재배정`을 눌러 UNMATCHED로 되돌릴 수 있습니다.
+   - 사진을 넣을 Phase의 `이곳에 배정` 버튼을 먼저 누른 뒤 UNMATCHED 사진을 배정합니다.
+   - 잘못 배정한 사진은 `이동`하거나 보고서에서 완전히 `삭제`할 수 있습니다.
 7. Check / Preview에서 누락 패널과 자동 페이지 확인
-8. PDF 준비 → PDF 다운로드
+8. Word 준비 → Word 보고서 다운로드
 
 ## 사진 폴더
 
@@ -42,7 +43,16 @@ Scope를 만든 뒤에는 선박과 작업 배정이 고정됩니다. 바꾸려�
 - 새로고침하면 현재 작성 내용이 초기화됩니다.
 - 원본 사진은 File 참조로 유지하며, 썸네일은 제한된 작업 큐에서 생성하고 사용 후 object URL을 정리합니다.
 - Preview는 현재 페이지와 인접 페이지만 렌더링합니다.
-- PDF 이미지는 한 장씩 순차 리사이즈합니다.
+- Word 이미지는 한 장씩 순차 리사이즈합니다.
+
+## Word 보고서
+
+- 앱에 포함된 `Detail_report_template.docx`를 사용해 `.docx` 파일을 브라우저 안에서 생성합니다.
+- 템플릿의 머리글과 바닥글은 변경하지 않습니다.
+- Cleaning/Polishing/Repair/Removal은 각 Section에서 BEFORE 페이지를 먼저, AFTER 페이지를 뒤에 만듭니다. Inspection은 CURRENT 페이지만 만듭니다.
+- 첫 Phase 페이지에는 사진 4장, 이어지는 페이지에는 6장씩 순서대로 배치합니다.
+- Fouling Coverage는 실제 백분율을 입력하고, `Slime Only` 여부에 따라 Type과 Rating이 자동 결정됩니다. Observed는 `Normal / Trace (R1)`에서 시작합니다.
+- 원본 사진과 작성 내용은 Word 생성 과정에서도 서버로 전송되지 않습니다.
 
 ## Source 폴더
 

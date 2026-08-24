@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   root: 'portable',
   base: './',
+  publicDir: '../public',
   plugins: [react()],
   build: {
     outDir: '../dist-portable',

@@ -166,13 +166,13 @@ git commit -m "feat: model phase-first word pages"
 - \`WordExportInput\` accepts vessel name, sections, photos, \`templateUrl\`, and optional \`download(blob, fileName)\`.
 - \`WordExportResult\` returns \`{ skipped: string[]; pageCount: number; blob: Blob }\`.
 
-- [ ] **Step 1: Add JSZip and copy the approved template asset**
+- [x] **Step 1: Add JSZip and copy the approved template asset**
 
 Run: \`pnpm add jszip\`
 
 Copy \`C:/coding/UWS_Report_Generator_v119_latest_build_ready/Detail_report_template.docx\` to \`public/templates/Detail_report_template.docx\`. Do not alter the source document.
 
-- [ ] **Step 2: Write failing writer tests with a minimal DOCX fixture**
+- [x] **Step 2: Write failing writer tests with a minimal DOCX fixture**
 
 \`\`\`ts
 const result = await writeTemplateReport(input, { fetchTemplate, resize, download });
@@ -183,27 +183,27 @@ expect(await readZipText(result.blob, 'word/document.xml')).not.toContain('{{P1}
 expect(await zip.file('word/media/image1.jpg')?.async('uint8array')).toEqual(new Uint8Array([1, 2, 3]));
 \`\`\`
 
-- [ ] **Step 3: Run the writer test to verify it fails**
+- [x] **Step 3: Run the writer test to verify it fails**
 
 Run: \`pnpm vitest run src/docx/templateWriter.test.ts\`
 
 Expected: FAIL because \`writeTemplateReport\` does not exist.
 
-- [ ] **Step 4: Implement placeholder replacement and image insertion**
+- [x] **Step 4: Implement placeholder replacement and image insertion**
 
 Load the binary template through \`fetch\` and JSZip. Replace placeholder text in \`word/document.xml\` even when Word split it across adjacent \`<w:t>\` nodes. Replace each P marker paragraph with inline DrawingML, write \`word/media/imageN.jpg\`, add unique image relationships to \`word/_rels/document.xml.rels\`, and size images to the template’s two-column cells. Process one File at a time with a JPEG max edge of 1800 and quality 0.82.
 
-- [ ] **Step 5: Implement continuation body cloning**
+- [x] **Step 5: Implement continuation body cloning**
 
 Extract the continuation block containing P5–P10, clone it for each additional six-photo group, replace P5–P10 with the next ordered photos, and insert a Word page break before each clone. Keep only the original final \`<w:sectPr>\`; all cloned images use new media names and relationship IDs. Remove unused P markers.
 
-- [ ] **Step 6: Verify writer tests and OOXML content**
+- [x] **Step 6: Verify writer tests and OOXML content**
 
 Run: \`pnpm vitest run src/docx/templateWriter.test.ts src/docx/reportModel.test.ts\`
 
 Expected: PASS. Assert header/footer source XML is unchanged and no \`{{BC}}\`, \`{{TITLE}}\`, \`{{P1}}\`, or condition placeholder remains in \`word/document.xml\`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 \`\`\`bash
 git add public/templates/Detail_report_template.docx src/docx/templateWriter.ts src/docx/templateWriter.test.ts src/browser/images.ts package.json pnpm-lock.yaml
@@ -223,7 +223,7 @@ git commit -m "feat: generate reports from word template"
 - App dependency becomes \`exporter: (input: WordExportInput) => Promise<WordExportResult>\`.
 - Final action provides one DOCX download, displays template name, phase-first page count, and skipped image names.
 
-- [ ] **Step 1: Write failing UI tests for the new final stage**
+- [x] **Step 1: Write failing UI tests for the new final stage**
 
 \`\`\`ts
 expect(screen.getByRole('heading', { name: 'Word 보고서 다운로드' })).toBeVisible();
@@ -234,27 +234,27 @@ expect(exporter).toHaveBeenCalledWith(expect.objectContaining({
 }));
 \`\`\`
 
-- [ ] **Step 2: Run the app export test to verify it fails**
+- [x] **Step 2: Run the app export test to verify it fails**
 
 Run: \`pnpm vitest run src/App.test.tsx\`
 
 Expected: FAIL because the UI still says PDF and calls the PDF exporter.
 
-- [ ] **Step 3: Wire lazy Word export and update all export copy**
+- [x] **Step 3: Wire lazy Word export and update all export copy**
 
 Replace the PDF importer with a lazy \`templateWriter\` importer. Change stage rail, preview CTA, final heading, metadata, button copy, file extension, and status messages to Word. Display that final ordering is phase-first and calculate the Word page count. Do not add a server-upload control.
 
-- [ ] **Step 4: Retire the obsolete PDF exporter**
+- [x] **Step 4: Retire the obsolete PDF exporter**
 
 Remove the PDF module and tests after Word output is fully wired. Keep generic thumbnails and image resizing in \`src/browser/images.ts\`.
 
-- [ ] **Step 5: Run React and export tests**
+- [x] **Step 5: Run React and export tests**
 
 Run: \`pnpm vitest run src/App.test.tsx src/docx/templateWriter.test.ts\`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 \`\`\`bash
 git add src/App.tsx src/App.test.tsx src/styles.css src/browser/images.ts src/pdf src/docx
@@ -270,7 +270,7 @@ git commit -m "feat: download word template report"
 **Interfaces:**
 - E2E flow builds a scope, enters 70% Slime Only BEFORE and 0% AFTER, supplies local fixture images, and confirms a Word download.
 
-- [ ] **Step 1: Write the failing browser test for DOCX download**
+- [x] **Step 1: Write the failing browser test for DOCX download**
 
 \`\`\`ts
 const download = await Promise.all([
@@ -280,23 +280,23 @@ const download = await Promise.all([
 expect(download.suggestedFilename()).toMatch(/\.docx$/);
 \`\`\`
 
-- [ ] **Step 2: Run it and verify the expected initial failure**
+- [x] **Step 2: Run it and verify the expected initial failure**
 
 Run: \`pnpm test:e2e -- --grep "Word report"\`
 
 Expected: FAIL until Task 4 is complete, then PASS.
 
-- [ ] **Step 3: Add local-only/template-use guidance to README**
+- [x] **Step 3: Add local-only/template-use guidance to README**
 
 Document the bundled template, no photo upload, untouched header/footer, and Before→After or Current output order.
 
-- [ ] **Step 4: Run the complete quality suite**
+- [x] **Step 4: Run the complete quality suite**
 
 Run: \`pnpm test:run && pnpm lint && pnpm build && pnpm build:portable && pnpm test:e2e\`
 
 Expected: every command exits 0.
 
-- [ ] **Step 5: Verify a representative DOCX package**
+- [x] **Step 5: Verify a representative DOCX package**
 
 Run the export fixture, open its ZIP package, verify header/footer XML equals the template originals, verify media and image relationships exist, and verify no named placeholder remains. Render to PDF and inspect the first and continuation page only if a compatible local Word/LibreOffice renderer is available; otherwise record structural verification.
 
