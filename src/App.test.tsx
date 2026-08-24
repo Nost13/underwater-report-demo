@@ -445,6 +445,36 @@ describe('desktop report workflow', () => {
     })).toHaveAttribute('aria-current', 'page');
   });
 
+  it('resets the photo target to the first phase when moving to another Section', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    await user.click(screen.getByRole('button', { name: 'AFTER 이곳에 사진 배정' }));
+    expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFTER');
+
+    await user.click(screen.getByRole('button', { name: '다음 Section' }));
+
+    expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('BEFORE');
+    expect(screen.getByLabelText('BEFORE 사진 갤러리')).toHaveClass('selected');
+  });
+
+  it('keeps the selected phase when reopening the current Section', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    await user.click(screen.getByRole('button', { name: 'AFTER 이곳에 사진 배정' }));
+    await user.click(screen.getByRole('button', {
+      name: 'CLEANING/GENERAL/FWD/PORT Section 열기',
+    }));
+
+    expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFTER');
+    expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveClass('selected');
+  });
+
   it('assigns an UNMATCHED photo to the phase clicked in Report Input', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
@@ -694,6 +724,32 @@ describe('desktop report workflow', () => {
     await user.click(reportCheck);
     expect(screen.getAllByText('MISSING PHASE PHOTO').length).toBeGreaterThan(0);
     expect(screen.getByLabelText('전체 Report Preview')).toBeVisible();
+  });
+
+  it('renders the active Section with the Word template page structure', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
+    await user.click(screen.getByRole('button', { name: 'BEFORE에 사진 추가' }));
+    await user.upload(manualInput, new File(['before'], 'before.jpg', { type: 'image/jpeg' }));
+    await user.click(screen.getByRole('button', { name: 'AFTER에 사진 추가' }));
+    await user.upload(manualInput, new File(['after'], 'after.jpg', { type: 'image/jpeg' }));
+    await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
+
+    const pages = screen.getAllByRole('article', { name: /Word template preview page/ });
+    expect(pages).toHaveLength(2);
+    const firstPage = pages[0];
+    expect(within(firstPage).getByText('7. DETAILED SERVICE RECORD')).toBeVisible();
+    expect(within(firstPage).getByText('WORK PERFORM')).toBeVisible();
+    const foulingTable = within(firstPage).getByText('FOULING CONDITION').closest('table');
+    expect(foulingTable).not.toBeNull();
+    expect(within(foulingTable as HTMLTableElement).queryAllByText('—')).toHaveLength(0);
+    expect(within(firstPage).getByText('OBSERVED CONDITION')).toBeVisible();
+    expect(within(firstPage).getByText('1', { selector: '.template-rating' }))
+      .toHaveStyle({ backgroundColor: '#02AE4F' });
+    expect(within(firstPage).getAllByTestId('template-photo-slot')).toHaveLength(4);
   });
 
   it('keeps a directory-input fallback for browsers without the folder picker API', () => {

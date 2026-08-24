@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { resizeForReport } from '../browser/images';
 import { buildWordPhasePages } from './reportModel';
+import { RATING_FILLS } from './ratingPalette';
 import type { PhotoData, ReportLabelMap, ReportSection } from '../domain/types';
 
 export interface WordExportInput {
@@ -63,14 +64,6 @@ function splitTemplateDocument(xml: string): DocumentParts {
 const WORD_NAMESPACE = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const PHOTO_WIDTH_EMU = 3_236_400;
 const PHOTO_HEIGHT_EMU = 2_340_000;
-const RATING_FILLS: Record<string, string> = {
-  '0': '00AEE5',
-  '1': '02AE4F',
-  '2': 'FFBD23',
-  '3': 'FF7A00',
-  '4': 'E34217',
-  '5': 'BD1820',
-};
 const drawingXml = (relationshipId: string, imageIndex: number) => [
   '<w:r><w:drawing>',
   '<wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0">',
