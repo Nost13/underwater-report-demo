@@ -103,7 +103,7 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   const beforeWidthWithoutDrawer = (await beforePanel.boundingBox())?.width ?? 0;
   expect(beforeWidthWithoutDrawer).toBeGreaterThan(beforeWidthWithDrawer);
   await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
-  await page.locator('.phase-panel.after').click();
+  await page.getByRole('button', { name: 'AFTER 이곳에 배정' }).click();
   await expect(page.locator('.assignment-target')).toContainText('AFTER');
   await page.getByRole('button', { name: 'manual.jpg 사진 배정' }).click();
   await expect(page.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
@@ -115,7 +115,7 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   await page.getByLabel('manual.jpg 이동 Phase').selectOption('AFTER');
   await page.getByRole('button', { name: '이동 완료' }).click();
   await expect(page.locator('.page-badge b')).toHaveText('0P');
-  await page.getByLabel('Report section').selectOption('CLEANING/GENERAL/FWD/STBD');
+  await page.getByRole('button', { name: 'CLEANING/GENERAL/FWD/STBD Section 열기' }).click();
   await expect(page.locator('.page-badge b')).toHaveText('1P');
   await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
   await page.getByRole('button', { name: 'manual.jpg 삭제' }).click();
@@ -185,7 +185,7 @@ test('an Inspection exception uses CURRENT while other Sections keep BEFORE and 
 
   await expect(page.locator('.phase-panel.before')).toBeVisible();
   await expect(page.locator('.phase-panel.after')).toBeVisible();
-  await page.getByLabel('Report section').selectOption('INSPECTION/GENERAL/AFT/STBD');
+  await page.getByRole('button', { name: 'INSPECTION/GENERAL/AFT/STBD Section 열기' }).click();
   await expect(page.locator('.phase-panel.current')).toBeVisible();
   await expect(page.locator('.phase-panel.before')).toHaveCount(0);
   await expect(page.locator('.phase-panel.after')).toHaveCount(0);
@@ -241,7 +241,7 @@ test('complete 1440px flow covers preview, QA focus, repagination, and Word down
   await expect(issue).toBeVisible();
   await issue.click();
   await expect(page.locator('.input-heading')).toContainText('GENERAL/FWD/STBD');
-  await page.getByLabel('Report section').selectOption('CLEANING/GENERAL/FWD/PORT');
+  await page.getByRole('button', { name: 'CLEANING/GENERAL/FWD/PORT Section 열기' }).click();
   await expect(page.locator('.page-badge b')).toHaveText('6P');
 
   const reportUseSwitches = page.locator('.switch');

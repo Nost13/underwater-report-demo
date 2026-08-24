@@ -12,6 +12,7 @@ import {
   type ConditionSource,
 } from './app/conditionDefaults';
 import { initialReportState, reportReducer, selectedPages, type ReportState } from './app/reportState';
+import { conciseSectionLabel } from './app/reportLabels';
 import { createSectionTree, folderRelativePath, pickDirectory, scanImages, type DirectoryHandleLike } from './browser/directory';
 import { ThumbnailPool, type ThumbnailLease } from './browser/images';
 import { createCaption, matchPhotoPath, phaseIndexForPhoto } from './domain/photos';
@@ -631,12 +632,29 @@ interface ReportInputProps {
 
 function ReportInput(props: ReportInputProps) {
   const activeIndex = Math.max(0, props.report.sections.findIndex((section) => section.id === props.activeSection.id));
+  const activeSectionButtonRef = useRef<HTMLButtonElement>(null);
   const focusSection = (index: number) => {
     const section = props.report.sections[index];
     if (section) props.dispatch({ type: 'FOCUS_SECTION', sectionId: section.id });
   };
+
+  useEffect(() => {
+    activeSectionButtonRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+  }, [props.activeSection.id]);
+
   return <div className={`report-workspace${props.unmatchedOpen && props.unmatched.length > 0 ? ' unmatched-open' : ''}`}>
-    <section className="input-canvas"><div className="input-heading"><div className="input-title"><p className="step-kicker">STEP 03 · {props.activeSection.area}</p><h2>Report Input</h2><span>{props.activeSection.id}</span></div><div className="section-switcher"><button type="button" aria-label="이전 Section" disabled={activeIndex === 0} onClick={() => focusSection(activeIndex - 1)}>←</button><label><span>SECTION {activeIndex + 1} / {props.report.sections.length}</span><select aria-label="Report section" value={props.activeSection.id} onChange={(event) => props.dispatch({ type: 'FOCUS_SECTION', sectionId: event.target.value })}>{props.report.sections.map((section) => <option key={section.id} value={section.id}>{section.id}</option>)}</select></label><button type="button" aria-label="다음 Section" disabled={activeIndex === props.report.sections.length - 1} onClick={() => focusSection(activeIndex + 1)}>→</button></div><div className="input-metrics"><div className="page-badge"><b>{props.pages.length}P</b><span>{props.activePhotos.filter((photo) => photo.reportUse).length} Report Use</span></div><button type="button" className="unmatched-trigger" aria-label={`UNMATCHED ${props.unmatched.length}`} aria-controls="unmatched" aria-expanded={props.unmatchedOpen && props.unmatched.length > 0} disabled={props.unmatched.length === 0} onClick={props.onToggleUnmatched}><span>UNMATCHED</span><b>{props.unmatched.length}</b></button></div></div>
+    <section className="input-canvas"><div className="input-heading"><div className="input-title"><p className="step-kicker">STEP 03 · {props.activeSection.area}</p><h2>Report Input</h2><span>{props.activeSection.id}</span></div><nav className="section-navigator" aria-label="Report Section 바로가기"><button type="button" className="section-arrow" aria-label="이전 Section" disabled={activeIndex === 0} onClick={() => focusSection(activeIndex - 1)}>←</button><div className="section-strip"><span className="section-count">SECTION {activeIndex + 1} / {props.report.sections.length}</span><div className="section-tabs">{props.report.sections.map((section) => {
+      const active = section.id === props.activeSection.id;
+      return <button
+        type="button"
+        key={section.id}
+        ref={active ? activeSectionButtonRef : undefined}
+        className={`section-tab${active ? ' active' : ''}`}
+        aria-label={`${section.id} Section 열기`}
+        aria-current={active ? 'page' : undefined}
+        onClick={() => props.dispatch({ type: 'FOCUS_SECTION', sectionId: section.id })}
+      ><span className={`service-badge ${section.service.toLowerCase()}`}>{section.service}</span><b>{conciseSectionLabel(section)}</b></button>;
+    })}</div></div><button type="button" className="section-arrow" aria-label="다음 Section" disabled={activeIndex === props.report.sections.length - 1} onClick={() => focusSection(activeIndex + 1)}>→</button></nav><div className="input-metrics"><div className="page-badge"><b>{props.pages.length}P</b><span>{props.activePhotos.filter((photo) => photo.reportUse).length} Report Use</span></div><button type="button" className="unmatched-trigger" aria-label={`UNMATCHED ${props.unmatched.length}`} aria-controls="unmatched" aria-expanded={props.unmatchedOpen && props.unmatched.length > 0} disabled={props.unmatched.length === 0} onClick={props.onToggleUnmatched}><span>UNMATCHED</span><b>{props.unmatched.length}</b></button></div></div>
       <p className="assignment-target" aria-live="polite">현재 사진 배정 위치: {props.activePhotoTarget?.sectionId ?? '—'} · {props.activePhotoTarget?.phase ?? '—'}</p>
       <GroupConditionPanel report={props.report} section={props.activeSection} dispatch={props.dispatch} />
       <div className="phase-stack">{props.activeSection.phases.map((phase) => <PhasePanel key={phase} phase={phase} section={props.activeSection} sections={props.report.sections} photos={props.activePhotos.filter((photo) => photo.phase === phase)} dispatch={props.dispatch} source={props.report.conditionSources[props.activeSection.id]?.[phase] ?? 'GROUP'} onAddPhotos={props.onAddPhotos} selected={props.activePhotoTarget?.sectionId === props.activeSection.id && props.activePhotoTarget.phase === phase} onSelect={() => props.onSelectPhotoTarget({ sectionId: props.activeSection.id, phase })} />)}</div>

@@ -336,22 +336,28 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('button', { name: 'AFTER 사진 배정 대상' })).toBeVisible();
   });
 
-  it('switches Sections from the Report Input top bar', async () => {
+  it('opens any Report Section with one click and keeps sequential arrows', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
-    const sectionSelect = screen.getByLabelText('Report section');
-    expect(sectionSelect).toHaveValue('CLEANING/GENERAL/FWD/PORT');
+    const first = screen.getByRole('button', {
+      name: 'CLEANING/GENERAL/FWD/PORT Section 열기',
+    });
+    expect(first).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: '이전 Section' })).toBeDisabled();
 
-    await user.click(screen.getByRole('button', { name: '다음 Section' }));
-    expect(sectionSelect).toHaveValue('CLEANING/GENERAL/FWD/STBD');
-    expect(screen.getByRole('button', { name: '이전 Section' })).toBeEnabled();
-
-    await user.selectOptions(sectionSelect, 'CLEANING/GENERAL/AFT/BOTTOM');
+    await user.click(screen.getByRole('button', {
+      name: 'CLEANING/GENERAL/AFT/BOTTOM Section 열기',
+    }));
+    expect(screen.getByText('CLEANING/GENERAL/AFT/BOTTOM')).toBeVisible();
     expect(screen.getByRole('button', { name: '다음 Section' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: '이전 Section' }));
+    expect(screen.getByRole('button', {
+      name: 'CLEANING/GENERAL/AFT/STBD Section 열기',
+    })).toHaveAttribute('aria-current', 'page');
   });
 
   it('assigns an UNMATCHED photo to the phase clicked in Report Input', async () => {
