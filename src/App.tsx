@@ -687,18 +687,9 @@ function GroupConditionPanel({ report, section, dispatch }: GroupConditionPanelP
   const groupKey = conditionGroupKey(section);
   const storedDefault = report.conditionDefaults[groupKey]?.[selectedPhase]
     ?? section.conditions[selectedPhase];
-  const [draft, setDraft] = useState<Condition>(() => cloneCondition(storedDefault!));
   const members = conditionGroupMembers(report.sections, section);
 
-  useEffect(() => {
-    if (storedDefault) setDraft(cloneCondition(storedDefault));
-  }, [groupKey, selectedPhase, storedDefault]);
-
   if (!storedDefault) return null;
-
-  const changeDraft = (patch: ConditionPatch) => {
-    setDraft((current) => patchCondition(current, patch));
-  };
 
   return <section className="group-condition-panel" aria-label="구역 기본 Condition">
     <header className="group-condition-head">
@@ -714,22 +705,42 @@ function GroupConditionPanel({ report, section, dispatch }: GroupConditionPanelP
         >{phase}</button>)}
       </div>
     </header>
+    <GroupConditionDraftEditor
+      key={`${groupKey}:${selectedPhase}`}
+      condition={storedDefault}
+      phase={selectedPhase}
+      onApply={(condition) => dispatch({
+        type: 'APPLY_GROUP_CONDITION',
+        sectionId: section.id,
+        phase: selectedPhase,
+        condition,
+      })}
+    />
+  </section>;
+}
+
+function GroupConditionDraftEditor({ condition, phase, onApply }: {
+  condition: Condition;
+  phase: Phase;
+  onApply: (condition: Condition) => void;
+}) {
+  const [draft, setDraft] = useState<Condition>(() => cloneCondition(condition));
+  const changeDraft = (patch: ConditionPatch) => {
+    setDraft((current) => patchCondition(current, patch));
+  };
+
+  return <>
     <ConditionEditor
-      ariaPrefix={`구역 기본 ${selectedPhase}`}
+      ariaPrefix={`구역 기본 ${phase}`}
       condition={draft}
       onPatch={changeDraft}
     />
     <div className="group-condition-actions"><span>Side와 Unit 하위에서 개별 수정할 수 있습니다.</span><button
       type="button"
       className="primary"
-      onClick={() => dispatch({
-        type: 'APPLY_GROUP_CONDITION',
-        sectionId: section.id,
-        phase: selectedPhase,
-        condition: draft,
-      })}
-    >{selectedPhase} 기본값 적용</button></div>
-  </section>;
+      onClick={() => onApply(draft)}
+    >{phase} 기본값 적용</button></div>
+  </>;
 }
 
 function PhasePanel({ phase, section, sections, photos, dispatch, source, onAddPhotos, selected, onSelect }: { phase: Phase; section: ReportSection; sections: ReportSection[]; photos: PhotoData[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; source: ConditionSource; onAddPhotos: (sectionId: string, phase: Phase) => void; selected: boolean; onSelect: () => void }) {

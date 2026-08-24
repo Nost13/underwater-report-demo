@@ -260,18 +260,18 @@ test('complete 1440px flow covers preview, QA focus, repagination, and Word down
   await buildGeneralScope(page);
   for (let index = 0; index < 4; index += 1) {
     await page.getByRole('button', { name: '샘플 사진 7장 불러오기' }).click();
-    await expect(page.locator('.status-line')).toContainText('샘플 사진 7장', { timeout: 20_000 });
+    await expect(page.getByLabel('사진 입력 상세 상태')).toContainText('샘플 사진 7장', { timeout: 20_000 });
     await page.waitForTimeout(10);
   }
 
   await page.getByRole('button', { name: 'Report Input으로' }).click();
-  await page.getByLabel('BEFORE fouling coverage').fill('4');
-  await expect(page.getByLabel('BEFORE fouling type')).toHaveText('Light Macro fouling');
-  await expect(page.getByLabel('BEFORE fouling rating')).toHaveText('R2');
-  await page.getByLabel('AFTER fouling coverage').fill('37');
-  await page.getByLabel('AFTER Slime Only').check();
-  await expect(page.getByLabel('AFTER fouling type')).toHaveText('Micro fouling');
-  await expect(page.getByLabel('AFTER fouling rating')).toHaveText('R1');
+  await page.getByLabel('BEFORE fouling coverage', { exact: true }).fill('4');
+  await expect(page.getByLabel('BEFORE fouling type', { exact: true })).toHaveText('Light Macro fouling');
+  await expect(page.getByLabel('BEFORE fouling rating', { exact: true })).toHaveText('R2');
+  await page.getByLabel('AFTER fouling coverage', { exact: true }).fill('37');
+  await page.getByLabel('AFTER Slime Only', { exact: true }).check();
+  await expect(page.getByLabel('AFTER fouling type', { exact: true })).toHaveText('Micro fouling');
+  await expect(page.getByLabel('AFTER fouling rating', { exact: true })).toHaveText('R1');
   await expect(page.locator('.page-badge b')).toHaveText('6P');
   const beforeBox = await page.locator('.phase-panel.before').boundingBox();
   const afterBox = await page.locator('.phase-panel.after').boundingBox();
