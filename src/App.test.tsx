@@ -367,6 +367,24 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveClass('selected');
   });
 
+  it('selects a photo target from the Phase background without hijacking nested controls', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    const afterPanel = screen.getByLabelText('AFTER 사진 갤러리');
+    await user.click(afterPanel);
+    expect(afterPanel).toHaveClass('selected');
+    expect(screen.getByRole('button', { name: 'AFTER 현재 사진 배정 위치' }))
+      .toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByLabelText('BEFORE fouling coverage'));
+    expect(afterPanel).toHaveClass('selected');
+    expect(screen.getByRole('button', { name: 'BEFORE 이곳에 사진 배정' }))
+      .toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('opens any Report Section with one click and keeps sequential arrows', async () => {
     const user = userEvent.setup();
     render(<App />);

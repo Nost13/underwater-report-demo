@@ -773,7 +773,17 @@ function GroupConditionDraftEditor({ condition, phase, onApply }: {
 function PhasePanel({ phase, section, sections, photos, dispatch, source, onAddPhotos, selected, onSelect }: { phase: Phase; section: ReportSection; sections: ReportSection[]; photos: PhotoData[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; source: ConditionSource; onAddPhotos: (sectionId: string, phase: Phase) => void; selected: boolean; onSelect: () => void }) {
   const condition = section.conditions[phase];
   if (!condition) return null;
-  return <section className={`phase-panel ${phase.toLowerCase()}${selected ? ' selected' : ''}`} aria-label={`${phase} 사진 갤러리`}>
+  const selectFromPanel = (event: React.MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    if (target !== event.currentTarget && target.closest('button, input, select, textarea, a, [role="button"], [role="switch"], [contenteditable="true"]')) return;
+    onSelect();
+  };
+  const selectFromKeyboard = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
+    event.preventDefault();
+    onSelect();
+  };
+  return <section className={`phase-panel ${phase.toLowerCase()}${selected ? ' selected' : ''}`} aria-label={`${phase} 사진 갤러리`} aria-current={selected ? 'true' : undefined} tabIndex={0} onClick={selectFromPanel} onKeyDown={selectFromKeyboard}>
     <div className="phase-head"><div><span>{phase}</span><b>{photos.filter((photo) => photo.reportUse).length} PHOTOS</b><em className={`condition-source ${source.toLowerCase()}`}>{source === 'OVERRIDE' ? '개별 수정' : '기본값 사용'}</em></div><div>{source === 'OVERRIDE' && <button type="button" className="condition-revert" aria-label={`${phase} 기본값으로 되돌리기`} onClick={() => dispatch({ type: 'REVERT_CONDITION_TO_GROUP', sectionId: section.id, phase })}>기본값으로 되돌리기</button>}<button type="button" className="phase-select" aria-label={`${phase} ${selected ? '현재 사진 배정 위치' : '이곳에 사진 배정'}`} aria-pressed={selected} onClick={onSelect}><span>{selected ? '✓ 현재 사진 배정 위치' : '이곳에 사진 배정'}</span></button><button type="button" className="ghost phase-add" aria-label={`${phase}에 사진 추가`} onClick={() => onAddPhotos(section.id, phase)}>사진 추가</button></div></div>
     <div className="phase-condition"><ConditionEditor ariaPrefix={phase} condition={condition} onPatch={(patch) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch })} /></div>
     <div className="photo-list">{photos.length ? photos.map((photo) => <PhotoRow key={photo.id} photo={photo} phasePhotos={photos} section={section} phase={phase} sections={sections} dispatch={dispatch} />) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>이 Phase에 사진을 추가하거나 폴더에서 불러오세요.</p></div>}</div>
