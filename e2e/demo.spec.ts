@@ -70,8 +70,11 @@ test('the unified photo input creates the exact GENERAL directory tree', async (
 
   await buildGeneralScope(page);
   await page.getByRole('button', { name: '사진 폴더 선택' }).click();
+  await expect(page.getByLabel('사진 입력 진행 상태')).toContainText('폴더 선택 완료 · 사진');
+  await expect(page.getByLabel('사진 입력 진행 상태')).toContainText('폴더 구조를 아직 생성하지 않음');
   await page.getByRole('button', { name: '표준 폴더 구조 생성' }).click();
-  await expect(page.locator('.status-line')).toContainText('15개 Section의 폴더');
+  await expect(page.getByLabel('사진 입력 진행 상태'))
+    .toContainText('구조 생성 완료 · 15 Sections / 30 Phase folders');
   const paths = await page.evaluate(() => (
     window as unknown as Window & { __createdPaths: string[] }
   ).__createdPaths);

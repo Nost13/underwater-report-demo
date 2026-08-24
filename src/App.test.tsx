@@ -382,6 +382,41 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveTextContent('manual.jpg');
   });
 
+  it('advances folder, structure, and import progress only after each action succeeds', async () => {
+    const user = userEvent.setup();
+    class MemoryDirectory {
+      kind = 'directory' as const;
+      children = new Map<string, MemoryDirectory>();
+      constructor(public name = '사진') {}
+      async getDirectoryHandle(name: string) {
+        const child = this.children.get(name) ?? new MemoryDirectory(name);
+        this.children.set(name, child);
+        return child;
+      }
+      async *entries(): AsyncGenerator<[string, MemoryDirectory]> {
+        yield* this.children.entries();
+      }
+    }
+    vi.stubGlobal('showDirectoryPicker', vi.fn(async () => new MemoryDirectory()));
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('사진 폴더를 선택하세요');
+    await user.click(screen.getByRole('button', { name: '사진 폴더 선택' }));
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('폴더 선택 완료 · 사진');
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('폴더 구조를 아직 생성하지 않음');
+
+    await user.click(screen.getByRole('button', { name: '표준 폴더 구조 생성' }));
+    expect(screen.getByLabelText('사진 입력 진행 상태'))
+      .toHaveTextContent('구조 생성 완료 · 15 Sections / 30 Phase folders');
+
+    const fallback = container.querySelector('input[type="file"][webkitdirectory]') as HTMLInputElement;
+    await user.upload(fallback, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
+    expect(screen.getByLabelText('사진 입력 진행 상태'))
+      .toHaveTextContent('사진 불러오기 완료 · 1장 / UNMATCHED 1장');
+    vi.unstubAllGlobals();
+  });
+
   it('marks a completed fallback import clearly in the photo-folder step', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
@@ -390,7 +425,7 @@ describe('desktop report workflow', () => {
 
     await user.upload(input, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
 
-    expect(screen.getByText('사진 불러오기 완료')).toBeVisible();
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('사진 불러오기 완료 · 1장');
   });
 
   it('uses one photo-folder flow with optional structure creation after selection', async () => {
@@ -411,15 +446,15 @@ describe('desktop report workflow', () => {
     render(<App />);
     await buildCleaningGeneral(user);
 
-    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('사진 폴더 선택');
-    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('표준 폴더 구조 생성');
-    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('선분류');
-    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('사진 불러오기');
-    expect(screen.getByLabelText('사진 입력 순서')).toHaveTextContent('후분류');
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('사진 폴더 선택');
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('표준 폴더 구조 생성');
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('선분류');
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('사진 불러오기');
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('후분류');
     expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('CLEANING');
     expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('GENERAL · 15개 구역 · BEFORE / AFTER');
     expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('총 15개 Section · 30개 사진 폴더');
-    expect(screen.getByLabelText('사진 입력 상태')).toHaveTextContent('사진 폴더를 아직 선택하지 않았습니다.');
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('사진 폴더를 선택하세요');
   });
 
   it('keeps Scope and photo-folder classification on the same setup page', async () => {
