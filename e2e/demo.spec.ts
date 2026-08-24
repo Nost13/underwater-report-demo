@@ -206,7 +206,7 @@ test('one physical target can carry Cleaning and Inspection with unambiguous fol
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByRole('button', { name: '전체 적용' }).click();
   await page.getByRole('button', { name: 'Inspection 작업 선택' }).click();
-  await page.getByRole('button', { name: 'FWD PORT 작업 추가' }).click();
+  await page.getByRole('button', { name: 'FWD PORT 작업 배정' }).click();
   await page.screenshot({ path: 'e2e/scope-mixed-1440.png', fullPage: true });
   await page.getByRole('button', { name: 'Scope 만들기' }).click();
   await expect(page.locator('.scope-ready')).toContainText('총 16 sections');
@@ -237,7 +237,10 @@ test('an Inspection exception uses CURRENT while other Sections keep BEFORE and 
 
   await expect(page.locator('.phase-panel.before')).toBeVisible();
   await expect(page.locator('.phase-panel.after')).toBeVisible();
-  await page.getByRole('button', { name: 'INSPECTION/GENERAL/AFT/STBD Section 열기' }).click();
+  await page.getByRole('button', { name: '전체 Section 목록 열기' }).click();
+  const picker = page.getByRole('dialog', { name: '전체 Section' });
+  await picker.getByRole('searchbox', { name: 'Section 검색' }).fill('INSPECTION AFT STBD');
+  await picker.getByRole('button', { name: 'INSPECTION AFT · STBD Section 열기' }).click();
   await expect(page.locator('.phase-panel.current')).toBeVisible();
   await expect(page.locator('.phase-panel.before')).toHaveCount(0);
   await expect(page.locator('.phase-panel.after')).toHaveCount(0);
@@ -265,6 +268,12 @@ test('complete 1440px flow covers preview, QA focus, repagination, and Word down
   }
 
   await page.getByRole('button', { name: 'Report Input으로' }).click();
+  await expect(page.locator('.section-tab')).toHaveCount(5);
+  await page.getByRole('button', { name: '전체 Section 목록 열기' }).click();
+  const sectionPicker = page.getByRole('dialog', { name: '전체 Section' });
+  await sectionPicker.getByRole('searchbox', { name: 'Section 검색' }).fill('AFT BOTTOM');
+  await expect(sectionPicker.getByRole('button', { name: 'CLEANING AFT · BOTTOM Section 열기' })).toBeVisible();
+  await sectionPicker.getByRole('button', { name: '전체 Section 닫기' }).click();
   await page.getByLabel('BEFORE fouling coverage', { exact: true }).fill('4');
   await expect(page.getByLabel('BEFORE fouling type', { exact: true })).toHaveText('Light Macro fouling');
   await expect(page.getByLabel('BEFORE fouling rating', { exact: true })).toHaveText('R2');
@@ -276,9 +285,13 @@ test('complete 1440px flow covers preview, QA focus, repagination, and Word down
   const beforeBox = await page.locator('.phase-panel.before').boundingBox();
   const afterBox = await page.locator('.phase-panel.after').boundingBox();
   const thumbBox = await page.locator('.phase-panel.before .thumb').first().boundingBox();
+  const desktopGridColumns = await page.locator('.phase-panel.before .photo-list').evaluate((node) => (
+    getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length
+  ));
   expect(beforeBox).not.toBeNull();
   expect(afterBox).not.toBeNull();
-  expect(thumbBox?.width).toBeGreaterThan(220);
+  expect(thumbBox?.width).toBeGreaterThan(190);
+  expect(desktopGridColumns).toBe(5);
   expect(afterBox!.y).toBeGreaterThan(beforeBox!.y + beforeBox!.height);
   await page.screenshot({ path: 'e2e/report-input-1440.png', fullPage: true });
 
@@ -301,7 +314,7 @@ test('complete 1440px flow covers preview, QA focus, repagination, and Word down
   await firstReportUse.focus();
   await page.keyboard.press('Space');
   await expect(firstReportUse).not.toBeChecked();
-  for (let index = 1; index < 24; index += 1) {
+  for (let index = 1; index < 25; index += 1) {
     await reportUseSwitches.nth(index).click();
   }
   await expect(page.locator('.page-badge b')).toHaveText('1P');
@@ -322,6 +335,7 @@ test('complete 1440px flow covers preview, QA focus, repagination, and Word down
   const outputZip = await JSZip.loadAsync(await readFile(outputPath));
   const documentXml = await outputZip.file('word/document.xml')?.async('text') ?? '';
   expect(documentXml).toContain('GENERAL AREAS / FWD');
+  expect(documentXml).toContain('N/A');
   expect(documentXml).not.toMatch(/\{\{(?:P\d+|BC|TITLE|WORK|FT|FC|OL|OT|SIDE_LABEL)\}\}|@(?:FR|OR)/);
   await expect(page.getByText('Word 보고서 다운로드가 완료되었습니다.')).toBeVisible();
   await page.screenshot({ path: 'e2e/final-1440.png', fullPage: true });

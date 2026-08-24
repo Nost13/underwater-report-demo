@@ -166,7 +166,11 @@ function markPageStart(document: Document): void {
     paragraph.insertBefore(properties, paragraph.firstChild);
   }
   if (!directChildren(properties, 'pageBreakBefore').length) {
-    properties.appendChild(document.createElementNS(WORD_NAMESPACE, 'w:pageBreakBefore'));
+    const pageBreak = document.createElementNS(WORD_NAMESPACE, 'w:pageBreakBefore');
+    const allowedBefore = new Set(['pStyle', 'keepNext', 'keepLines']);
+    const insertionPoint = Array.from(properties.children)
+      .find((child) => !allowedBefore.has(child.localName));
+    properties.insertBefore(pageBreak, insertionPoint ?? null);
   }
 }
 

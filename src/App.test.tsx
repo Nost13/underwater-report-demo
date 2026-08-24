@@ -66,11 +66,15 @@ describe('desktop report workflow', () => {
     await verifyVessel(user);
     await user.click(screen.getByRole('button', { name: '전체 적용' }));
     await user.click(screen.getByRole('button', { name: 'Inspection 작업 선택' }));
-    await user.click(screen.getByRole('button', { name: 'FWD PORT 작업 배정' }));
+    const inspectionToggle = screen.getByRole('button', { name: 'FWD PORT 작업 배정' });
+    expect(inspectionToggle).toHaveAttribute('aria-pressed', 'false');
+    await user.click(inspectionToggle);
     expect(screen.getByLabelText('FWD PORT 배정 상태')).toHaveTextContent('CLEANING');
     expect(screen.getByLabelText('FWD PORT 배정 상태')).toHaveTextContent('INSPECTION');
 
-    await user.click(screen.getByRole('button', { name: 'FWD PORT 작업 배정' }));
+    const inspectionRemoveToggle = screen.getByRole('button', { name: 'FWD PORT 작업 해제' });
+    expect(inspectionRemoveToggle).toHaveAttribute('aria-pressed', 'true');
+    await user.click(inspectionRemoveToggle);
     expect(screen.getByLabelText('FWD PORT 배정 상태')).toHaveTextContent('CLEANING');
     expect(screen.getByLabelText('FWD PORT 배정 상태')).not.toHaveTextContent('INSPECTION');
 
@@ -380,6 +384,13 @@ describe('desktop report workflow', () => {
       .toHaveAttribute('aria-pressed', 'true');
 
     await user.click(screen.getByLabelText('BEFORE fouling coverage'));
+    expect(afterPanel).toHaveClass('selected');
+    expect(screen.getByRole('button', { name: 'BEFORE 이곳에 사진 배정' }))
+      .toHaveAttribute('aria-pressed', 'false');
+
+    const beforePanel = screen.getByLabelText('BEFORE 사진 갤러리');
+    await user.type(within(beforePanel).getByLabelText('BEFORE fouling coverage'), '10');
+    await user.click(within(beforePanel).getByText('Slime Only'));
     expect(afterPanel).toHaveClass('selected');
     expect(screen.getByRole('button', { name: 'BEFORE 이곳에 사진 배정' }))
       .toHaveAttribute('aria-pressed', 'false');

@@ -75,6 +75,13 @@ describe('bundled Detail report template', () => {
     expect(await output.file('word/styles.xml')?.async('uint8array')).toEqual(originalStyles);
     expect(documentXml).not.toContain('w:type="page"');
     expect(documentXml.match(/pageBreakBefore/g)).toHaveLength(1);
+    const pageBreak = Array.from(new DOMParser()
+      .parseFromString(documentXml, 'application/xml')
+      .getElementsByTagNameNS('*', 'pageBreakBefore'))[0];
+    const pageProperties = pageBreak?.parentElement;
+    const propertyOrder = pageProperties ? Array.from(pageProperties.children).map((child) => child.localName) : [];
+    expect(propertyOrder.indexOf('pageBreakBefore')).toBeLessThan(propertyOrder.indexOf('ind'));
+    expect(propertyOrder.indexOf('pageBreakBefore')).toBeLessThan(propertyOrder.indexOf('rPr'));
   });
 
   it('fills the gray image cell above the component caption and colors both rating cells', async () => {

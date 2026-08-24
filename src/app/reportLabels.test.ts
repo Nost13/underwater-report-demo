@@ -4,7 +4,9 @@ import { conciseSectionLabel, defaultReportLabels, reportLabelKey } from './repo
 
 describe('report input labels', () => {
   it('formats GENERAL as zone and side', () => {
-    expect(conciseSectionLabel(createGeneralSections('CLEANING')[0])).toBe('FWD · PORT');
+    const section = createGeneralSections('CLEANING')[0];
+    expect(conciseSectionLabel(section)).toBe('FWD · PORT');
+    expect(defaultReportLabels(section).photoCaption).toBe('FWD');
   });
 
   it('shortens blade units while retaining other component names', () => {

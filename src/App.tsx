@@ -29,7 +29,6 @@ import {
   GENERAL_ZONES,
   mergeScopeTargets,
   removeTargetService,
-  replaceTargetService,
   toggleTargetService,
 } from './domain/structure';
 import type { WordExportInput, WordExportResult } from './docx/templateWriter';
@@ -521,11 +520,12 @@ interface TargetCellProps {
 
 function TargetCell(props: TargetCellProps) {
   const label = targetLabel(props.target);
+  const active = props.target.services.includes(props.activeService);
   const shortLabel = [props.target.side, props.target.unit ? `#${String(props.target.unit).padStart(2, '0')}` : null]
     .filter(Boolean).join(' ') || props.target.component;
   return <div className={props.target.services.length ? 'target-cell assigned' : 'target-cell'}>
-    <button type="button" className="target-main" disabled={props.locked} aria-label={`${label} 작업 배정`} onClick={props.onToggle}>
-      {props.compact ? (props.target.services.includes(props.activeService) ? '클릭 해제' : '클릭 배정') : shortLabel}
+    <button type="button" className="target-main" disabled={props.locked} aria-label={`${label} ${active ? '작업 해제' : '작업 배정'}`} aria-pressed={active} onClick={props.onToggle}>
+      {props.compact ? (active ? '클릭 해제' : '클릭 배정') : shortLabel}
     </button>
     <div className="target-status" aria-label={`${label} 배정 상태`}>
       {props.target.services.length ? props.target.services.map((service) => <button
@@ -675,10 +675,14 @@ function ReportInput(props: ReportInputProps) {
   const previewBc = `${props.activeSection.area === 'NICHE' ? 'NICHE AREAS & COMPONENTS' : 'GENERAL AREAS'} / ${labels.upperAreaLabel}`;
   const focusSection = (index: number) => {
     const section = props.report.sections[index];
-    if (section) props.dispatch({ type: 'FOCUS_SECTION', sectionId: section.id });
+    if (section) {
+      setLabelSettingsOpen(false);
+      props.dispatch({ type: 'FOCUS_SECTION', sectionId: section.id });
+    }
   };
 
   const selectSection = (sectionId: string) => {
+    setLabelSettingsOpen(false);
     props.dispatch({ type: 'FOCUS_SECTION', sectionId });
     setSectionPickerOpen(false);
     setSectionQuery('');
@@ -686,7 +690,6 @@ function ReportInput(props: ReportInputProps) {
 
   useEffect(() => {
     activeSectionButtonRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
-    setLabelSettingsOpen(false);
   }, [props.activeSection.id]);
 
   return <div className={`report-workspace${props.unmatchedOpen && props.unmatched.length > 0 ? ' unmatched-open' : ''}`}>
@@ -785,7 +788,7 @@ function PhasePanel({ phase, section, sections, photos, dispatch, source, onAddP
   if (!condition) return null;
   const selectFromPanel = (event: React.MouseEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
-    if (target !== event.currentTarget && target.closest('button, input, select, textarea, a, [role="button"], [role="switch"], [contenteditable="true"]')) return;
+    if (target !== event.currentTarget && target.closest('button, input, select, textarea, label, output, a, [role="button"], [role="switch"], [contenteditable="true"]')) return;
     onSelect();
   };
   const selectFromKeyboard = (event: React.KeyboardEvent<HTMLElement>) => {

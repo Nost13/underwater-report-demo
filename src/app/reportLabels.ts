@@ -32,7 +32,7 @@ export function defaultReportLabels(section: ReportSection): ReportLabels {
   return {
     upperAreaLabel: propellerPart ? 'PROPELLER' : section.component,
     detailTitle: section.component,
-    photoCaption: titleCase(section.component),
+    photoCaption: section.area === 'GENERAL' ? section.component : titleCase(section.component),
   };
 }
 
