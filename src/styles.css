@@ -273,9 +273,14 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .condition-columns label:last-child { border-right: 0; }
 .condition-columns label > span { color: #71838c; font-size: 7px; font-weight: 850; letter-spacing: .06em; }
 .condition-columns select { width: 100%; min-width: 0; height: 29px; padding: 0 6px; font-size: 8px; }
-.slime-coverage { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px; }
-.slime-coverage input { width: 100%; min-width: 0; height: 27px; padding: 0 6px; border: 1px solid #b9d8d4; border-radius: 4px; font-size: 8px; }
-.slime-coverage span { color: var(--teal-700); font-size: 9px; font-weight: 850; }
+.coverage-input { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px; }
+.coverage-input input { width: 100%; min-width: 0; height: 29px; padding: 0 7px; border: 1px solid #b9cbd1; border-radius: 4px; background: #fff; color: #16333e; font-size: 9px; font-weight: 750; }
+.coverage-input input:focus { outline: 2px solid rgba(8, 126, 120, .18); border-color: var(--teal-600); }
+.coverage-input > span { color: var(--teal-700); font-size: 9px; font-weight: 850; }
+.condition-columns label.slime-toggle { margin-top: 2px; padding: 0; display: flex; align-items: center; gap: 5px; border: 0; color: #3d626b; cursor: pointer; }
+.slime-toggle input { width: 13px; height: 13px; accent-color: var(--teal-600); }
+.slime-toggle span { font-size: 7px; font-weight: 800; letter-spacing: 0; }
+.slime-toggle:has(input:checked) span { color: var(--teal-700); }
 .condition-value { min-height: 29px; display: grid; align-items: center; padding: 0 6px; border: 1px solid #d6e0e3; border-radius: 4px; background: #f3f7f8; color: #27434d; font-size: 8px; font-weight: 750; }
 .rating-badge { min-height: 29px; display: grid; place-items: center; border-radius: 4px; color: #fff; font-size: 11px; font-weight: 900; }
 .rating-empty { background: #9aacb2; }

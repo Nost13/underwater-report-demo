@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 
 async function verifyVessel(user: ReturnType<typeof userEvent.setup>) {
@@ -337,13 +337,18 @@ describe('desktop report workflow', () => {
 
   it('runs the local Word exporter from the final stage', async () => {
     const user = userEvent.setup();
-    render(<App exporter={async () => ({ skipped: [], pageCount: 0, blob: new Blob() })} />);
+    const exporter = vi.fn(async () => ({ skipped: [], pageCount: 0, blob: new Blob() }));
+    render(<App exporter={exporter} />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
     await user.click(screen.getByRole('button', { name: 'Word 준비' }));
     await user.click(screen.getByRole('button', { name: 'Word 보고서 다운로드' }));
     expect(await screen.findByText('Word 보고서 다운로드가 완료되었습니다.')).toBeVisible();
+    expect(exporter).toHaveBeenCalledWith(expect.objectContaining({
+      vesselName: 'M.V. PACIFIC AURORA',
+      templateUrl: 'templates/Detail_report_template.docx',
+    }));
   });
 
   it('collapses Report Check by default and shows all preview pages in one view', async () => {

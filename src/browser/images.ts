@@ -74,7 +74,7 @@ async function canvasBlob(file: File, maxEdge: number, quality: number): Promise
 
 export const createThumbnailBlob = (file: File) => canvasBlob(file, 420, 0.76);
 
-export async function resizeForPdf(file: File, maxEdge = 1800): Promise<Uint8Array> {
+export async function resizeForReport(file: File, maxEdge = 1800): Promise<Uint8Array> {
   const blob = await canvasBlob(file, maxEdge, 0.82);
   return new Uint8Array(await blob.arrayBuffer());
 }

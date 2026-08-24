@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { resizeForPdf } from '../browser/images';
+import { resizeForReport } from '../browser/images';
 import { buildWordPhasePages } from './reportModel';
 import type { PhotoData, ReportSection } from '../domain/types';
 
@@ -18,24 +18,133 @@ export interface WordExportResult {
 }
 
 interface WriterDependencies {
-  fetchTemplate?: () => Promise<ArrayBuffer>;
+  fetchTemplate?: () => Promise<ArrayBuffer | Uint8Array>;
   resize?: (file: File, maxEdge?: number) => Promise<Uint8Array>;
   download?: (blob: Blob, fileName: string) => void;
 }
 
-const escapeXml = (value: string) => value
-  .replaceAll('&', '&amp;')
-  .replaceAll('<', '&lt;')
-  .replaceAll('>', '&gt;');
+interface DocumentParts {
+  prefix: string;
+  firstBody: string;
+  continuationBody: string;
+  sectionProperties: string;
+  suffix: string;
+}
 
-const drawingXml = (relationshipId: string, imageIndex: number) =>
-  '<w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:extent cx="2825750" cy="2119312"/><wp:docPr id="' + imageIndex + '" name="Photo ' + imageIndex + '"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:blipFill><a:blip r:embed="' + relationshipId + '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/></pic:blipFill><pic:spPr/></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+function splitTemplateDocument(xml: string): DocumentParts {
+  const document = new DOMParser().parseFromString(xml, 'application/xml');
+  if (document.querySelector('parsererror')) throw new Error('TEMPLATE_XML_INVALID');
+  const body = Array.from(document.getElementsByTagNameNS('*', 'body'))[0];
+  if (!body) throw new Error('TEMPLATE_BODY_INVALID');
+  const children = Array.from(body.children);
+  const sectionIndex = children.findIndex((child) => child.localName === 'sectPr');
+  const photoFiveIndex = children.findIndex((child) => child.textContent?.includes('{{P5}}'));
+  if (sectionIndex < 0 || photoFiveIndex < 0) throw new Error('TEMPLATE_BLOCKS_INVALID');
+  let continuationStart = photoFiveIndex;
+  while (continuationStart > 0) {
+    continuationStart -= 1;
+    if (children[continuationStart].textContent?.includes('7. DETAILED SERVICE RECORD')) break;
+  }
+  const serializer = new XMLSerializer();
+  const bodyOpen = xml.match(/<w:body(?:\s[^>]*)?>/);
+  const bodyClose = xml.lastIndexOf('</w:body>');
+  if (!bodyOpen || bodyOpen.index === undefined || bodyClose < 0) throw new Error('TEMPLATE_BODY_INVALID');
+  const start = bodyOpen.index + bodyOpen[0].length;
+  return {
+    prefix: xml.slice(0, start),
+    firstBody: children.slice(0, continuationStart).map((node) => serializer.serializeToString(node)).join(''),
+    continuationBody: children.slice(continuationStart, sectionIndex).map((node) => serializer.serializeToString(node)).join(''),
+    sectionProperties: serializer.serializeToString(children[sectionIndex]),
+    suffix: xml.slice(bodyClose),
+  };
+}
+
+const PHOTO_WIDTH_EMU = 2_825_750;
+const PHOTO_HEIGHT_EMU = 2_119_312;
+
+const drawingXml = (relationshipId: string, imageIndex: number) => [
+  '<w:r><w:drawing>',
+  '<wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0">',
+  `<wp:extent cx="${PHOTO_WIDTH_EMU}" cy="${PHOTO_HEIGHT_EMU}"/>`,
+  `<wp:docPr id="${imageIndex}" name="Report photo ${imageIndex}"/>`,
+  '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>',
+  '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">',
+  '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">',
+  '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">',
+  '<pic:nvPicPr>',
+  `<pic:cNvPr id="${imageIndex}" name="Report photo ${imageIndex}.jpg"/>`,
+  '<pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr>',
+  '</pic:nvPicPr>',
+  '<pic:blipFill>',
+  `<a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${relationshipId}"/>`,
+  '<a:stretch><a:fillRect/></a:stretch>',
+  '</pic:blipFill>',
+  '<pic:spPr bwMode="auto">',
+  '<a:xfrm>',
+  '<a:off x="0" y="0"/>',
+  `<a:ext cx="${PHOTO_WIDTH_EMU}" cy="${PHOTO_HEIGHT_EMU}"/>`,
+  '</a:xfrm>',
+  '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>',
+  '<a:noFill/>',
+  '<a:ln><a:noFill/></a:ln>',
+  '</pic:spPr>',
+  '</pic:pic>',
+  '</a:graphicData>',
+  '</a:graphic>',
+  '</wp:inline>',
+  '</w:drawing></w:r>',
+].join('');
+
+function replaceTokenInParagraph(paragraph: Element, token: string, value: string): void {
+  while (true) {
+    const textNodes = Array.from(paragraph.getElementsByTagNameNS('*', 't'));
+    const combined = textNodes.map((node) => node.textContent ?? '').join('');
+    const tokenStart = combined.indexOf(token);
+    if (tokenStart < 0) return;
+    const tokenEnd = tokenStart + token.length;
+    let cursor = 0;
+    let startIndex = -1;
+    let endIndex = -1;
+    let startOffset = 0;
+    let endOffset = 0;
+    for (let index = 0; index < textNodes.length; index += 1) {
+      const length = textNodes[index].textContent?.length ?? 0;
+      if (startIndex < 0 && tokenStart < cursor + length) {
+        startIndex = index;
+        startOffset = tokenStart - cursor;
+      }
+      if (tokenEnd <= cursor + length) {
+        endIndex = index;
+        endOffset = tokenEnd - cursor;
+        break;
+      }
+      cursor += length;
+    }
+    if (startIndex < 0 || endIndex < 0) return;
+    const startText = textNodes[startIndex].textContent ?? '';
+    const endText = textNodes[endIndex].textContent ?? '';
+    if (startIndex === endIndex) {
+      textNodes[startIndex].textContent = startText.slice(0, startOffset) + value + startText.slice(endOffset);
+      continue;
+    }
+    textNodes[startIndex].textContent = startText.slice(0, startOffset) + value;
+    for (let index = startIndex + 1; index < endIndex; index += 1) textNodes[index].textContent = '';
+    textNodes[endIndex].textContent = endText.slice(endOffset);
+  }
+}
 
 function replaceText(xml: string, values: Record<string, string>): string {
-  return Object.entries(values).reduce(
-    (next, [token, value]) => next.replaceAll(token, escapeXml(value)),
-    xml,
-  );
+  const namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const document = new DOMParser().parseFromString(`<root xmlns:w="${namespace}">${xml}</root>`, 'application/xml');
+  if (document.querySelector('parsererror')) throw new Error('TEMPLATE_FRAGMENT_INVALID');
+  const paragraphs = Array.from(document.getElementsByTagNameNS('*', 'p'));
+  for (const paragraph of paragraphs) {
+    for (const [token, value] of Object.entries(values)) replaceTokenInParagraph(paragraph, token, value);
+  }
+  const serializer = new XMLSerializer();
+  return Array.from(document.documentElement.childNodes)
+    .map((node) => serializer.serializeToString(node))
+    .join('');
 }
 
 function addRelationship(xml: string, id: string, target: string): string {
@@ -52,24 +161,28 @@ export async function writeTemplateReport(
     if (!response.ok) throw new Error('TEMPLATE_LOAD_FAILED');
     return response.arrayBuffer();
   });
-  const resize = dependencies.resize ?? resizeForPdf;
+  const resize = dependencies.resize ?? resizeForReport;
   const template = await fetchTemplate();
   const zip = await JSZip.loadAsync(template);
   const documentEntry = zip.file('word/document.xml');
   const relationshipEntry = zip.file('word/_rels/document.xml.rels');
-  if (!documentEntry || !relationshipEntry) throw new Error('TEMPLATE_INVALID');
+  const contentTypesEntry = zip.file('[Content_Types].xml');
+  if (!documentEntry || !relationshipEntry || !contentTypesEntry) throw new Error('TEMPLATE_INVALID');
 
   const pages = buildWordPhasePages(input.sections, input.photos);
   if (!pages.length) throw new Error('NO_REPORT_PHOTOS');
   const templateXml = await documentEntry.async('text');
+  const documentParts = splitTemplateDocument(templateXml);
   let relationshipsXml = await relationshipEntry.async('text');
-  const body = templateXml.match(/^(.*<w:body>)([\s\S]*?)(<w:sectPr(?:\s[^>]*)?\/>|<w:sectPr[\s\S]*?<\/w:sectPr>)(<\/w:body>[\s\S]*)$/);
-  if (!body) throw new Error('TEMPLATE_BODY_INVALID');
+  let contentTypesXml = await contentTypesEntry.async('text');
+  if (!/<Default[^>]+Extension="jpg"/i.test(contentTypesXml)) {
+    contentTypesXml = contentTypesXml.replace('</Types>', '<Default Extension="jpg" ContentType="image/jpeg"/></Types>');
+  }
   const skipped: string[] = [];
   let imageIndex = 0;
   const renderedBodies: string[] = [];
   for (const page of pages) {
-    let pageXml = replaceText(body[2], {
+    let pageXml = replaceText(page.kind === 'first' ? documentParts.firstBody : documentParts.continuationBody, {
       '{{BC}}': page.values.bc, '{{SIDE_LABEL}}': page.values.sideLabel,
       '{{TITLE}}': page.values.title, '{{WORK}}': page.values.work,
       '@FR': page.values.fr, '{{FT}}': page.values.ft, '{{FC}}': page.values.fc,
@@ -101,9 +214,10 @@ export async function writeTemplateReport(
     renderedBodies.push(pageXml);
   }
   const pageBreak = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
-  const documentXml = body[1] + renderedBodies.join(pageBreak) + body[3] + body[4];
+  const documentXml = documentParts.prefix + renderedBodies.join(pageBreak) + documentParts.sectionProperties + documentParts.suffix;
   zip.file('word/document.xml', documentXml);
   zip.file('word/_rels/document.xml.rels', relationshipsXml);
+  zip.file('[Content_Types].xml', contentTypesXml);
   const blob = await zip.generateAsync({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

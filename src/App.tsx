@@ -7,6 +7,7 @@ import { createSectionTree, folderRelativePath, pickDirectory, scanImages, type 
 import { ThumbnailPool, type ThumbnailLease } from './browser/images';
 import { createCaption, matchPhotoPath, phaseIndexForPhoto } from './domain/photos';
 import { deriveFoulingCondition, deriveFoulingRating, deriveFoulingType, deriveObservedRating, formatConditionSummary } from './domain/conditions';
+import { buildWordPhasePages } from './docx/reportModel';
 import { checkReport } from './domain/qa';
 import {
   appendTargetService,
@@ -680,5 +681,6 @@ function CheckPreview(props: CheckPreviewProps) {
 }
 
 function ExportScreen({ vesselName, report, status, onBack, onExport, busy }: { vesselName: string; report: ReportState; status: string; onBack: () => void; onExport: () => void; busy: boolean }) {
-  return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 05</p><h2>Word 보고서 다운로드</h2><p>공식 Detail Service Record 템플릿에 Phase별 사진과 Condition을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>Detail Service Record 템플릿 · {report.sections.length} sections · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Layout</dt><dd>A4 Portrait · Phase-first</dd></div><div><dt>Page rule</dt><dd>4 + 6 / phase</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p>{status}</p></div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Check / Preview</button></div></div>;
+  const wordPageCount = buildWordPhasePages(report.sections, report.photos).length;
+  return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 05</p><h2>Word 보고서 다운로드</h2><p>공식 Detail Service Record 템플릿에 Phase별 사진과 Condition을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>Detail Service Record 템플릿 · {wordPageCount} Word pages · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Layout</dt><dd>A4 Portrait · Phase-first</dd></div><div><dt>Page rule</dt><dd>4 + 6 / phase</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p>{status}</p></div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Check / Preview</button></div></div>;
 }
