@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 
 async function verifyVessel(user: ReturnType<typeof userEvent.setup>) {
-  await user.clear(screen.getByLabelText('IMO number'));
-  await user.type(screen.getByLabelText('IMO number'), '9876543');
+  await user.clear(screen.getByLabelText('Vessel name / IMO number'));
+  await user.type(screen.getByLabelText('Vessel name / IMO number'), '9876543');
   await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
 }
 

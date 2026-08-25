@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createDemoPhotos, COMPONENT_OPTIONS, DEMO_VESSELS, SERVICES } from './app/demoData';
+import { emptyReportInfo, reportInfoForScopes, reportInfoFromVessel, type ReportInfo } from './app/reportInfo';
+import { lookupVessel } from './app/vesselLookup';
 import { ConditionEditor } from './app/ConditionEditor';
 import {
   cloneCondition,
@@ -154,6 +156,8 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
   const [stage, setStage] = useState(0);
   const [imo, setImo] = useState('9876543');
   const [vessel, setVessel] = useState<(typeof DEMO_VESSELS)[number] | null>(null);
+  const [vesselMatches, setVesselMatches] = useState<(typeof DEMO_VESSELS)[number][]>([]);
+  const [reportInfo, setReportInfo] = useState<ReportInfo>(() => emptyReportInfo());
   const [activeService, setActiveService] = useState<ServiceKind>('CLEANING');
   const [generalScope, setGeneralScope] = useState<GeneralScopeState>(() => ({
     targets: createGeneralTargets(),
@@ -204,6 +208,7 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
     dispatch({ type: 'SET_SCOPE', sections });
     setActivePhotoPhase(sections[0]?.phases[0] ?? 'BEFORE');
     setScopeMeta({ vesselName: vessel?.name ?? 'UNDERWATER REPORT' });
+    setReportInfo((current) => reportInfoForScopes(current, [...new Set(sections.map((section) => section.service))]));
     setFolderStructureCreated(false);
     setPhotoImportComplete(false);
     setStandardPathsDetected(false);
@@ -428,6 +433,18 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
     setStage(2);
   };
 
+  const lookupReportVessel = async () => {
+    const local = DEMO_VESSELS.find((item) => item.imo === imo.trim()) ?? null;
+    const matches = local ? [local] : await lookupVessel(imo);
+    setVesselMatches(matches);
+    const found = matches[0] ?? null;
+    setVessel(found);
+    if (found) {
+      setReportInfo(reportInfoFromVessel(found));
+      setStatus(`${found.name} 선박 정보를 ${local ? '로컬 DB' : '운영부 DB'}에서 불러왔습니다.`);
+    } else setStatus('조회 결과가 없습니다. 선박 정보를 직접 입력할 수 있습니다.');
+  };
+
   const runExport = async () => {
     if (isExporting) return;
     setIsExporting(true);
@@ -470,7 +487,7 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
         addNiche={addNiche} removeNiche={(id) => setNicheItems((items) => items.filter((item) => item.id !== id))}
         onNicheToggle={(groupId, targetId) => changeNicheTarget(groupId, targetId, (target) => toggleTargetService(target, activeService))}
         onNicheRemove={(groupId, targetId, service) => changeNicheTarget(groupId, targetId, (target) => removeTargetService(target, service))}
-        onLookup={() => setVessel(DEMO_VESSELS.find((item) => item.imo === imo.trim()) ?? null)}
+        reportInfo={reportInfo} setReportInfo={setReportInfo} vesselMatches={vesselMatches} onVesselSelect={(next) => { setVessel(next); setReportInfo(reportInfoFromVessel(next)); }} onLookup={lookupReportVessel}
         onBuild={buildScope} onReset={resetScope} sectionCount={report.sections.length} draftSections={draftSections}
         onPhotos={() => document.getElementById('photo-source')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}
       /><PhotoSource embedded
@@ -552,6 +569,8 @@ function TargetCell(props: TargetCellProps) {
 
 interface VesselScopeProps {
   imo: string; setImo: (value: string) => void; vessel: (typeof DEMO_VESSELS)[number] | null;
+  vesselMatches: (typeof DEMO_VESSELS)[number][]; onVesselSelect: (vessel: (typeof DEMO_VESSELS)[number]) => void;
+  reportInfo: ReportInfo; setReportInfo: React.Dispatch<React.SetStateAction<ReportInfo>>;
   activeService: ServiceKind; setActiveService: (value: ServiceKind) => void;
   generalTargets: ScopeTarget[]; generalUndo: ScopeTarget[] | null;
   onGeneralToggle: (targetId: string) => void;
@@ -583,8 +602,10 @@ function VesselScope(props: VesselScopeProps) {
     <div className="page-heading"><div><p className="step-kicker">STEP 01</p><h2>Vessel / Scope</h2><p>Vessel DB는 선박 확인에만 사용됩니다. 보고서와 사진은 이 브라우저 탭에만 있습니다.</p></div><span className="privacy-chip">서버 저장 없음</span></div>
     <div className="scope-grid">
       <section className="panel vessel-panel"><div className="panel-title"><span>01</span><div><h3>Vessel 확인</h3><p>Demo Vessel DB</p></div></div>
-        <label className="field"><span>IMO number</span><div className="input-action"><input aria-label="IMO number" value={props.imo} disabled={locked} onChange={(event) => props.setImo(event.target.value)} /><button type="button" disabled={locked} onClick={props.onLookup}>Vessel 확인</button></div></label>
+        <label className="field"><span>Vessel name / IMO number</span><div className="input-action"><input aria-label="Vessel name / IMO number" value={props.imo} disabled={locked} onChange={(event) => props.setImo(event.target.value)} /><button type="button" disabled={locked} onClick={props.onLookup}>Vessel 확인</button></div></label>
+        {props.vesselMatches.length > 1 && <select className="vessel-match-select" aria-label="선박 조회 결과" value={props.vessel?.imo ?? ''} onChange={(event) => { const selected = props.vesselMatches.find((item) => item.imo === event.target.value); if (selected) props.onVesselSelect(selected); }}><option value="">선박을 선택하세요</option>{props.vesselMatches.map((item) => <option key={`${item.imo}-${item.name}`} value={item.imo}>{item.name} · IMO {item.imo || '—'}</option>)}</select>}
         {props.vessel ? <div className="vessel-card"><div className="vessel-icon">MV</div><div><strong>{props.vessel.name}</strong><span>IMO {props.vessel.imo} · {props.vessel.type}</span></div><dl><div><dt>CLASS</dt><dd>{props.vessel.classSociety}</dd></div><div><dt>FLAG</dt><dd>{props.vessel.flag}</dd></div></dl></div> : <div className="empty-note">IMO 9876543 또는 9234567을 확인할 수 있습니다.</div>}
+        <ReportInfoPanel reportInfo={props.reportInfo} onChange={props.setReportInfo} />
       </section>
       <section className="panel scope-panel"><div className="panel-title"><span>02</span><div><h3>Service / Scope</h3><p>작업을 선택하고 필요한 Section만 클릭</p></div></div>
         <div className="service-brush" aria-label="Service 작업 선택">{SERVICES.map((item) => <button
@@ -731,6 +752,28 @@ function ReportInput(props: ReportInputProps) {
     {props.unmatchedOpen && props.unmatched.length > 0 && <aside className="unmatched-drawer" id="unmatched" aria-label="UNMATCHED 사진 배정"><div className="unmatched-head"><div><p className="eyebrow">MANUAL ASSIGN</p><h3>UNMATCHED</h3></div><div><span>{props.unmatched.length}</span><button type="button" aria-label="UNMATCHED 닫기" onClick={props.onCloseUnmatched}>×</button></div></div><p className="unmatched-help">확실하지 않은 경로는 추측하지 않습니다. 사진을 클릭하면 현재 선택된 위치에 바로 배정됩니다.</p><div className="unmatched-list">{props.unmatched.map((photo) => <UnmatchedCard key={photo.id} photo={photo} onAssign={() => props.onAssignUnmatched(photo.id)} />)}</div><button type="button" className="ghost full" onClick={props.onOpen}>사진 더 불러오기</button></aside>}
     <div className="input-footer"><button type="button" className="text-button" onClick={props.onBack}>← 사진 입력</button><div><span>Report Check {props.issues.length} issues</span><button type="button" className="primary" onClick={props.onNext}>Check / Preview</button></div></div>
   </div>;
+}
+
+function ReportInfoPanel({ reportInfo, onChange }: { reportInfo: ReportInfo; onChange: React.Dispatch<React.SetStateAction<ReportInfo>> }) {
+  const setVesselField = (field: keyof ReportInfo['vessel'], value: string) => onChange((current) => ({
+    ...current, vessel: { ...current.vessel, [field]: value },
+  }));
+  const setOperationField = (field: keyof ReportInfo['operation'], value: string) => onChange((current) => ({
+    ...current, operation: { ...current.operation, [field]: value },
+  }));
+  return <details className="report-info-panel">
+    <summary>보고서 기본 정보 <small>Section 1–4 Word 양식에 기입</small></summary>
+    <div className="report-info-fields">
+      <label className="field"><span>Job No</span><input aria-label="Job No" value={reportInfo.vessel.jobNo} onChange={(event) => setVesselField('jobNo', event.target.value)} /></label>
+      <label className="field"><span>Call Sign</span><input aria-label="Call Sign" value={reportInfo.vessel.callSign} onChange={(event) => setVesselField('callSign', event.target.value)} /></label>
+      <label className="field"><span>Owner / Client</span><input aria-label="Owner / Client" value={reportInfo.vessel.ownerClient} onChange={(event) => setVesselField('ownerClient', event.target.value)} /></label>
+      <label className="field"><span>Location</span><input aria-label="Location" value={reportInfo.operation.location} onChange={(event) => setOperationField('location', event.target.value)} /></label>
+      <label className="field"><span>ETA</span><input aria-label="ETA" value={reportInfo.operation.eta} onChange={(event) => setOperationField('eta', event.target.value)} /></label>
+      <label className="field"><span>ETD</span><input aria-label="ETD" value={reportInfo.operation.etd} onChange={(event) => setOperationField('etd', event.target.value)} /></label>
+      <label className="field"><span>Personnel</span><input aria-label="Personnel" value={reportInfo.operation.personnel} onChange={(event) => setOperationField('personnel', event.target.value)} /></label>
+      <label className="field"><span>Toolbox / LOTO Time</span><input aria-label="Toolbox / LOTO Time" value={reportInfo.readiness.toolboxTime} onChange={(event) => onChange((current) => ({ ...current, readiness: { ...current.readiness, toolboxTime: event.target.value } }))} /></label>
+    </div>
+  </details>;
 }
 
 function SectionQaPanel({ section, issues, onFocusPhase }: {

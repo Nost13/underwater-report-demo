@@ -6,11 +6,18 @@ export interface Vessel {
   type: string;
   classSociety: string;
   flag: string;
+  callSign?: string;
+  loa?: string;
+  breadth?: string;
+  gt?: string;
+  dwt?: string;
+  yearBuilt?: string;
+  ownerClient?: string;
 }
 
 export const DEMO_VESSELS: Vessel[] = [
-  { imo: '9876543', name: 'M.V. PACIFIC AURORA', type: 'Bulk Carrier', classSociety: 'KR', flag: 'Panama' },
-  { imo: '9234567', name: 'M.T. BLUE HORIZON', type: 'Oil / Chemical Tanker', classSociety: 'DNV', flag: 'Marshall Islands' },
+  { imo: '9876543', name: 'M.V. PACIFIC AURORA', type: 'Bulk Carrier', classSociety: 'KR', flag: 'Panama', callSign: '3EAB7', loa: '229.0', breadth: '32.3', gt: '43,000', dwt: '82,000', yearBuilt: '2018', ownerClient: 'Demo Client' },
+  { imo: '9234567', name: 'M.T. BLUE HORIZON', type: 'Oil / Chemical Tanker', classSociety: 'DNV', flag: 'Marshall Islands', callSign: 'V7HZ8', loa: '183.0', breadth: '32.2', gt: '29,600', dwt: '47,000', yearBuilt: '2015', ownerClient: 'Demo Client' },
 ];
 
 export interface ComponentOption {

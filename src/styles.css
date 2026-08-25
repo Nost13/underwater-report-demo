@@ -70,6 +70,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .input-action { display: grid; grid-template-columns: 1fr auto; }
 .input-action input { border-radius: 8px 0 0 8px; }
 .input-action button { min-width: 104px; border: 0; border-radius: 0 8px 8px 0; background: var(--navy-900); color: #fff; font-size: 11px; font-weight: 750; }
+.vessel-match-select { width: 100%; margin-top: 8px; height: 36px; color: #274953; font-size: 10px; }
 .empty-note { margin-top: 18px; min-height: 154px; display: grid; place-items: center; border: 1px dashed #cdd9dd; border-radius: 12px; background: #f8fafb; color: #829099; font-size: 11px; }
 .vessel-card { margin-top: 18px; min-height: 154px; padding: 18px; display: grid; grid-template-columns: 62px 1fr; gap: 14px; border: 1px solid #d6e5e4; border-radius: 12px; background: linear-gradient(140deg, #f7fcfb, #edf7f6); }
 .vessel-icon { width: 62px; height: 62px; display: grid; place-items: center; border-radius: 12px; background: var(--navy-900); color: #65d1c7; font-weight: 900; }
@@ -80,6 +81,12 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .vessel-card dl div { display: flex; align-items: center; gap: 12px; }
 .vessel-card dt { color: #779099; font-size: var(--font-ui-xs); font-weight: 850; }
 .vessel-card dd { margin: 0; font-size: 11px; font-weight: 750; }
+.report-info-panel { margin-top: 12px; border: 1px solid #d8e5e7; border-radius: 10px; background: #f8fbfb; overflow: hidden; }
+.report-info-panel summary { min-height: 42px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: #173f49; font-size: 10px; font-weight: 850; }
+.report-info-panel summary small { color: #6e828a; font-size: 8px; font-weight: 700; }
+.report-info-fields { padding: 0 12px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.report-info-fields .field:nth-child(3), .report-info-fields .field:nth-child(7) { grid-column: 1 / -1; }
+.report-info-fields input { height: 34px; font-size: 10px; }
 
 .phase-rule { margin: 12px 0; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; border-radius: 9px; background: var(--navy-900); color: #fff; }
 .phase-rule b { font-size: 11px; letter-spacing: .05em; }
