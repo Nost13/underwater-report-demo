@@ -2,6 +2,8 @@ import JSZip from 'jszip';
 import { resizeForReport } from '../browser/images';
 import { buildWordPhasePages } from './reportModel';
 import { RATING_FILLS } from './ratingPalette';
+import { fillSection14Template } from './section14Writer';
+import type { ReportInfo } from '../app/reportInfo';
 import type { PhotoData, ReportLabelMap, ReportSection } from '../domain/types';
 
 export interface WordExportInput {
@@ -10,6 +12,8 @@ export interface WordExportInput {
   photos: PhotoData[];
   templateUrl: string;
   reportLabels?: ReportLabelMap;
+  reportInfo?: ReportInfo;
+  section14TemplateUrl?: string;
   fileName?: string;
 }
 
@@ -23,6 +27,7 @@ interface WriterDependencies {
   fetchTemplate?: () => Promise<ArrayBuffer | Uint8Array>;
   resize?: (file: File, maxEdge?: number) => Promise<Uint8Array>;
   download?: (blob: Blob, fileName: string) => void;
+  fetchSection14Template?: () => Promise<ArrayBuffer | Uint8Array>;
 }
 
 interface DocumentParts {
@@ -243,6 +248,91 @@ function addRelationship(xml: string, id: string, target: string): string {
   return xml.replace('</Relationships>', relation + '</Relationships>');
 }
 
+function splitBody(xml: string): { prefix: string; body: string; sectionProperties: string; suffix: string } {
+  const open = xml.match(/<w:body(?:\s[^>]*)?>/);
+  const closeIndex = xml.lastIndexOf('</w:body>');
+  if (!open || open.index === undefined || closeIndex < 0) throw new Error('REPORT_BODY_INVALID');
+  const bodyStart = open.index + open[0].length;
+  const body = xml.slice(bodyStart, closeIndex);
+  const sectionStart = body.lastIndexOf('<w:sectPr');
+  const sectionEnd = body.lastIndexOf('</w:sectPr>');
+  if (sectionStart < 0 || sectionEnd < sectionStart) throw new Error('REPORT_SECTION_PROPERTIES_INVALID');
+  return {
+    prefix: xml.slice(0, bodyStart),
+    body: body.slice(0, sectionStart),
+    sectionProperties: body.slice(sectionStart, sectionEnd + '</w:sectPr>'.length),
+    suffix: xml.slice(closeIndex),
+  };
+}
+
+function ensureJpegContentType(xml: string): string {
+  return /<Default[^>]+Extension="jpg"/i.test(xml)
+    ? xml
+    : xml.replace('</Types>', '<Default Extension="jpg" ContentType="image/jpeg"/></Types>');
+}
+
+function relationshipTarget(xml: string, id: string): string | null {
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = xml.match(new RegExp(`<Relationship\\s+[^>]*Id="${escaped}"[^>]*Target="([^"]+)"[^>]*/>`));
+  return match?.[1] ?? null;
+}
+
+async function prependSection14Package(
+  section14Blob: Blob,
+  detailedBlob: Blob,
+): Promise<Blob> {
+  const [section14Zip, detailedZip] = await Promise.all([
+    JSZip.loadAsync(section14Blob),
+    JSZip.loadAsync(detailedBlob),
+  ]);
+  const [section14DocumentEntry, detailedDocumentEntry, section14RelationshipsEntry, detailedRelationshipsEntry, section14ContentTypesEntry] = [
+    section14Zip.file('word/document.xml'),
+    detailedZip.file('word/document.xml'),
+    section14Zip.file('word/_rels/document.xml.rels'),
+    detailedZip.file('word/_rels/document.xml.rels'),
+    section14Zip.file('[Content_Types].xml'),
+  ];
+  if (!section14DocumentEntry || !detailedDocumentEntry || !section14RelationshipsEntry || !detailedRelationshipsEntry || !section14ContentTypesEntry) {
+    throw new Error('REPORT_PACKAGE_INVALID');
+  }
+  const [section14DocumentXml, detailedDocumentXml, section14RelationshipsXml, detailedRelationshipsXml, section14ContentTypesXml] = await Promise.all([
+    section14DocumentEntry.async('text'),
+    detailedDocumentEntry.async('text'),
+    section14RelationshipsEntry.async('text'),
+    detailedRelationshipsEntry.async('text'),
+    section14ContentTypesEntry.async('text'),
+  ]);
+  const section14Parts = splitBody(section14DocumentXml);
+  const detailedParts = splitBody(detailedDocumentXml);
+  let mergedRelationshipsXml = section14RelationshipsXml;
+  let detailedBody = detailedParts.body;
+  const embedIds = [...new Set(Array.from(detailedBody.matchAll(/r:embed="([^"]+)"/g), (match) => match[1]))];
+  for (let index = 0; index < embedIds.length; index += 1) {
+    const originalId = embedIds[index];
+    const target = relationshipTarget(detailedRelationshipsXml, originalId);
+    if (!target) throw new Error(`REPORT_IMAGE_RELATIONSHIP_NOT_FOUND:${originalId}`);
+    const source = detailedZip.file(`word/${target}`);
+    if (!source) throw new Error(`REPORT_IMAGE_NOT_FOUND:${target}`);
+    const extension = target.match(/\.([^.]+)$/)?.[1] ?? 'jpg';
+    const copiedName = `detail-image-${index + 1}.${extension}`;
+    const replacementId = `rIdDetailedImage${index + 1}`;
+    section14Zip.file(`word/media/${copiedName}`, await source.async('uint8array'));
+    mergedRelationshipsXml = addRelationship(mergedRelationshipsXml, replacementId, copiedName);
+    detailedBody = detailedBody.replaceAll(`r:embed="${originalId}"`, `r:embed="${replacementId}"`);
+  }
+  const pageBreak = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+  section14Zip.file(
+    'word/document.xml',
+    section14Parts.prefix + section14Parts.body + pageBreak + detailedBody + section14Parts.sectionProperties + section14Parts.suffix,
+  );
+  section14Zip.file('word/_rels/document.xml.rels', mergedRelationshipsXml);
+  section14Zip.file('[Content_Types].xml', ensureJpegContentType(section14ContentTypesXml));
+  return section14Zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  });
+}
+
 export async function writeTemplateReport(
   input: WordExportInput,
   dependencies: WriterDependencies = {},
@@ -266,9 +356,7 @@ export async function writeTemplateReport(
   const documentParts = splitTemplateDocument(templateXml);
   let relationshipsXml = await relationshipEntry.async('text');
   let contentTypesXml = await contentTypesEntry.async('text');
-  if (!/<Default[^>]+Extension="jpg"/i.test(contentTypesXml)) {
-    contentTypesXml = contentTypesXml.replace('</Types>', '<Default Extension="jpg" ContentType="image/jpeg"/></Types>');
-  }
+  contentTypesXml = ensureJpegContentType(contentTypesXml);
   const skipped: string[] = [];
   let imageIndex = 0;
   const renderedBodies: string[] = [];
@@ -312,10 +400,19 @@ export async function writeTemplateReport(
   zip.file('word/document.xml', documentXml);
   zip.file('word/_rels/document.xml.rels', relationshipsXml);
   zip.file('[Content_Types].xml', contentTypesXml);
-  const blob = await zip.generateAsync({
+  let blob = await zip.generateAsync({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
+  if (input.reportInfo && input.section14TemplateUrl) {
+    const section14Blob = await fillSection14Template({
+      reportInfo: input.reportInfo,
+      templateUrl: input.section14TemplateUrl,
+    }, {
+      fetchTemplate: dependencies.fetchSection14Template,
+    });
+    blob = await prependSection14Package(section14Blob, blob);
+  }
   const fileName = input.fileName ?? input.vesselName.replace(/[^a-z0-9]+/gi, '_') + '_UNDERWATER_SERVICE_REPORT.docx';
   dependencies.download?.(blob, fileName);
   return { skipped, pageCount: pages.length, blob };

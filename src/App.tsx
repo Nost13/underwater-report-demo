@@ -455,7 +455,9 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
         sections: report.sections,
         photos: report.photos,
         reportLabels: report.reportLabels,
+        reportInfo,
         templateUrl: 'templates/Detail_report_template.docx',
+        section14TemplateUrl: 'templates/section1_4_template.docx',
       });
       setStatus(result.skipped.length
         ? `Word 보고서 완료 · 읽을 수 없어 제외된 사진: ${result.skipped.join(', ')}`

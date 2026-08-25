@@ -3,11 +3,62 @@ import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 import { createNicheSections } from '../domain/structure';
 import type { PhotoData } from '../domain/types';
+import { emptyReportInfo } from '../app/reportInfo';
 import { writeTemplateReport } from './templateWriter';
 
 const templatePath = 'public/templates/Detail_report_template.docx';
 
 describe('bundled Detail report template', () => {
+  it('places the populated Section 1–4 pages before detailed service records', async () => {
+    const [detailBytes, section14Bytes] = await Promise.all([
+      readFile(templatePath),
+      readFile('public/templates/section1_4_template.docx'),
+    ]);
+    const reportInfo = emptyReportInfo();
+    reportInfo.vessel = {
+      ...reportInfo.vessel,
+      name: 'M.V. COMBINED TEST',
+      imo: '1234567',
+      jobNo: 'US-COMBINED-001',
+    };
+    const section = createNicheSections({
+      component: 'Rope Guard', type: 'SINGLE', quantity: 1, service: 'INSPECTION',
+    })[0];
+    const photo: PhotoData = {
+      id: 'COMBINED-1', sectionId: section.id, phase: 'CURRENT', reportUse: true, order: 1,
+      relativePath: 'combined.jpg', file: new File(['image'], 'combined.jpg', { type: 'image/jpeg' }),
+    };
+
+    const result = await writeTemplateReport({
+      vesselName: 'M.V. COMBINED TEST',
+      sections: [section],
+      photos: [photo],
+      templateUrl: 'templates/Detail_report_template.docx',
+      reportInfo,
+      section14TemplateUrl: 'templates/section1_4_template.docx',
+    }, {
+      fetchTemplate: async () => Uint8Array.from(detailBytes),
+      fetchSection14Template: async () => Uint8Array.from(section14Bytes),
+      resize: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+    });
+
+    const output = await JSZip.loadAsync(result.blob);
+    const documentXml = await output.file('word/document.xml')?.async('text') ?? '';
+    const documentText = new DOMParser().parseFromString(documentXml, 'application/xml')
+      .documentElement.textContent ?? '';
+    expect(documentText).toContain('1. GENERAL INFORMATION');
+    expect(documentText).toContain('M.V. COMBINED TEST');
+    expect(documentText).toContain('7. DETAILED SERVICE RECORD');
+    expect(documentText.indexOf('1. GENERAL INFORMATION'))
+      .toBeLessThan(documentText.indexOf('7. DETAILED SERVICE RECORD'));
+    expect(documentXml.match(/<w:sectPr(?:\s|>)/g)).toHaveLength(1);
+    expect(documentXml).toContain('rIdDetailedImage1');
+    expect(await output.file('word/media/detail-image-1.jpg')?.async('uint8array'))
+      .toEqual(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]));
+    expect(await output.file('word/_rels/document.xml.rels')?.async('text'))
+      .toContain('Target="media/detail-image-1.jpg"');
+  });
+
   it('preserves header and footer and renders first plus continuation pages', async () => {
     const templateBytes = await readFile(templatePath);
     const original = await JSZip.loadAsync(templateBytes);

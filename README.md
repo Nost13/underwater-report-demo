@@ -47,7 +47,7 @@ Scope를 만든 뒤에는 선박과 작업 배정이 고정됩니다. 바꾸려�
 
 ## Word 보고서
 
-- 앱에 포함된 `Detail_report_template.docx`를 사용해 `.docx` 파일을 브라우저 안에서 생성합니다.
+- 앱에 포함된 `section1_4_template.docx`에 선박·작업 정보를 먼저 기입하고, 이어서 `Detail_report_template.docx`의 상세 사진 페이지를 붙여 하나의 `.docx` 파일을 브라우저 안에서 생성합니다.
 - 템플릿의 머리글과 바닥글은 변경하지 않습니다.
 - Cleaning/Polishing/Repair/Removal은 각 Section에서 BEFORE 페이지를 먼저, AFTER 페이지를 뒤에 만듭니다. Inspection은 CURRENT 페이지만 만듭니다.
 - 첫 Phase 페이지에는 사진 4장, 이어지는 페이지에는 6장씩 순서대로 배치합니다.

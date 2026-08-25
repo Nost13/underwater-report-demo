@@ -708,6 +708,10 @@ describe('desktop report workflow', () => {
     expect(exporter).toHaveBeenCalledWith(expect.objectContaining({
       vesselName: 'M.V. PACIFIC AURORA',
       templateUrl: 'templates/Detail_report_template.docx',
+      section14TemplateUrl: 'templates/section1_4_template.docx',
+      reportInfo: expect.objectContaining({
+        vessel: expect.objectContaining({ name: 'M.V. PACIFIC AURORA', imo: '9876543' }),
+      }),
     }));
   });
 
