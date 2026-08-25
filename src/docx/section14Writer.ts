@@ -52,6 +52,10 @@ function setCell(table: Element, row: number, cell: number, value: string): void
   setText(target, value);
 }
 
+function documentJobNo(value: string): string {
+  return value.toUpperCase();
+}
+
 function fillGeneralInfo(document: Document, info: ReportInfo): void {
   const table = tableByHeading(document, 'VESSEL NAME');
   const { vessel } = info;
@@ -59,7 +63,7 @@ function fillGeneralInfo(document: Document, info: ReportInfo): void {
   [vessel.type, vessel.loa, vessel.breadth, vessel.gt, vessel.dwt, vessel.yearBuilt]
     .forEach((value, index) => setCell(table, 3, index, value));
   setCell(table, 5, 0, vessel.ownerClient);
-  setCell(table, 5, 1, vessel.jobNo);
+  setCell(table, 5, 1, documentJobNo(vessel.jobNo));
 }
 
 function fillOperationInfo(document: Document, info: ReportInfo): void {
@@ -100,7 +104,7 @@ function fillHeader(xml: string, reportInfo: ReportInfo): string {
   if (document.querySelector('parsererror')) throw new Error('SECTION14_HEADER_INVALID');
   for (const paragraph of Array.from(document.getElementsByTagNameNS('*', 'p'))) {
     const value = textIn(paragraph);
-    if (value.startsWith('Job No :')) setText(paragraph, `Job No : ${reportInfo.vessel.jobNo}`);
+    if (value.startsWith('Job No :')) setText(paragraph, `Job No : ${documentJobNo(reportInfo.vessel.jobNo)}`);
     if (value.startsWith('Vessel :')) setText(paragraph, `Vessel : ${reportInfo.vessel.name}`);
   }
   return new XMLSerializer().serializeToString(document);
