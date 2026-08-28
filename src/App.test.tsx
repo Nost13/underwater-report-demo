@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 
 async function verifyVessel(user: ReturnType<typeof userEvent.setup>) {
-  await user.clear(screen.getByLabelText('Vessel name / IMO number'));
-  await user.type(screen.getByLabelText('Vessel name / IMO number'), '9876543');
+  await user.clear(screen.getByLabelText('Vessel name / IMO number / Call Sign'));
+  await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), '9876543');
   await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
 }
 
@@ -16,6 +16,13 @@ async function buildCleaningGeneral(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('desktop report workflow', () => {
+  it('identifies the VesselFinder lookup as supporting name, IMO, and Call Sign', () => {
+    render(<App />);
+
+    expect(screen.getByText('운영부 VesselFinder 조회')).toBeVisible();
+    expect(screen.getByLabelText('Vessel name / IMO number / Call Sign')).toBeVisible();
+  });
+
   it('keeps the photo workflow disabled until a Scope exists', async () => {
     const user = userEvent.setup();
     render(<App />);
