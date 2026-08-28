@@ -599,6 +599,10 @@ function VesselScope(props: VesselScopeProps) {
   })).filter((item) => item.count > 0);
   const unassignedGeneral = props.generalTargets.filter((target) => target.services.length === 0).length;
   const numeric = (value: string, suffix = '') => value ? `${Number(value).toLocaleString('en-US')}${suffix ? ` ${suffix}` : ''}` : '—';
+  const setCardVesselField = (field: 'ownerClient' | 'jobNo', value: string) => props.setReportInfo((current) => ({
+    ...current,
+    vessel: { ...current.vessel, [field]: value },
+  }));
 
   return <div className="workspace wide">
     <div className="page-heading"><div><p className="step-kicker">STEP 01</p><h2>Vessel / Scope</h2><p>Vessel DB는 선박 확인에만 사용됩니다. 보고서와 사진은 이 브라우저 탭에만 있습니다.</p></div><span className="privacy-chip">서버 저장 없음</span></div>
@@ -612,7 +616,8 @@ function VesselScope(props: VesselScopeProps) {
             <div><dt>IMO NUMBER</dt><dd>{props.vessel.imo || '—'}</dd></div><div><dt>CALL SIGN</dt><dd>{props.vessel.callSign || '—'}</dd></div>
             <div><dt>LOA (m)</dt><dd>{numeric(props.vessel.loa, 'm')}</dd></div><div><dt>BREADTH (m)</dt><dd>{numeric(props.vessel.breadth, 'm')}</dd></div>
             <div><dt>GT</dt><dd>{numeric(props.vessel.gt)}</dd></div><div><dt>DWT</dt><dd>{numeric(props.vessel.dwt)}</dd></div><div><dt>YEAR BUILT</dt><dd>{props.vessel.yearBuilt || '—'}</dd></div>
-            <div><dt>OWNER / CLIENT</dt><dd>{props.reportInfo.vessel.ownerClient || '—'}</dd></div><div><dt>JOB NO.</dt><dd>{props.reportInfo.vessel.jobNo || '—'}</dd></div>
+            <div><dt>OWNER / CLIENT</dt><dd><input aria-label="Owner / Client" value={props.reportInfo.vessel.ownerClient} placeholder="입력" onChange={(event) => setCardVesselField('ownerClient', event.target.value)} /></dd></div>
+            <div><dt>JOB NO.</dt><dd><input aria-label="Job No" value={props.reportInfo.vessel.jobNo} placeholder="입력" onChange={(event) => setCardVesselField('jobNo', event.target.value)} /></dd></div>
           </dl>
         </section> : <div className="empty-note">VesselFinder에서 선박명 또는 IMO 번호를 조회합니다.</div>}
         <ReportInfoPanel reportInfo={props.reportInfo} onChange={props.setReportInfo} />
@@ -774,9 +779,7 @@ function ReportInfoPanel({ reportInfo, onChange }: { reportInfo: ReportInfo; onC
   return <details className="report-info-panel">
     <summary>보고서 기본 정보 <small>Section 1–4 Word 양식에 기입</small></summary>
     <div className="report-info-fields">
-      <label className="field"><span>Job No</span><input aria-label="Job No" value={reportInfo.vessel.jobNo} onChange={(event) => setVesselField('jobNo', event.target.value)} /></label>
       <label className="field"><span>Call Sign</span><input aria-label="Call Sign" value={reportInfo.vessel.callSign} onChange={(event) => setVesselField('callSign', event.target.value)} /></label>
-      <label className="field"><span>Owner / Client</span><input aria-label="Owner / Client" value={reportInfo.vessel.ownerClient} onChange={(event) => setVesselField('ownerClient', event.target.value)} /></label>
       <label className="field"><span>Location</span><input aria-label="Location" value={reportInfo.operation.location} onChange={(event) => setOperationField('location', event.target.value)} /></label>
       <label className="field"><span>ETA</span><input aria-label="ETA" value={reportInfo.operation.eta} onChange={(event) => setOperationField('eta', event.target.value)} /></label>
       <label className="field"><span>ETD</span><input aria-label="ETD" value={reportInfo.operation.etd} onChange={(event) => setOperationField('etd', event.target.value)} /></label>

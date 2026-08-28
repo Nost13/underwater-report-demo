@@ -41,6 +41,10 @@ describe('desktop report workflow', () => {
     expect(within(particulars).getByText('LAJK7')).toBeVisible();
     expect(within(particulars).getByText('208.73 m')).toBeVisible();
     expect(within(particulars).getByText('49,924')).toBeVisible();
+    await user.type(within(particulars).getByLabelText('Owner / Client'), 'HMM');
+    await user.type(within(particulars).getByLabelText('Job No'), 'US-HMM-2603001');
+    expect(within(particulars).getByLabelText('Owner / Client')).toHaveValue('HMM');
+    expect(within(particulars).getByLabelText('Job No')).toHaveValue('US-HMM-2603001');
   });
 
   it('keeps the photo workflow disabled until a Scope exists', async () => {
