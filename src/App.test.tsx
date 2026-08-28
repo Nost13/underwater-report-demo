@@ -24,6 +24,25 @@ describe('desktop report workflow', () => {
     expect(screen.queryByText('Demo Vessel DB')).not.toBeInTheDocument();
   });
 
+  it('shows VesselFinder particulars in the Vessel confirmation card', async () => {
+    const user = userEvent.setup();
+    const vesselLookup = vi.fn(async () => [{
+      name: 'STAR KVARVEN', imo: '9396153', callSign: 'LAJK7', type: 'General Cargo Ship',
+      loa: '208.73', breadth: '32.20', gt: '37158', dwt: '49924', yearBuilt: '2010',
+      ownerClient: '', classSociety: '', flag: '',
+    }]);
+    render(<App {...({ vesselLookup } as any)} />);
+
+    await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), 'STAR KVARVEN');
+    await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
+
+    const particulars = await screen.findByLabelText('VesselFinder 선박 제원');
+    expect(within(particulars).getByText('STAR KVARVEN')).toBeVisible();
+    expect(within(particulars).getByText('LAJK7')).toBeVisible();
+    expect(within(particulars).getByText('208.73 m')).toBeVisible();
+    expect(within(particulars).getByText('49,924')).toBeVisible();
+  });
+
   it('keeps the photo workflow disabled until a Scope exists', async () => {
     const user = userEvent.setup();
     render(<App />);
