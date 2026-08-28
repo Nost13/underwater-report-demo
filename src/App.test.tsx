@@ -21,6 +21,7 @@ describe('desktop report workflow', () => {
 
     expect(screen.getByText('운영부 VesselFinder 조회')).toBeVisible();
     expect(screen.getByLabelText('Vessel name / IMO number / Call Sign')).toBeVisible();
+    expect(screen.queryByText('Demo Vessel DB')).not.toBeInTheDocument();
   });
 
   it('keeps the photo workflow disabled until a Scope exists', async () => {

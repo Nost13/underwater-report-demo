@@ -154,7 +154,7 @@ const loadWordExporter: WordExporter = async (input) => {
 
 export default function App({ exporter = loadWordExporter }: { exporter?: WordExporter }) {
   const [stage, setStage] = useState(0);
-  const [imo, setImo] = useState('9876543');
+  const [imo, setImo] = useState('');
   const [vessel, setVessel] = useState<(typeof DEMO_VESSELS)[number] | null>(null);
   const [vesselMatches, setVesselMatches] = useState<(typeof DEMO_VESSELS)[number][]>([]);
   const [reportInfo, setReportInfo] = useState<ReportInfo>(() => emptyReportInfo());
@@ -434,15 +434,14 @@ export default function App({ exporter = loadWordExporter }: { exporter?: WordEx
   };
 
   const lookupReportVessel = async () => {
-    const local = DEMO_VESSELS.find((item) => item.imo === imo.trim()) ?? null;
-    const matches = local ? [local] : await lookupVessel(imo);
+    const matches = await lookupVessel(imo);
     setVesselMatches(matches);
     const found = matches[0] ?? null;
     setVessel(found);
     if (found) {
       setReportInfo(reportInfoFromVessel(found));
-      setStatus(`${found.name} 선박 정보를 ${local ? '로컬 DB' : '운영부 DB'}에서 불러왔습니다.`);
-    } else setStatus('조회 결과가 없습니다. 선박 정보를 직접 입력할 수 있습니다.');
+      setStatus(`${found.name} 선박 정보를 VesselFinder에서 불러왔습니다.`);
+    } else setStatus('VesselFinder에서 조회 결과를 찾지 못했습니다. 선박 정보를 직접 입력할 수 있습니다.');
   };
 
   const runExport = async () => {
@@ -606,7 +605,7 @@ function VesselScope(props: VesselScopeProps) {
       <section className="panel vessel-panel"><div className="panel-title"><span>01</span><div><h3>Vessel 확인</h3><p>운영부 VesselFinder 조회</p></div></div>
         <label className="field"><span>Vessel name / IMO number / Call Sign</span><div className="input-action"><input aria-label="Vessel name / IMO number / Call Sign" value={props.imo} disabled={locked} onChange={(event) => props.setImo(event.target.value)} /><button type="button" disabled={locked} onClick={props.onLookup}>Vessel 확인</button></div></label>
         {props.vesselMatches.length > 1 && <select className="vessel-match-select" aria-label="선박 조회 결과" value={props.vessel?.imo ?? ''} onChange={(event) => { const selected = props.vesselMatches.find((item) => item.imo === event.target.value); if (selected) props.onVesselSelect(selected); }}><option value="">선박을 선택하세요</option>{props.vesselMatches.map((item) => <option key={`${item.imo}-${item.name}`} value={item.imo}>{item.name} · IMO {item.imo || '—'}</option>)}</select>}
-        {props.vessel ? <div className="vessel-card"><div className="vessel-icon">MV</div><div><strong>{props.vessel.name}</strong><span>IMO {props.vessel.imo} · {props.vessel.type}</span></div><dl><div><dt>CLASS</dt><dd>{props.vessel.classSociety}</dd></div><div><dt>FLAG</dt><dd>{props.vessel.flag}</dd></div></dl></div> : <div className="empty-note">IMO 9876543 또는 9234567을 확인할 수 있습니다.</div>}
+        {props.vessel ? <div className="vessel-card"><div className="vessel-icon">MV</div><div><strong>{props.vessel.name}</strong><span>IMO {props.vessel.imo} · {props.vessel.type}</span></div><dl><div><dt>CLASS</dt><dd>{props.vessel.classSociety}</dd></div><div><dt>FLAG</dt><dd>{props.vessel.flag}</dd></div></dl></div> : <div className="empty-note">VesselFinder에서 선박명 또는 IMO 번호를 조회합니다.</div>}
         <ReportInfoPanel reportInfo={props.reportInfo} onChange={props.setReportInfo} />
       </section>
       <section className="panel scope-panel"><div className="panel-title"><span>02</span><div><h3>Service / Scope</h3><p>작업을 선택하고 필요한 Section만 클릭</p></div></div>
