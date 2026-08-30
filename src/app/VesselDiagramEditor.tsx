@@ -33,6 +33,10 @@ type Interaction = {
   startPoint: { x: number; y: number };
   startRect?: NormalizedRect;
   edge?: 'nw' | 'ne' | 'sw' | 'se';
+  markerIds?: string[];
+  startRects?: ZoneMarker[];
+  groupBounds?: NormalizedRect;
+  cancelled?: boolean;
 };
 
 const MIN_WIDTH = 8 / DIAGRAM_WIDTH;
@@ -68,6 +72,27 @@ const sameRect = (a: NormalizedRect, b: NormalizedRect) => (
   && Math.abs(a.width - b.width) < 1e-8
   && Math.abs(a.height - b.height) < 1e-8
 );
+
+const markerBounds = (markers: ZoneMarker[]): NormalizedRect => {
+  const left = Math.min(...markers.map((marker) => marker.rect.x));
+  const top = Math.min(...markers.map((marker) => marker.rect.y));
+  const right = Math.max(...markers.map((marker) => marker.rect.x + marker.rect.width));
+  const bottom = Math.max(...markers.map((marker) => marker.rect.y + marker.rect.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+};
+
+const reprojectRect = (rect: NormalizedRect, previous: HullCalibration, next: HullCalibration): NormalizedRect => {
+  const previousWidth = previous.bowX - previous.sternX;
+  const previousHeight = previous.bottomY - previous.hullTopY;
+  const nextWidth = next.bowX - next.sternX;
+  const nextHeight = next.bottomY - next.hullTopY;
+  return clampRect({
+    x: next.sternX + (rect.x - previous.sternX) / previousWidth * nextWidth,
+    y: next.hullTopY + (rect.y - previous.hullTopY) / previousHeight * nextHeight,
+    width: rect.width / previousWidth * nextWidth,
+    height: rect.height / previousHeight * nextHeight,
+  });
+};
 
 async function decodeImage(file: File): Promise<void> {
   if (file.size <= 0) throw new Error('empty image');
@@ -123,11 +148,21 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const interactionRef = useRef<Interaction | null>(null);
+  const previewFileRef = useRef<File | null>(null);
+  const uploadVersionRef = useRef(0);
   const bilgeQuantity = bilgeQuantityFromSections(sections);
   const allMarkers = value ? [...value.hullMarkers, ...value.nicheMarkers] : [];
   const requiredGroups = requiredMarkerGroups(sections);
   const canConfirm = Boolean(value && isValidCalibration(value.calibration)
     && requiredGroups.every((group) => group.markerIds.every((id) => allMarkers.some((marker) => marker.id === id))));
+
+  useEffect(() => {
+    const file = value?.imageFile ?? null;
+    if (previewFileRef.current === file) return;
+    previewFileRef.current = file;
+    setImageUrl(file ? URL.createObjectURL(file) : null);
+    uploadVersionRef.current += 1;
+  }, [value?.imageFile]);
 
   useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -142,10 +177,10 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
       setError('PNG 또는 JPG 선박 이미지를 확인할 수 없습니다.');
       return;
     }
+    const uploadVersion = ++uploadVersionRef.current;
     try {
       await decodeImage(file);
-      const nextUrl = URL.createObjectURL(file);
-      setImageUrl(nextUrl);
+      if (uploadVersion !== uploadVersionRef.current) return;
       setStep('HULL');
       setSelectedIds([]);
       setError(null);
@@ -169,7 +204,23 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setSelectedIds((ids) => ids.includes(marker.id) ? ids : [marker.id]);
-    interactionRef.current = { kind, id: marker.id, startPoint: pointFor(event), startRect: marker.rect, edge };
+    const selected = allMarkers.filter((candidate) => selectedIds.includes(candidate.id));
+    const moveBilgeGroup = kind !== 'GUIDE'
+      && markerGroup(marker) === 'bilge-keel'
+      && selected.length > 1
+      && selected.every((candidate) => markerGroup(candidate) === 'bilge-keel');
+    interactionRef.current = {
+      kind,
+      id: marker.id,
+      startPoint: pointFor(event),
+      startRect: marker.rect,
+      edge,
+      ...(moveBilgeGroup ? {
+        markerIds: selected.map((candidate) => candidate.id),
+        startRects: selected,
+        groupBounds: markerBounds(selected),
+      } : {}),
+    };
   };
 
   const startGuideInteraction = (event: PointerEvent<SVGLineElement>, id: keyof HullCalibration) => {
@@ -177,24 +228,25 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     interactionRef.current = { kind: 'GUIDE', id, startPoint: pointFor(event) };
   };
 
-  const applyCalibration = (calibration: HullCalibration) => {
-    if (!value) return;
-    const nicheDefaults = createDefaultNicheMarkers(calibration, bilgeQuantity);
+  const applyCalibration = (calibration: HullCalibration): boolean => {
+    if (!value) return false;
+    const currentNicheDefaults = createDefaultNicheMarkers(value.calibration, bilgeQuantity);
     const nicheChanged = value.nicheMarkers.some((marker) => {
-      const expected = nicheDefaults.find((candidate) => candidate.id === marker.id);
+      const expected = currentNicheDefaults.find((candidate) => candidate.id === marker.id);
       return !expected || !sameRect(marker.rect, expected.rect);
     });
-    if (value.confirmed && nicheChanged && !window.confirm('Hull 변경 시 Niche 위치가 자동 배치로 재계산됩니다. 계속할까요?')) return;
-    replace({ calibration, ...(value.confirmed ? {
-      hullMarkers: createDefaultHullMarkers(calibration),
-      nicheMarkers: nicheDefaults,
-      confirmed: false,
-    } : {}) });
+    if (value.confirmed && nicheChanged && !window.confirm('Hull 변경 시 Niche 위치가 자동 배치로 재계산됩니다. 계속할까요?')) return false;
+    replace({
+      calibration,
+      hullMarkers: value.hullMarkers.map((marker) => ({ ...marker, rect: reprojectRect(marker.rect, value.calibration, calibration) })),
+      nicheMarkers: createDefaultNicheMarkers(calibration, bilgeQuantity),
+    });
+    return true;
   };
 
   const moveInteraction = (event: PointerEvent<HTMLElement>) => {
     const interaction = interactionRef.current;
-    if (!interaction || !value) return;
+    if (!interaction || interaction.cancelled || !value) return;
     const point = pointFor(event);
     const delta = { x: point.x - interaction.startPoint.x, y: point.y - interaction.startPoint.y };
     if (interaction.kind === 'GUIDE') {
@@ -203,13 +255,36 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
       const amount = guideId === 'sternX' || guideId === 'bowX' ? delta.x : delta.y;
       next[guideId] = Math.min(1, Math.max(0, value.calibration[guideId] + amount));
       if (isValidCalibration(next)) {
-        interactionRef.current = { ...interaction, startPoint: point };
-        applyCalibration(next);
+        if (applyCalibration(next)) interactionRef.current = { ...interaction, startPoint: point };
+        else interactionRef.current = { ...interaction, cancelled: true };
       }
       return;
     }
     const target = interaction.startRect;
     if (!target) return;
+    if (interaction.markerIds && interaction.startRects && interaction.groupBounds) {
+      const startBounds = interaction.groupBounds;
+      const nextBounds = interaction.kind === 'MOVE'
+        ? clampRect({ ...startBounds, x: startBounds.x + delta.x, y: startBounds.y + delta.y })
+        : resizeRect(startBounds, interaction.edge!, delta);
+      const scaleX = nextBounds.width / startBounds.width;
+      const scaleY = nextBounds.height / startBounds.height;
+      const starts = new Map(interaction.startRects.map((marker) => [marker.id, marker]));
+      replace({ nicheMarkers: value.nicheMarkers.map((marker) => {
+        const start = starts.get(marker.id);
+        if (!start) return marker;
+        return {
+          ...marker,
+          rect: clampRect({
+            x: nextBounds.x + (start.rect.x - startBounds.x) * scaleX,
+            y: nextBounds.y + (start.rect.y - startBounds.y) * scaleY,
+            width: start.rect.width * scaleX,
+            height: start.rect.height * scaleY,
+          }),
+        };
+      }) });
+      return;
+    }
     const nextRect = interaction.kind === 'MOVE'
       ? clampRect({ ...target, x: target.x + delta.x, y: target.y + delta.y })
       : resizeRect(target, interaction.edge!, delta);
@@ -288,6 +363,17 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     onClick={() => selectGroup(groupId)}
   ><b>{DISPLAY_NAMES[groupId] ?? groupId}</b><span>{allMarkers.filter((marker) => markerGroup(marker) === groupId).length}개 표식</span></button>;
 
+  const guide = (id: keyof HullCalibration, label: string, vertical: boolean) => {
+    const point = vertical ? value!.calibration[id] * DIAGRAM_WIDTH : value!.calibration[id] * DIAGRAM_HEIGHT;
+    const line = vertical
+      ? { x1: point, x2: point, y1: 0, y2: DIAGRAM_HEIGHT }
+      : { x1: 0, x2: DIAGRAM_WIDTH, y1: point, y2: point };
+    return <g key={id}>
+      <line className="diagram-guide-hit" role="slider" aria-label={label} {...line} onPointerDown={(event) => startGuideInteraction(event, id)} />
+      <line className="diagram-guide" aria-hidden="true" {...line} />
+    </g>;
+  };
+
   return <section className="vessel-diagram-editor" aria-label="선박 위치도 편집기">
     <header className="diagram-editor-head">
       <div><p className="step-kicker">VESSEL DIAGRAM</p><h2>{step === 'HULL' ? 'Hull 맞추기' : 'Niche 맞추기'}</h2></div>
@@ -303,13 +389,17 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     {value && <div className="diagram-editor-grid">
       <div className="diagram-panel">
         <div ref={surfaceRef} className="vessel-diagram-surface" onPointerMove={moveInteraction} onPointerUp={finishInteraction}>
-          {imageUrl && <img src={imageUrl} alt="업로드한 선박 사이드뷰" />}
-          <svg viewBox={`0 0 ${DIAGRAM_WIDTH} ${DIAGRAM_HEIGHT}`} aria-label="Hull 기준선">
-            <line role="slider" aria-label="선미 기준선" x1={value.calibration.sternX * DIAGRAM_WIDTH} x2={value.calibration.sternX * DIAGRAM_WIDTH} y1="0" y2={DIAGRAM_HEIGHT} onPointerDown={(event) => startGuideInteraction(event, 'sternX')} />
-            <line role="slider" aria-label="선수 기준선" x1={value.calibration.bowX * DIAGRAM_WIDTH} x2={value.calibration.bowX * DIAGRAM_WIDTH} y1="0" y2={DIAGRAM_HEIGHT} onPointerDown={(event) => startGuideInteraction(event, 'bowX')} />
-            <line role="slider" aria-label="Hull 상단선" x1="0" x2={DIAGRAM_WIDTH} y1={value.calibration.hullTopY * DIAGRAM_HEIGHT} y2={value.calibration.hullTopY * DIAGRAM_HEIGHT} onPointerDown={(event) => startGuideInteraction(event, 'hullTopY')} />
-            <line role="slider" aria-label="Bottom 기준선" x1="0" x2={DIAGRAM_WIDTH} y1={value.calibration.bottomY * DIAGRAM_HEIGHT} y2={value.calibration.bottomY * DIAGRAM_HEIGHT} onPointerDown={(event) => startGuideInteraction(event, 'bottomY')} />
-          </svg>
+          {imageUrl && <>
+            {/* Object URLs reference local files and cannot use Next's remote image optimizer. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageUrl} alt="업로드한 선박 사이드뷰" />
+          </>}
+          {step === 'HULL' && <svg viewBox={`0 0 ${DIAGRAM_WIDTH} ${DIAGRAM_HEIGHT}`} aria-label="Hull 기준선">
+            {guide('sternX', '선미 기준선', true)}
+            {guide('bowX', '선수 기준선', true)}
+            {guide('hullTopY', 'Hull 상단선', false)}
+            {guide('bottomY', 'Bottom 기준선', false)}
+          </svg>}
           {(step === 'HULL' ? value.hullMarkers : value.nicheMarkers).map(renderMarker)}
         </div>
       </div>
@@ -329,7 +419,12 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     </div>}
     <footer className="diagram-editor-footer">
       <button type="button" className="ghost" onClick={onBack}>이전</button>
-      {value && step === 'HULL' && <button type="button" className="primary" disabled={!isValidCalibration(value.calibration)} onClick={() => setStep('NICHE')}>Niche 맞추기로 이동</button>}
+      {step === 'HULL' && <button type="button" className="primary" disabled={!value || !isValidCalibration(value.calibration)} onClick={() => {
+        if (!value) return;
+        onChange({ ...value, confirmed: true });
+        setStep('NICHE');
+      }}>Niche 맞추기로 이동</button>}
+      {value && step === 'NICHE' && <button type="button" className="ghost" onClick={() => setStep('HULL')}>Hull 맞추기로 돌아가기</button>}
       {value && step === 'NICHE' && <button type="button" className="primary" disabled={!canConfirm} onClick={() => {
         const confirmed = { ...value, confirmed: true };
         onChange(confirmed);

@@ -183,21 +183,24 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .diagram-editor-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(250px, .7fr); gap: 18px; align-items: start; }
 .diagram-panel, .diagram-controls { border: 1px solid var(--line); border-radius: 13px; background: var(--paper); box-shadow: 0 4px 14px rgba(23,44,54,.025); }
 .diagram-panel { padding: 14px; }
-.vessel-diagram-surface { position: relative; width: 100%; aspect-ratio: 2048 / 488; overflow: hidden; border: 1px solid #c9d8dc; border-radius: 9px; background: linear-gradient(180deg, #dfecef, #f7fbfc); touch-action: none; }
+.vessel-diagram-surface { position: relative; width: 100%; aspect-ratio: 2048 / 488; overflow: hidden; border: 1px solid #c9d8dc; border-radius: 9px; background: #fff; touch-action: none; }
 .vessel-diagram-surface > img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .vessel-diagram-surface > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.vessel-diagram-surface svg line { pointer-events: stroke; stroke: #b45309; stroke-width: 10; vector-effect: non-scaling-stroke; cursor: ew-resize; }
-.vessel-diagram-surface svg line:nth-of-type(3), .vessel-diagram-surface svg line:nth-of-type(4) { cursor: ns-resize; }
+.vessel-diagram-surface svg .diagram-guide-hit { pointer-events: stroke; stroke: transparent; stroke-width: 40; vector-effect: non-scaling-stroke; cursor: ew-resize; }
+.vessel-diagram-surface svg .diagram-guide { pointer-events: none; stroke: #b45309; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.vessel-diagram-surface svg g:nth-of-type(3) .diagram-guide-hit, .vessel-diagram-surface svg g:nth-of-type(4) .diagram-guide-hit { cursor: ns-resize; }
 .vessel-marker { position: absolute; z-index: 2; min-width: 8px; min-height: 8px; padding: 0; border: 2px solid var(--teal-700); background: rgba(20, 134, 124, .18); color: var(--navy-900); cursor: grab; touch-action: none; }
+.vessel-marker::before { content: ""; position: absolute; inset: -20px; }
 .vessel-marker.ellipse { border-radius: 50%; }
 .vessel-marker.selected { border-color: var(--danger); background: rgba(180, 35, 24, .19); box-shadow: 0 0 0 2px rgba(180, 35, 24, .17); }
 .vessel-marker:active { cursor: grabbing; }
 .marker-label { position: absolute; left: 50%; top: 50%; width: max-content; max-width: 150px; padding: 2px 4px; transform: translate(-50%, -50%); border-radius: 4px; background: rgba(255,255,255,.84); color: var(--navy-900); font-size: 9px; font-weight: 850; pointer-events: none; }
-.marker-handle { position: absolute; z-index: 3; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 3px; background: var(--teal-700); }
-.marker-handle.nw { left: -7px; top: -7px; cursor: nwse-resize; }
-.marker-handle.ne { right: -7px; top: -7px; cursor: nesw-resize; }
-.marker-handle.sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
-.marker-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.marker-handle { position: absolute; z-index: 3; width: 40px; height: 40px; background: transparent; }
+.marker-handle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 3px; background: var(--teal-700); }
+.marker-handle.nw { left: -20px; top: -20px; cursor: nwse-resize; }
+.marker-handle.ne { right: -20px; top: -20px; cursor: nesw-resize; }
+.marker-handle.sw { bottom: -20px; left: -20px; cursor: nesw-resize; }
+.marker-handle.se { right: -20px; bottom: -20px; cursor: nwse-resize; }
 .diagram-controls { padding: 13px; display: grid; gap: 14px; }
 .diagram-control-actions { display: grid; gap: 7px; }
 .diagram-control-actions .ghost { min-height: 40px; padding: 0 10px; text-align: left; }
@@ -674,6 +677,5 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
   .diagram-control-actions { grid-template-columns: 1fr 1fr; }
   .diagram-control-actions .ghost:last-child { grid-column: 1 / -1; }
   .diagram-hull-help, .diagram-group-list { grid-column: 1 / -1; }
-  .marker-handle { width: 16px; height: 16px; }
   .diagram-upload input { min-height: 40px; }
 }

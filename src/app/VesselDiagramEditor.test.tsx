@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReportSection } from '../domain/types';
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
 import { VesselDiagramEditor } from './VesselDiagramEditor';
@@ -16,15 +16,18 @@ const generalSection = (component: string): ReportSection => ({
   conditions: {},
 });
 
-const nicheSection = (component: string): ReportSection => ({
+const nicheSection = (component: string, unit?: number): ReportSection => ({
   id: `niche-${component}`,
   targetId: `niche-${component}`,
   area: 'NICHE',
   component,
+  unit,
   service: 'INSPECTION',
   phases: ['CURRENT'],
   conditions: {},
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 function Harness({ sections, onNext = vi.fn() }: { sections: ReportSection[]; onNext?: () => void }) {
   const [value, setValue] = useState<VesselDiagramConfig | null>(null);
@@ -46,6 +49,12 @@ async function uploadVessel(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('VesselDiagramEditor', () => {
+  it('keeps the Niche transition visible but disabled before a valid image draft exists', () => {
+    render(<Harness sections={[generalSection('FWD')]} />);
+
+    expect(screen.getByRole('button', { name: 'Niche 맞추기로 이동' })).toBeDisabled();
+  });
+
   it('unlocks the Hull-first workflow only after decoding an accepted image', async () => {
     const user = userEvent.setup();
     render(<Harness sections={[generalSection('FWD'), nicheSection('TRANSDUCER')]} />);
@@ -147,5 +156,150 @@ describe('VesselDiagramEditor', () => {
     expect(complete).toBeEnabled();
     await user.click(complete);
     expect(onNext).toHaveBeenCalledOnce();
+  });
+
+  it('locks the preserved Hull draft on Niche transition and provides a Hull return without editable guides', async () => {
+    const user = userEvent.setup();
+    const changes: VesselDiagramConfig[] = [];
+    function RecordingHarness() {
+      const [value, setValue] = useState<VesselDiagramConfig | null>(null);
+      return <VesselDiagramEditor sections={[generalSection('AFT')]} value={value} onChange={(next) => {
+        changes.push(next);
+        setValue(next);
+      }} onBack={vi.fn()} onNext={vi.fn()} />;
+    }
+    render(<RecordingHarness />);
+    await uploadVessel(user);
+    const marker = screen.getByLabelText('AFT Hull 표식');
+    fireEvent.pointerDown(marker, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(marker, { clientX: 120, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(marker, { pointerId: 1 });
+    const movedX = changes.at(-1)?.hullMarkers.find(({ id }) => id === 'hull-aft')?.rect.x;
+
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    expect(changes.at(-1)).toMatchObject({ confirmed: true });
+    expect(changes.at(-1)?.hullMarkers.find(({ id }) => id === 'hull-aft')?.rect.x).toBe(movedX);
+    expect(screen.queryByLabelText('선미 기준선')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Hull 맞추기로 돌아가기' }));
+    expect(screen.getByLabelText('선미 기준선')).toBeVisible();
+  });
+
+  it('reprojects Hull markers when a locked Hull guide changes and asks before replacing manually moved Niche markers', async () => {
+    const user = userEvent.setup();
+    const changes: VesselDiagramConfig[] = [];
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    function RecordingHarness() {
+      const [value, setValue] = useState<VesselDiagramConfig | null>(null);
+      return <VesselDiagramEditor sections={[generalSection('AFT'), nicheSection('TRANSDUCER')]} value={value} onChange={(next) => {
+        changes.push(next);
+        setValue(next);
+      }} onBack={vi.fn()} onNext={vi.fn()} />;
+    }
+    render(<RecordingHarness />);
+    await uploadVessel(user);
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    const niche = screen.getAllByLabelText('Transducer 표식')[0];
+    fireEvent.pointerDown(niche, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(niche, { clientX: 120, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(niche, { pointerId: 1 });
+    const beforeGuide = changes.at(-1)!;
+
+    await user.click(screen.getByRole('button', { name: 'Hull 맞추기로 돌아가기' }));
+    const stern = screen.getByLabelText('선미 기준선');
+    fireEvent.pointerDown(stern, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(stern, { clientX: 120, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(stern, { clientX: 140, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(stern, { pointerId: 1 });
+
+    expect(confirm).toHaveBeenCalledWith('Hull 변경 시 Niche 위치가 자동 배치로 재계산됩니다. 계속할까요?');
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(changes.at(-1)?.calibration).toEqual(beforeGuide.calibration);
+  });
+
+  it('reprojects adjusted Hull markers without a prompt when Niche remains at its current defaults', async () => {
+    const user = userEvent.setup();
+    const changes: VesselDiagramConfig[] = [];
+    const confirm = vi.spyOn(window, 'confirm');
+    function RecordingHarness() {
+      const [value, setValue] = useState<VesselDiagramConfig | null>(null);
+      return <VesselDiagramEditor sections={[generalSection('AFT')]} value={value} onChange={(next) => {
+        changes.push(next);
+        setValue(next);
+      }} onBack={vi.fn()} onNext={vi.fn()} />;
+    }
+    render(<RecordingHarness />);
+    await uploadVessel(user);
+    const hull = screen.getByLabelText('AFT Hull 표식');
+    fireEvent.pointerDown(hull, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(hull, { clientX: 120, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(hull, { pointerId: 1 });
+    const beforeGuide = changes.at(-1)!;
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    await user.click(screen.getByRole('button', { name: 'Hull 맞추기로 돌아가기' }));
+    const stern = screen.getByLabelText('선미 기준선');
+    fireEvent.pointerDown(stern, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(stern, { clientX: 120, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(stern, { pointerId: 1 });
+    const afterGuide = changes.at(-1)!;
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(afterGuide.calibration.sternX).toBeGreaterThan(beforeGuide.calibration.sternX);
+    expect(afterGuide.hullMarkers.find(({ id }) => id === 'hull-aft')?.rect.x)
+      .toBeGreaterThan(beforeGuide.hullMarkers.find(({ id }) => id === 'hull-aft')?.rect.x ?? 0);
+  });
+
+  it('moves all selected Bilge Keel markers together while retaining their relative positions', async () => {
+    const user = userEvent.setup();
+    const changes: VesselDiagramConfig[] = [];
+    function RecordingHarness() {
+      const [value, setValue] = useState<VesselDiagramConfig | null>(null);
+      return <VesselDiagramEditor sections={[nicheSection('BILGE KEEL', 1), nicheSection('BILGE KEEL', 2)]} value={value} onChange={(next) => {
+        changes.push(next);
+        setValue(next);
+      }} onBack={vi.fn()} onNext={vi.fn()} />;
+    }
+    render(<RecordingHarness />);
+    await uploadVessel(user);
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    await user.click(screen.getByRole('button', { name: 'Bilge keel 그룹 선택' }));
+    const before = changes.at(-1)!.nicheMarkers.filter(({ id }) => id.startsWith('bilge-keel-'));
+    const marker = screen.getAllByLabelText('Bilge keel 표식')[0];
+    fireEvent.pointerDown(marker, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(marker, { clientX: 120, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(marker, { pointerId: 1 });
+    const after = changes.at(-1)!.nicheMarkers.filter(({ id }) => id.startsWith('bilge-keel-'));
+
+    expect(after).toHaveLength(2);
+    expect(after[0].rect.x - before[0].rect.x).toBeCloseTo(after[1].rect.x - before[1].rect.x, 8);
+    expect(after[0].rect.width).toBe(before[0].rect.width);
+    expect(after[1].rect.width).toBe(before[1].rect.width);
+
+    const handle = screen.getAllByLabelText('Bilge keel se 크기 조절')[0];
+    fireEvent.pointerDown(handle, { clientX: 100, clientY: 100, pointerId: 2 });
+    fireEvent.pointerMove(handle, { clientX: 120, clientY: 110, pointerId: 2 });
+    fireEvent.pointerUp(handle, { pointerId: 2 });
+    const resized = changes.at(-1)!.nicheMarkers.filter(({ id }) => id.startsWith('bilge-keel-'));
+    expect(resized[0].rect.width).toBeGreaterThan(after[0].rect.width);
+    expect(resized[1].rect.width).toBeGreaterThan(after[1].rect.width);
+  });
+
+  it('recreates a presentation URL from an existing draft after remount', async () => {
+    const file = new File(['png'], 'vessel.png', { type: 'image/png' });
+    const value: VesselDiagramConfig = {
+      imageFile: file,
+      imageName: file.name,
+      calibration: { sternX: .08, bowX: .92, hullTopY: .15, bottomY: .86 },
+      hullMarkers: [],
+      nicheMarkers: [],
+      confirmed: false,
+    };
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:restored');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const { unmount } = render(<VesselDiagramEditor sections={[]} value={value} onChange={vi.fn()} onBack={vi.fn()} onNext={vi.fn()} />);
+
+    expect(await screen.findByAltText('업로드한 선박 사이드뷰')).toHaveAttribute('src', 'blob:restored');
+    unmount();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:restored');
   });
 });
