@@ -10,6 +10,24 @@ import {
 } from './geometry';
 
 describe('vessel diagram geometry', () => {
+  it.each([1, 3, 5])('centers asymmetric odd Bilge quantity %i on the calibrated midpoint', (quantity) => {
+    const markers = createBilgeKeelMarkers({ sternX: .25, bowX: .95, hullTopY: .2, bottomY: .8 }, quantity);
+    const middle = markers[Math.floor(quantity / 2)].rect;
+    expect(middle.x + middle.width / 2).toBeCloseTo(.6, 8);
+  });
+
+  it.each([2, 4, 6])('centers asymmetric even Bilge quantity %i on the calibrated midpoint', (quantity) => {
+    const markers = createBilgeKeelMarkers({ sternX: .25, bowX: .95, hullTopY: .2, bottomY: .8 }, quantity);
+    const left = markers[quantity / 2 - 1].rect;
+    const right = markers[quantity / 2].rect;
+    expect((left.x + left.width + right.x) / 2).toBeCloseTo(.6, 8);
+  });
+
+  it('resets Bilge markers using the asymmetric calibration', () => {
+    const marker = resetMarker('bilge-keel-2', { sternX: .25, bowX: .95, hullTopY: .2, bottomY: .8 }, 3)!;
+    expect(marker.rect.x + marker.rect.width / 2).toBeCloseTo(.6, 8);
+  });
+
   it('projects template-relative geometry through calibrated length and height', () => {
     expect(projectTemplateRect({ x: 0.25, y: 0.5, width: 0.2, height: 0.25 }, { sternX: 0.1, bowX: 0.9, hullTopY: 0.2, bottomY: 0.8 })).toEqual({ x: 0.3, y: 0.5, width: 0.16, height: 0.15 });
   });

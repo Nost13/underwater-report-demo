@@ -9,6 +9,21 @@ export function clampRect(rect: NormalizedRect): NormalizedRect {
   return { x: clean(x), y: clean(y), width: clean(Math.min(1 - x, Math.max(0, rect.width))), height: clean(Math.min(1 - y, Math.max(0, rect.height))) };
 }
 
+export function translateRect(rect: NormalizedRect, delta: { x: number; y: number }): NormalizedRect {
+  return {
+    ...rect,
+    x: Math.min(1 - rect.width, Math.max(0, rect.x + delta.x)),
+    y: Math.min(1 - rect.height, Math.max(0, rect.y + delta.y)),
+  };
+}
+
+export function isValidRect(rect: NormalizedRect): boolean {
+  return [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)
+    && rect.x >= 0 && rect.y >= 0 && rect.width > 0 && rect.height > 0
+    // Existing normalized projection rounds to twelve decimal places.
+    && rect.x + rect.width <= 1 + 1e-12 && rect.y + rect.height <= 1 + 1e-12;
+}
+
 export function isValidCalibration(calibration: HullCalibration): boolean {
   return [calibration.sternX, calibration.bowX, calibration.hullTopY, calibration.bottomY].every(Number.isFinite)
     && calibration.sternX >= 0 && calibration.bowX <= 1 && calibration.sternX < calibration.bowX
@@ -45,7 +60,7 @@ export function createBilgeKeelMarkers(calibration: HullCalibration, quantity: n
   const span = 0.6 * length;
   const gap = Math.min(0.008 * length, span / (count + 1));
   const width = (span - (count - 1) * gap) / count;
-  const start = 0.5 - span / 2;
+  const start = (calibration.sternX + calibration.bowX) / 2 - span / 2;
   return Array.from({ length: count }, (_, i) => ({ id: `bilge-keel-${i + 1}`, groupId: 'bilge-keel', unit: i + 1, rect: clampRect({ x: start + i * (width + gap), y: calibration.hullTopY + 0.82 * (calibration.bottomY - calibration.hullTopY), width, height: 0.08 * (calibration.bottomY - calibration.hullTopY) }), shape: 'ELLIPSE' }));
 }
 

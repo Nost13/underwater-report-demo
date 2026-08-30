@@ -4,6 +4,7 @@ import {
   type VesselDiagramConfig,
   type ZoneMarker,
 } from './types';
+import { isValidRect } from './geometry';
 
 export interface PixelRect {
   x: number;
@@ -185,7 +186,10 @@ export async function composeVesselDiagram(
     context.lineWidth = 4;
     for (const id of markerIds) {
       const marker = markers.get(id);
-      if (marker) drawMarker(context, marker);
+      if (marker) {
+        if (!isValidRect(marker.rect)) return fail(`VESSEL_MARKER_INVALID:${id}`);
+        drawMarker(context, marker);
+      }
     }
 
     return encodePng(canvas);

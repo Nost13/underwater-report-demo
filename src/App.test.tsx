@@ -1,7 +1,8 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+import type { WordExportInput } from './docx/templateWriter';
 
 const { composeVesselDiagram } = vi.hoisted(() => ({
   composeVesselDiagram: vi.fn(async () => new Uint8Array([137, 80, 78, 71])),
@@ -91,6 +92,73 @@ async function selectReportSection(
 }
 
 describe('desktop report workflow', () => {
+  it('gates every downstream rail stage until final diagram save, retaining the draft across remounts', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildScope(user);
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 1200, height: 320, close: vi.fn() })));
+    await user.click(screen.getByRole('button', { name: '선박 위치도 설정' }));
+    await user.upload(screen.getByLabelText('선박 사이드뷰 이미지'), new File(['png'], 'vessel.png', { type: 'image/png' }));
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    const rail = within(screen.getByRole('navigation', { name: 'Report stages' }));
+    for (const name of [/사진 폴더$/, /Report Input$/, /Check \/ Preview$/, /Word$/]) {
+      await user.click(rail.getByRole('button', { name }));
+      expect(screen.getByRole('heading', { name: 'Niche 맞추기' })).toBeVisible();
+    }
+    await user.click(rail.getByRole('button', { name: 'Vessel / Scope' }));
+    await user.click(rail.getByRole('button', { name: /Vessel Diagram$/ }));
+    expect(screen.getByText('vessel.png')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    await user.click(screen.getByRole('button', { name: '선박 위치도 설정 완료' }));
+    expect(screen.getByRole('heading', { name: '사진 폴더' })).toBeVisible();
+  });
+
+  it('relocks every downstream rail stage when a saved diagram is edited', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    const rail = within(screen.getByRole('navigation', { name: 'Report stages' }));
+    await user.click(rail.getByRole('button', { name: /Vessel Diagram$/ }));
+    fireEvent.keyDown(screen.getByLabelText('AFT Hull 표식'), { key: 'ArrowRight' });
+    for (const name of [/사진 폴더$/, /Report Input$/, /Check \/ Preview$/, /Word$/]) {
+      await user.click(rail.getByRole('button', { name }));
+      expect(screen.getByRole('heading', { name: 'Hull 맞추기' })).toBeVisible();
+    }
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    await user.click(screen.getByRole('button', { name: '선박 위치도 설정 완료' }));
+    expect(screen.getByRole('heading', { name: '사진 폴더' })).toBeVisible();
+  });
+
+  it.each(['VESSEL_MARKER_NOT_FOUND', 'VESSEL_DIAGRAM_COMPOSITION_FAILED'])('shows actionable section context and a setup route for %s', async (code) => {
+    const user = userEvent.setup();
+    const exporter = async (input: WordExportInput) => {
+      const section = input.sections.find(({ component, side }) => component === 'AFT' && side === 'STBD')!;
+      throw new Error(`${code}:${section.id}`);
+    };
+    render(<App exporter={exporter} />);
+    await buildCleaningGeneral(user);
+    await user.click(within(screen.getByRole('navigation', { name: 'Report stages' })).getByRole('button', { name: /Word$/ }));
+    await user.click(screen.getByRole('button', { name: 'Word 보고서 다운로드' }));
+    const message = await screen.findByRole('alert');
+    expect(message).toHaveTextContent('AFT · STBD');
+    expect(message).toHaveTextContent('CLEANING');
+    expect(message).toHaveTextContent('선박 위치도');
+    expect(message).toHaveTextContent(/확인|다시/);
+    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로 돌아가기' }));
+    expect(screen.getByRole('heading', { name: '선박 위치도 설정' })).toBeVisible();
+    expect(screen.getByText('vessel.png')).toBeVisible();
+  });
+
+  it('retains the generic export advice for unrelated failures', async () => {
+    const user = userEvent.setup();
+    render(<App exporter={async () => { throw new Error('DOWNLOAD_FAILED'); }} />);
+    await buildCleaningGeneral(user);
+    await user.click(within(screen.getByRole('navigation', { name: 'Report stages' })).getByRole('button', { name: /Word$/ }));
+    await user.click(screen.getByRole('button', { name: 'Word 보고서 다운로드' }));
+    expect(await screen.findByText('Word 보고서를 만들지 못했습니다. 사진 형식과 브라우저 다운로드 권한을 확인하세요.')).toBeVisible();
+    expect(screen.queryByRole('button', { name: '선박 위치도 설정으로 돌아가기' })).not.toBeInTheDocument();
+  });
+
   it('identifies the VesselFinder lookup as supporting name, IMO, and Call Sign', () => {
     render(<App />);
 

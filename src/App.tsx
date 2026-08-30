@@ -195,6 +195,7 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
   const [unmatchedOpen, setUnmatchedOpen] = useState(false);
   const [activePhotoPhase, setActivePhotoPhase] = useState<Phase>('BEFORE');
   const [isExporting, setIsExporting] = useState(false);
+  const [diagramExportError, setDiagramExportError] = useState<string | null>(null);
   const fallbackInput = useRef<HTMLInputElement>(null);
   const manualInput = useRef<HTMLInputElement>(null);
   const manualTarget = useRef<{ sectionId: string; phase: Phase } | null>(null);
@@ -268,6 +269,7 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
     setUnmatchedOpen(false);
     setActivePhotoPhase('BEFORE');
     setVesselDiagram(null);
+    setDiagramExportError(null);
     setStatus('사진 폴더를 선택하거나 샘플 사진으로 흐름을 확인하세요.');
   };
 
@@ -502,6 +504,7 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
       return;
     }
     setIsExporting(true);
+    setDiagramExportError(null);
     setStatus('사진을 순차 처리하여 Word 보고서를 만드는 중입니다…');
     try {
       const result = await exporter({
@@ -517,8 +520,20 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
       setStatus(result.skipped.length
         ? `Word 보고서 완료 · 읽을 수 없어 제외된 사진: ${result.skipped.join(', ')}`
         : 'Word 보고서 다운로드가 완료되었습니다.');
-    } catch {
-      setStatus('Word 보고서를 만들지 못했습니다. 사진 형식과 브라우저 다운로드 권한을 확인하세요.');
+    } catch (error) {
+      const diagramFailure = error instanceof Error
+        ? /^(VESSEL_MARKER_NOT_FOUND|VESSEL_DIAGRAM_COMPOSITION_FAILED):(.+)$/.exec(error.message)
+        : null;
+      if (diagramFailure) {
+        const section = report.sections.find(({ id }) => id === diagramFailure[2]);
+        const sectionLabel = section
+          ? `${conciseSectionLabel(section)} · ${section.service} (${section.phases.join(' / ')})`
+          : diagramFailure[2];
+        const reason = diagramFailure[1] === 'VESSEL_MARKER_NOT_FOUND' ? '필수 표식이 없습니다' : '이미지를 만들지 못했습니다';
+        setDiagramExportError(`선박 위치도 — ${sectionLabel}: ${reason}. 선박 위치도 설정에서 이미지와 해당 구역 표식을 확인한 뒤 다시 저장하고 다운로드하세요.`);
+      } else {
+        setStatus('Word 보고서를 만들지 못했습니다. 사진 형식과 브라우저 다운로드 권한을 확인하세요.');
+      }
     } finally {
       setIsExporting(false);
     }
@@ -583,7 +598,8 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
       />}
 
       {stage === 5 && activeSection && <ExportScreen
-        vesselName={scopeMeta?.vesselName ?? 'UNDERWATER REPORT'} report={report} status={status}
+        vesselName={scopeMeta?.vesselName ?? 'UNDERWATER REPORT'} report={report} status={diagramExportError ?? status}
+        onDiagramSetup={diagramExportError ? () => { setDiagramExportError(null); setStage(1); } : undefined}
         onBack={() => setStage(4)} onExport={runExport} busy={isExporting}
       />}
     </section>
@@ -1072,7 +1088,7 @@ function WordTemplatePreviewPage({
   </article>;
 }
 
-function ExportScreen({ vesselName, report, status, onBack, onExport, busy }: { vesselName: string; report: ReportState; status: string; onBack: () => void; onExport: () => void; busy: boolean }) {
+function ExportScreen({ vesselName, report, status, onBack, onExport, onDiagramSetup, busy }: { vesselName: string; report: ReportState; status: string; onBack: () => void; onExport: () => void; onDiagramSetup?: () => void; busy: boolean }) {
   const wordPageCount = buildWordPhasePages(report.sections, report.photos, report.reportLabels).length;
-  return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 05</p><h2>Word 보고서 다운로드</h2><p>공식 Detail Service Record 템플릿에 Phase별 사진과 Condition을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>Detail Service Record 템플릿 · {wordPageCount} Word pages · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Layout</dt><dd>A4 Portrait · Phase-first</dd></div><div><dt>Page rule</dt><dd>4 + 6 / phase</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p>{status}</p></div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Check / Preview</button></div></div>;
+  return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 05</p><h2>Word 보고서 다운로드</h2><p>공식 Detail Service Record 템플릿에 Phase별 사진과 Condition을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>Detail Service Record 템플릿 · {wordPageCount} Word pages · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Layout</dt><dd>A4 Portrait · Phase-first</dd></div><div><dt>Page rule</dt><dd>4 + 6 / phase</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p role={onDiagramSetup ? 'alert' : undefined}>{status}</p>{onDiagramSetup && <button type="button" className="ghost" onClick={onDiagramSetup}>선박 위치도 설정으로 돌아가기</button>}</div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Check / Preview</button></div></div>;
 }

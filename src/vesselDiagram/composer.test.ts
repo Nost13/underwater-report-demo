@@ -81,6 +81,18 @@ function fakeComposer(calls: string[]): ComposeDependencies {
 }
 
 describe('vessel diagram composer', () => {
+  it.each([
+    { x: .1, y: .2, width: 0, height: .2 },
+    { x: .1, y: .2, width: .1, height: 0 },
+    { x: Number.NaN, y: .2, width: .1, height: .2 },
+    { x: .1, y: .2, width: Number.POSITIVE_INFINITY, height: .2 },
+  ])('rejects malformed requested geometry before Preview or Word can encode it: %j', async (rect) => {
+    const config = configWithAllMarkers();
+    config.hullMarkers[0].rect = rect;
+    await expect(composeVesselDiagram(config, ['hull-aft'], fakeComposer([])))
+      .rejects.toThrow('VESSEL_MARKER_INVALID:hull-aft');
+  });
+
   it('contain-fits a wide image without stretching', () => {
     expect(fitContain(1000, 250, 2048, 488)).toEqual({ x: 48, y: 0, width: 1952, height: 488 });
   });

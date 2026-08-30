@@ -5,7 +5,9 @@ import {
   createDefaultHullMarkers,
   createDefaultNicheMarkers,
   isValidCalibration,
+  isValidRect,
   resetMarker,
+  translateRect,
 } from '../vesselDiagram/geometry';
 import { bilgeQuantityFromSections, requiredMarkerGroups } from '../vesselDiagram/markers';
 import {
@@ -159,6 +161,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   const allMarkers = value ? [...value.hullMarkers, ...value.nicheMarkers] : [];
   const requiredGroups = requiredMarkerGroups(sections);
   const canConfirm = Boolean(value && isValidCalibration(value.calibration)
+    && allMarkers.every((marker) => isValidRect(marker.rect))
     && requiredGroups.every((group) => group.markerIds.every((id) => allMarkers.some((marker) => marker.id === id))));
 
   useEffect(() => {
@@ -174,7 +177,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   }, [imageUrl]);
 
   const replace = (patch: Partial<VesselDiagramConfig>) => {
-    if (value) onChange({ ...value, ...patch });
+    if (value) onChange({ ...value, ...patch, confirmed: false });
   };
 
   const uploadImage = async (file: File | undefined) => {
@@ -233,14 +236,18 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     interactionRef.current = { kind: 'GUIDE', id, startPoint: pointFor(event) };
   };
 
-  const applyCalibration = (calibration: HullCalibration): boolean => {
+  const confirmNicheReset = (): boolean => {
     if (!value) return false;
     const currentNicheDefaults = createDefaultNicheMarkers(value.calibration, bilgeQuantity);
     const nicheChanged = value.nicheMarkers.some((marker) => {
       const expected = currentNicheDefaults.find((candidate) => candidate.id === marker.id);
       return !expected || !sameRect(marker.rect, expected.rect);
     });
-    if (value.confirmed && nicheChanged && !window.confirm('Hull 변경 시 Niche 위치가 자동 배치로 재계산됩니다. 계속할까요?')) return false;
+    return !nicheChanged || window.confirm('Hull 변경 시 Niche 위치가 자동 배치로 재계산됩니다. 계속할까요?');
+  };
+
+  const applyCalibration = (calibration: HullCalibration): boolean => {
+    if (!value || !confirmNicheReset()) return false;
     replace({
       calibration,
       hullMarkers: value.hullMarkers.map((marker) => ({ ...marker, rect: reprojectRect(marker.rect, value.calibration, calibration) })),
@@ -269,13 +276,24 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     if (!target) return;
     if (interaction.markerIds && interaction.startRects && interaction.groupBounds) {
       const startBounds = interaction.groupBounds;
+      if (interaction.kind === 'MOVE') {
+        const nextBounds = translateRect(startBounds, delta);
+        const starts = new Map(interaction.startRects.map((marker) => [marker.id, marker]));
+        replace({ nicheMarkers: value.nicheMarkers.map((marker) => {
+          const start = starts.get(marker.id);
+          return start ? { ...marker, rect: {
+            ...start.rect,
+            x: nextBounds.x + (start.rect.x - startBounds.x),
+            y: nextBounds.y + (start.rect.y - startBounds.y),
+          } } : marker;
+        }) });
+        return;
+      }
       const groupMinimum = {
         width: Math.max(MIN_WIDTH, ...interaction.startRects.map((marker) => startBounds.width * MIN_WIDTH / marker.rect.width)),
         height: Math.max(MIN_HEIGHT, ...interaction.startRects.map((marker) => startBounds.height * MIN_HEIGHT / marker.rect.height)),
       };
-      const nextBounds = interaction.kind === 'MOVE'
-        ? clampRect({ ...startBounds, x: startBounds.x + delta.x, y: startBounds.y + delta.y })
-        : resizeRect(startBounds, interaction.edge!, delta, groupMinimum);
+      const nextBounds = resizeRect(startBounds, interaction.edge!, delta, groupMinimum);
       const scaleX = nextBounds.width / startBounds.width;
       const scaleY = nextBounds.height / startBounds.height;
       const starts = new Map(interaction.startRects.map((marker) => [marker.id, marker]));
@@ -295,7 +313,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
       return;
     }
     const nextRect = interaction.kind === 'MOVE'
-      ? clampRect({ ...target, x: target.x + delta.x, y: target.y + delta.y })
+      ? translateRect(target, delta)
       : resizeRect(target, interaction.edge!, delta);
     const collection = interaction.id.startsWith('hull-') ? 'hullMarkers' : 'nicheMarkers';
     replace({ [collection]: value[collection].map((marker) => marker.id === interaction.id ? { ...marker, rect: nextRect } : marker) });
@@ -304,6 +322,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   const finishInteraction = () => { interactionRef.current = null; };
 
   const moveByKey = (event: KeyboardEvent<HTMLButtonElement>, marker: ZoneMarker) => {
+    if (!value) return;
     const isHorizontal = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
     const isVertical = event.key === 'ArrowUp' || event.key === 'ArrowDown';
     if (!isHorizontal && !isVertical) return;
@@ -312,8 +331,19 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     const deltaX = event.key === 'ArrowLeft' ? -amount / DIAGRAM_WIDTH : event.key === 'ArrowRight' ? amount / DIAGRAM_WIDTH : 0;
     const deltaY = event.key === 'ArrowUp' ? -amount / DIAGRAM_HEIGHT : event.key === 'ArrowDown' ? amount / DIAGRAM_HEIGHT : 0;
     const collection = marker.id.startsWith('hull-') ? 'hullMarkers' : 'nicheMarkers';
-    replace({ [collection]: value?.[collection].map((candidate) => candidate.id === marker.id
-      ? { ...candidate, rect: clampRect({ ...candidate.rect, x: candidate.rect.x + deltaX, y: candidate.rect.y + deltaY }) }
+    const selected = value[collection].filter((candidate) => selectedIds.includes(candidate.id));
+    const moveGroup = selectedIds.includes(marker.id) && selected.length > 1
+      && selected.every((candidate) => markerGroup(candidate) === 'bilge-keel');
+    const moving = moveGroup ? selected : [marker];
+    const bounds = markerBounds(moving);
+    const nextBounds = translateRect(bounds, { x: deltaX, y: deltaY });
+    const movingIds = new Set(moving.map((candidate) => candidate.id));
+    replace({ [collection]: value[collection].map((candidate) => movingIds.has(candidate.id)
+      ? { ...candidate, rect: {
+        ...candidate.rect,
+        x: nextBounds.x + (candidate.rect.x - bounds.x),
+        y: nextBounds.y + (candidate.rect.y - bounds.y),
+      } }
       : candidate) });
   };
 
@@ -335,7 +365,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   };
 
   const resetAll = () => {
-    if (!value) return;
+    if (!value || !confirmNicheReset()) return;
     replace({ hullMarkers: createDefaultHullMarkers(value.calibration), nicheMarkers: createDefaultNicheMarkers(value.calibration, bilgeQuantity) });
   };
 
@@ -430,11 +460,11 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
       <button type="button" className="ghost" onClick={onBack}>이전</button>
       {step === 'HULL' && <button type="button" className="primary" disabled={!value || !isValidCalibration(value.calibration)} onClick={() => {
         if (!value) return;
-        onChange({ ...value, confirmed: true });
         setStep('NICHE');
       }}>Niche 맞추기로 이동</button>}
       {value && step === 'NICHE' && <button type="button" className="ghost" onClick={() => setStep('HULL')}>Hull 맞추기로 돌아가기</button>}
       {value && step === 'NICHE' && <button type="button" className="primary" disabled={!canConfirm} onClick={() => {
+        if (!canConfirm) return;
         const confirmed = { ...value, confirmed: true };
         onChange(confirmed);
         onNext();
