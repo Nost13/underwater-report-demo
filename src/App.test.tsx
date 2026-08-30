@@ -799,8 +799,11 @@ describe('desktop report workflow', () => {
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Vessel / Scope' }));
     await user.click(screen.getByRole('button', { name: 'Scope 초기화' }));
+    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: '선박 위치도 설정' }));
 
     expect(screen.queryByText('vessel.png')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Niche 맞추기로 이동' })).toBeDisabled();
   });
 
   it('collapses Report Check by default and shows all preview pages in one view', async () => {
