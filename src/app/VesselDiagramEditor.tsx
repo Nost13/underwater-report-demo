@@ -131,13 +131,18 @@ function newDraft(file: File, sections: ReportSection[]): VesselDiagramConfig {
   };
 }
 
-function resizeRect(rect: NormalizedRect, edge: NonNullable<Interaction['edge']>, delta: { x: number; y: number }): NormalizedRect {
+function resizeRect(
+  rect: NormalizedRect,
+  edge: NonNullable<Interaction['edge']>,
+  delta: { x: number; y: number },
+  minimum = { width: MIN_WIDTH, height: MIN_HEIGHT },
+): NormalizedRect {
   const right = rect.x + rect.width;
   const bottom = rect.y + rect.height;
-  const left = edge.includes('w') ? Math.min(right - MIN_WIDTH, Math.max(0, rect.x + delta.x)) : rect.x;
-  const top = edge.includes('n') ? Math.min(bottom - MIN_HEIGHT, Math.max(0, rect.y + delta.y)) : rect.y;
-  const nextRight = edge.includes('e') ? Math.max(left + MIN_WIDTH, Math.min(1, right + delta.x)) : right;
-  const nextBottom = edge.includes('s') ? Math.max(top + MIN_HEIGHT, Math.min(1, bottom + delta.y)) : bottom;
+  const left = edge.includes('w') ? Math.min(right - minimum.width, Math.max(0, rect.x + delta.x)) : rect.x;
+  const top = edge.includes('n') ? Math.min(bottom - minimum.height, Math.max(0, rect.y + delta.y)) : rect.y;
+  const nextRight = edge.includes('e') ? Math.max(left + minimum.width, Math.min(1, right + delta.x)) : right;
+  const nextBottom = edge.includes('s') ? Math.max(top + minimum.height, Math.min(1, bottom + delta.y)) : bottom;
   return clampRect({ x: left, y: top, width: nextRight - left, height: nextBottom - top });
 }
 
@@ -264,9 +269,13 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     if (!target) return;
     if (interaction.markerIds && interaction.startRects && interaction.groupBounds) {
       const startBounds = interaction.groupBounds;
+      const groupMinimum = {
+        width: Math.max(MIN_WIDTH, ...interaction.startRects.map((marker) => startBounds.width * MIN_WIDTH / marker.rect.width)),
+        height: Math.max(MIN_HEIGHT, ...interaction.startRects.map((marker) => startBounds.height * MIN_HEIGHT / marker.rect.height)),
+      };
       const nextBounds = interaction.kind === 'MOVE'
         ? clampRect({ ...startBounds, x: startBounds.x + delta.x, y: startBounds.y + delta.y })
-        : resizeRect(startBounds, interaction.edge!, delta);
+        : resizeRect(startBounds, interaction.edge!, delta, groupMinimum);
       const scaleX = nextBounds.width / startBounds.width;
       const scaleY = nextBounds.height / startBounds.height;
       const starts = new Map(interaction.startRects.map((marker) => [marker.id, marker]));

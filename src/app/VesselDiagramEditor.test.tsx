@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReportSection } from '../domain/types';
-import type { VesselDiagramConfig } from '../vesselDiagram/types';
+import { DIAGRAM_HEIGHT, DIAGRAM_WIDTH, type VesselDiagramConfig } from '../vesselDiagram/types';
 import { VesselDiagramEditor } from './VesselDiagramEditor';
 
 const generalSection = (component: string): ReportSection => ({
@@ -282,6 +282,38 @@ describe('VesselDiagramEditor', () => {
     const resized = changes.at(-1)!.nicheMarkers.filter(({ id }) => id.startsWith('bilge-keel-'));
     expect(resized[0].rect.width).toBeGreaterThan(after[0].rect.width);
     expect(resized[1].rect.width).toBeGreaterThan(after[1].rect.width);
+  });
+
+  it('keeps every Bilge Keel unit at the canonical minimum when shrinking a selected group', async () => {
+    const user = userEvent.setup();
+    const changes: VesselDiagramConfig[] = [];
+    function RecordingHarness() {
+      const [value, setValue] = useState<VesselDiagramConfig | null>(null);
+      return <VesselDiagramEditor sections={[nicheSection('BILGE KEEL', 1), nicheSection('BILGE KEEL', 2)]} value={value} onChange={(next) => {
+        changes.push(next);
+        setValue(next);
+      }} onBack={vi.fn()} onNext={vi.fn()} />;
+    }
+    render(<RecordingHarness />);
+    await uploadVessel(user);
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    await user.click(screen.getByRole('button', { name: 'Bilge keel 그룹 선택' }));
+
+    const handle = screen.getAllByLabelText('Bilge keel se 크기 조절')[0];
+    fireEvent.pointerDown(handle, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientX: -5000, clientY: -5000, pointerId: 1 });
+    fireEvent.pointerUp(handle, { pointerId: 1 });
+    const bilge = changes.at(-1)!.nicheMarkers.filter(({ id }) => id.startsWith('bilge-keel-'));
+
+    expect(bilge).toHaveLength(2);
+    for (const marker of bilge) {
+      expect(marker.rect.width).toBeGreaterThanOrEqual(8 / DIAGRAM_WIDTH);
+      expect(marker.rect.height).toBeGreaterThanOrEqual(8 / DIAGRAM_HEIGHT);
+      expect(marker.rect.x).toBeGreaterThanOrEqual(0);
+      expect(marker.rect.y).toBeGreaterThanOrEqual(0);
+      expect(marker.rect.x + marker.rect.width).toBeLessThanOrEqual(1);
+      expect(marker.rect.y + marker.rect.height).toBeLessThanOrEqual(1);
+    }
   });
 
   it('recreates a presentation URL from an existing draft after remount', async () => {
