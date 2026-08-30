@@ -5,6 +5,7 @@ import { RATING_FILLS } from './ratingPalette';
 import { fillSection14Template } from './section14Writer';
 import type { ReportInfo } from '../app/reportInfo';
 import type { PhotoData, ReportLabelMap, ReportSection } from '../domain/types';
+import type { VesselDiagramConfig } from '../vesselDiagram/types';
 
 export interface WordExportInput {
   vesselName: string;
@@ -14,6 +15,7 @@ export interface WordExportInput {
   reportLabels?: ReportLabelMap;
   reportInfo?: ReportInfo;
   section14TemplateUrl?: string;
+  vesselDiagram?: VesselDiagramConfig;
   fileName?: string;
 }
 

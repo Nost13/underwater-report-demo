@@ -4,6 +4,10 @@ import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createDemoPhotos, COMPONENT_OPTIONS, DEMO_VESSELS, SERVICES } from './app/demoData';
 import { emptyReportInfo, reportInfoForScopes, reportInfoFromVessel, type ReportInfo } from './app/reportInfo';
 import { lookupVessel } from './app/vesselLookup';
+import { VesselDiagramEditor } from './app/VesselDiagramEditor';
+import { createBilgeKeelMarkers } from './vesselDiagram/geometry';
+import { bilgeQuantityFromSections, requiredMarkerGroups } from './vesselDiagram/markers';
+import type { VesselDiagramConfig, ZoneMarker } from './vesselDiagram/types';
 import { ConditionEditor } from './app/ConditionEditor';
 import {
   cloneCondition,
@@ -46,10 +50,21 @@ import type {
 } from './domain/types';
 
 const thumbnails = new ThumbnailPool();
-const stages = ['준비', 'Report Input', 'Check / Preview', 'Word'];
+const stages = ['Vessel / Scope', 'Vessel Diagram', '사진 폴더', 'Report Input', 'Check / Preview', 'Word'];
 
 const newId = () =>
   globalThis.crypto?.randomUUID?.() ?? `photo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const sameMarkerRect = (a: ZoneMarker, b: ZoneMarker) => (
+  Math.abs(a.rect.x - b.rect.x) < 1e-8
+  && Math.abs(a.rect.y - b.rect.y) < 1e-8
+  && Math.abs(a.rect.width - b.rect.width) < 1e-8
+  && Math.abs(a.rect.height - b.rect.height) < 1e-8
+);
+
+const markerRequirementKey = (sections: ReportSection[]) => requiredMarkerGroups(sections)
+  .map((group) => `${group.id}:${group.markerIds.join(',')}`)
+  .join('|');
 
 function PhotoThumb({ file, alt }: { file: File; alt: string }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -103,6 +118,7 @@ function StageRail({ active, onMove }: { active: number; onMove: (stage: number)
     <div className="stage-list">{stages.map((label, index) => <button
       type="button"
       key={label}
+      aria-label={index === 0 ? label : undefined}
       className={index === active ? 'stage-item active' : index < active ? 'stage-item done' : 'stage-item'}
       onClick={() => onMove(index)}
     ><span>{String(index + 1).padStart(2, '0')}</span>{label}</button>)}</div>
@@ -168,6 +184,7 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
   const [includeFinBlade, setIncludeFinBlade] = useState(false);
   const [nicheItems, setNicheItems] = useState<NicheGroup[]>([]);
   const [scopeMeta, setScopeMeta] = useState<{ vesselName: string } | null>(null);
+  const [vesselDiagram, setVesselDiagram] = useState<VesselDiagramConfig | null>(null);
   const [report, dispatch] = useReducer(reportReducer, initialReportState);
   const [folder, setFolder] = useState<DirectoryHandleLike | null>(null);
   const [folderStructureCreated, setFolderStructureCreated] = useState(false);
@@ -206,6 +223,31 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
 
   const buildScope = () => {
     const sections = createReportSections(draftTargets);
+    const previousSections = report.sections;
+    const previousDiagram = vesselDiagram;
+    if (previousDiagram) {
+      const previousQuantity = bilgeQuantityFromSections(previousSections);
+      const nextQuantity = bilgeQuantityFromSections(sections);
+      const defaultBilges = createBilgeKeelMarkers(previousDiagram.calibration, previousQuantity);
+      const existingBilges = previousDiagram.nicheMarkers.filter((marker) => marker.id.startsWith('bilge-keel-'));
+      const bilgesWereAdjusted = existingBilges.some((marker) => {
+        const expected = defaultBilges.find((candidate) => candidate.id === marker.id);
+        return !expected || !sameMarkerRect(marker, expected);
+      });
+      if (previousQuantity !== nextQuantity && bilgesWereAdjusted
+        && !window.confirm('빌지킬 수량을 변경하면 조정한 위치가 다시 배치됩니다. 계속할까요?')) return;
+      const requirementsChanged = markerRequirementKey(previousSections) !== markerRequirementKey(sections);
+      if (previousQuantity !== nextQuantity) {
+        setVesselDiagram({
+          ...previousDiagram,
+          nicheMarkers: [
+            ...previousDiagram.nicheMarkers.filter((marker) => !marker.id.startsWith('bilge-keel-')),
+            ...createBilgeKeelMarkers(previousDiagram.calibration, nextQuantity),
+          ],
+          confirmed: false,
+        });
+      } else if (requirementsChanged) setVesselDiagram({ ...previousDiagram, confirmed: false });
+    }
     dispatch({ type: 'SET_SCOPE', sections });
     setActivePhotoPhase(sections[0]?.phases[0] ?? 'BEFORE');
     setScopeMeta({ vesselName: vessel?.name ?? 'UNDERWATER REPORT' });
@@ -224,6 +266,7 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
     setStandardPathsDetected(false);
     setUnmatchedOpen(false);
     setActivePhotoPhase('BEFORE');
+    setVesselDiagram(null);
     setStatus('사진 폴더를 선택하거나 샘플 사진으로 흐름을 확인하세요.');
   };
 
@@ -421,17 +464,17 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
   };
 
   const openReportInput = () => {
-    if (report.sections.length === 0) {
+    if (report.sections.length === 0 || !vesselDiagram?.confirmed) {
       setStatus('먼저 Scope를 만들어야 Report Input으로 이동할 수 있습니다.');
       return;
     }
-    setStage(2);
+    setStage(3);
   };
 
   const focusIssue = (sectionId: string | null) => {
     if (sectionId) focusReportSection(sectionId);
     else setUnmatchedOpen(true);
-    setStage(2);
+    setStage(3);
   };
 
   const lookupReportVessel = async () => {
@@ -453,6 +496,10 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
 
   const runExport = async () => {
     if (isExporting) return;
+    if (!vesselDiagram?.confirmed) {
+      setStatus('선박 위치도 설정을 완료한 뒤 Word 보고서를 생성하세요.');
+      return;
+    }
     setIsExporting(true);
     setStatus('사진을 순차 처리하여 Word 보고서를 만드는 중입니다…');
     try {
@@ -462,6 +509,7 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         photos: report.photos,
         reportLabels: report.reportLabels,
         reportInfo,
+        vesselDiagram,
         templateUrl: 'templates/Detail_report_template.docx',
         section14TemplateUrl: 'templates/section1_4_template.docx',
       });
@@ -478,11 +526,13 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
   return <main className="app-shell">
     <input {...{ webkitdirectory: '' }} ref={fallbackInput} className="visually-hidden" type="file" multiple accept="image/*" onChange={(event) => importFallback(event.target.files)} />
     <input ref={manualInput} className="visually-hidden" type="file" multiple accept="image/*" onChange={(event) => { importManualPhotos(event.target.files); event.currentTarget.value = ''; }} />
-    <StageRail active={stage < 2 ? 0 : stage - 1} onMove={(next) => { const nextStage = next === 0 ? 0 : next + 1; if (report.sections.length || nextStage === 0) setStage(nextStage); }} />
+    <StageRail active={stage} onMove={(next) => {
+      if (next === 0 || (next === 1 && report.sections.length > 0) || (next >= 2 && vesselDiagram?.confirmed)) setStage(next);
+    }} />
     <section className="app-main">
       <header className="topbar"><div><p className="eyebrow">UNDERWATER SERVICE REPORT</p><h1>{scopeMeta?.vesselName ?? vessel?.name ?? 'New report'}</h1></div><div className="top-meta"><span>{serviceSummary}</span><span>{report.sections.length} SECTIONS</span><span>{report.photos.length} PHOTOS</span></div></header>
 
-      {stage === 0 && <><VesselScope
+      {stage === 0 && <VesselScope
         imo={imo} setImo={setImo} vessel={vessel} activeService={activeService} setActiveService={selectService}
         generalTargets={generalTargets} generalUndo={generalScope.undo}
         onGeneralToggle={toggleGeneral} onGeneralRemove={removeGeneral}
@@ -497,22 +547,22 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         onNicheRemove={(groupId, targetId, service) => changeNicheTarget(groupId, targetId, (target) => removeTargetService(target, service))}
         reportInfo={reportInfo} setReportInfo={setReportInfo} vesselMatches={vesselMatches} onVesselSelect={(next) => { setVessel(next); setReportInfo(reportInfoFromVessel(next)); }} onLookup={lookupReportVessel} vesselLookupPending={isVesselLookupPending}
         onBuild={buildScope} onReset={resetScope} sectionCount={report.sections.length} draftSections={draftSections}
-        onPhotos={() => document.getElementById('photo-source')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}
-      /><PhotoSource embedded
-        photoCount={report.photos.length} matchedCount={report.photos.length - unmatched.length} unmatchedCount={unmatched.length}
-        status={status} hasFolder={Boolean(folder)} structureCreated={folderStructureCreated} importComplete={photoImportComplete} standardPathsDetected={standardPathsDetected} folderName={folder?.name ?? null} sections={report.sections}
-        onSelect={selectPhotoFolder} onCreate={createFolders} onLoad={reloadFolder}
-        onDemo={loadDemo} onBack={() => setStage(0)} onNext={openReportInput}
-      /></>}
-
-      {stage === 1 && <PhotoSource
-        photoCount={report.photos.length} matchedCount={report.photos.length - unmatched.length} unmatchedCount={unmatched.length}
-        status={status} hasFolder={Boolean(folder)} structureCreated={folderStructureCreated} importComplete={photoImportComplete} standardPathsDetected={standardPathsDetected} folderName={folder?.name ?? null} sections={report.sections}
-        onSelect={selectPhotoFolder} onCreate={createFolders} onLoad={reloadFolder}
-        onDemo={loadDemo} onBack={() => setStage(0)} onNext={openReportInput}
+        onPhotos={() => setStage(1)}
       />}
 
-      {stage === 2 && activeSection && <ReportInput
+      {stage === 1 && <div className="workspace diagram-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 02</p><h2>선박 위치도 설정</h2><p>선체 기준과 작업 구역을 확인한 뒤 다음 단계로 이동하세요.</p></div><span className="privacy-chip">LOCAL ONLY</span></div><VesselDiagramEditor
+        sections={report.sections} value={vesselDiagram} onChange={setVesselDiagram}
+        onBack={() => setStage(0)} onNext={() => setStage(2)}
+      /></div>}
+
+      {stage === 2 && <PhotoSource
+        photoCount={report.photos.length} matchedCount={report.photos.length - unmatched.length} unmatchedCount={unmatched.length}
+        status={status} hasFolder={Boolean(folder)} structureCreated={folderStructureCreated} importComplete={photoImportComplete} standardPathsDetected={standardPathsDetected} folderName={folder?.name ?? null} sections={report.sections}
+        onSelect={selectPhotoFolder} onCreate={createFolders} onLoad={reloadFolder}
+        onDemo={loadDemo} onBack={() => setStage(1)} onNext={openReportInput}
+      />}
+
+      {stage === 3 && activeSection && <ReportInput
         report={report} activeSection={activeSection} activePhotos={activePhotos}
         unmatched={unmatched} unmatchedOpen={unmatchedOpen}
         pages={pages} issues={issues}
@@ -520,19 +570,19 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         onToggleUnmatched={() => setUnmatchedOpen((open) => !open)} onCloseUnmatched={() => setUnmatchedOpen(false)}
         onSelectPhotoTarget={(target) => setActivePhotoPhase(target.phase)} onAssignUnmatched={assignUnmatchedToActivePhase}
         onSection={focusReportSection}
-        dispatch={dispatch} onOpen={selectPhotoFolder} onAddPhotos={addPhotosToPhase} onBack={() => setStage(1)} onNext={() => setStage(3)}
+        dispatch={dispatch} onOpen={selectPhotoFolder} onAddPhotos={addPhotosToPhase} onBack={() => setStage(2)} onNext={() => setStage(4)}
       />}
 
-      {stage === 3 && activeSection && <CheckPreview
+      {stage === 4 && activeSection && <CheckPreview
         report={report} activeSection={activeSection} issues={issues}
         vesselName={scopeMeta?.vesselName ?? 'UNDERWATER REPORT'}
         onIssue={focusIssue} onSection={focusReportSection}
-        onNext={() => setStage(4)}
+        onNext={() => setStage(5)}
       />}
 
-      {stage === 4 && activeSection && <ExportScreen
+      {stage === 5 && activeSection && <ExportScreen
         vesselName={scopeMeta?.vesselName ?? 'UNDERWATER REPORT'} report={report} status={status}
-        onBack={() => setStage(3)} onExport={runExport} busy={isExporting}
+        onBack={() => setStage(4)} onExport={runExport} busy={isExporting}
       />}
     </section>
   </main>;
@@ -621,8 +671,8 @@ function VesselScope(props: VesselScopeProps) {
           <div className="vessel-card-main"><div className="vessel-icon">MV</div><div><span>VESSEL NAME</span><strong>{props.vessel.name}</strong><em>{props.vessel.type || '—'}</em></div></div>
           <dl className="vessel-particulars">
             <div><dt>IMO NUMBER</dt><dd>{props.vessel.imo || '—'}</dd></div><div><dt>CALL SIGN</dt><dd>{props.vessel.callSign || '—'}</dd></div>
-            <div><dt>LOA (m)</dt><dd>{numeric(props.vessel.loa, 'm')}</dd></div><div><dt>BREADTH (m)</dt><dd>{numeric(props.vessel.breadth, 'm')}</dd></div>
-            <div><dt>GT</dt><dd>{numeric(props.vessel.gt)}</dd></div><div><dt>DWT</dt><dd>{numeric(props.vessel.dwt)}</dd></div><div><dt>YEAR BUILT</dt><dd>{props.vessel.yearBuilt || '—'}</dd></div>
+            <div><dt>LOA (m)</dt><dd>{numeric(props.vessel.loa ?? '', 'm')}</dd></div><div><dt>BREADTH (m)</dt><dd>{numeric(props.vessel.breadth ?? '', 'm')}</dd></div>
+            <div><dt>GT</dt><dd>{numeric(props.vessel.gt ?? '')}</dd></div><div><dt>DWT</dt><dd>{numeric(props.vessel.dwt ?? '')}</dd></div><div><dt>YEAR BUILT</dt><dd>{props.vessel.yearBuilt || '—'}</dd></div>
             <div><dt>OWNER / CLIENT</dt><dd><input aria-label="Owner / Client" value={props.reportInfo.vessel.ownerClient} placeholder="입력" onChange={(event) => setCardVesselField('ownerClient', event.target.value)} /></dd></div>
             <div><dt>JOB NO.</dt><dd><input aria-label="Job No" value={props.reportInfo.vessel.jobNo} placeholder="입력" onChange={(event) => setCardVesselField('jobNo', event.target.value)} /></dd></div>
           </dl>
@@ -655,7 +705,7 @@ function VesselScope(props: VesselScopeProps) {
 
         <div className="scope-summary" aria-label="Scope 배정 요약"><div>{serviceCounts.map((item) => <span key={item.value} className={item.value.toLowerCase()}>{item.value} {item.count}</span>)}</div><em>GENERAL 미배정 {unassignedGeneral}</em></div>
         <button type="button" className="primary full" disabled={!props.vessel || props.draftSections.length === 0} onClick={props.onBuild}>Scope 만들기</button>
-        {locked && <div className="scope-ready"><b>총 {props.sectionCount} sections</b><em>Condition과 phase가 준비되었습니다.</em><div><button type="button" className="ghost" onClick={props.onPhotos}>사진 폴더로 이동</button><button type="button" className="text-button" onClick={props.onReset}>Scope 초기화</button></div></div>}
+        {locked && <div className="scope-ready"><b>총 {props.sectionCount} sections</b><em>Condition과 phase가 준비되었습니다.</em><div><button type="button" className="ghost" onClick={props.onPhotos}>선박 위치도 설정</button><button type="button" className="text-button" onClick={props.onReset}>Scope 초기화</button></div></div>}
       </section>
     </div>
   </div>;
@@ -665,7 +715,6 @@ interface PhotoSourceProps {
   photoCount: number; matchedCount: number; unmatchedCount: number; status: string; hasFolder: boolean; structureCreated: boolean; importComplete: boolean; standardPathsDetected: boolean; folderName: string | null; sections: ReportSection[];
   onSelect: () => void; onCreate: () => void; onLoad: () => void;
   onDemo: () => void; onBack: () => void; onNext: () => void;
-  embedded?: boolean;
 }
 
 function PhotoSource(props: PhotoSourceProps) {
@@ -692,13 +741,13 @@ function PhotoSource(props: PhotoSourceProps) {
     ? `사진 불러오기 완료 · ${props.photoCount}장 · ${props.standardPathsDetected ? '표준 폴더 경로 감지' : '표준 폴더 경로 없음'} · ${props.matchedCount}장 자동 매칭 · UNMATCHED ${props.unmatchedCount}장`
     : '사진을 아직 불러오지 않음';
 
-  return <div id={props.embedded ? 'photo-source' : undefined} className={props.embedded ? 'photo-source-section' : 'workspace wide'}>{!props.embedded && <div className="page-heading"><div><p className="step-kicker">STEP 02</p><h2>사진 폴더</h2><p>원본은 로컬 File 참조로만 유지하며 서버로 전송하지 않습니다.</p></div><span className="privacy-chip">{props.photoCount} PHOTOS</span></div>}
-    <section className="method-card recommended photo-folder-card"><div className="method-top"><span>03</span><em>PHOTO INPUT</em></div><h3>사진 폴더</h3><p>사진을 넣기 전 폴더 구조로 분류하거나, 이미 있는 사진을 불러온 뒤 경로로 분류할 수 있습니다.</p>
+  return <div className="workspace wide"><div className="page-heading"><div><p className="step-kicker">STEP 03</p><h2>사진 폴더</h2><p>원본은 로컬 File 참조로만 유지하며 서버로 전송하지 않습니다.</p></div><span className="privacy-chip">{props.photoCount} PHOTOS</span></div>
+    <section className="method-card recommended photo-folder-card"><div className="method-top"><span>03</span><em>PHOTO INPUT</em></div><h3>사진 준비</h3><p>사진을 넣기 전 폴더 구조로 분류하거나, 이미 있는 사진을 불러온 뒤 경로로 분류할 수 있습니다.</p>
       <ol className="photo-progress" aria-label="사진 입력 진행 상태"><li className={props.hasFolder ? 'done' : scopeReady ? 'current' : 'pending'}><span>{props.hasFolder ? '✓' : '1'}</span><div><b>사진 폴더 선택</b><small>사진이 저장된 폴더를 선택합니다.</small><strong>{folderResult}</strong><button type="button" className={props.hasFolder ? 'ghost' : 'primary'} disabled={!scopeReady} onClick={props.onSelect}>{props.hasFolder ? '다른 사진 폴더 선택' : '사진 폴더 선택'}</button></div></li><li className={props.structureCreated ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.structureCreated ? '✓' : '2'}</span><div><b>표준 폴더 구조 생성 <i>선분류</i></b><small>선택 폴더 안에 선택된 Scope와 구역의 폴더 구조를 생성합니다.</small><strong>{structureResult}</strong><button type="button" className={props.hasFolder && !props.structureCreated ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onCreate}>{props.structureCreated ? '폴더 구조 다시 생성' : '표준 폴더 구조 생성'}</button></div></li><li className={props.importComplete ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.importComplete ? '✓' : '3'}</span><div><b>사진 불러오기 <i>후분류</i></b><small>기존 폴더도 표준 경로가 있으면 자동 매칭하고, 나머지만 UNMATCHED로 분리합니다.</small><strong>{importResult}</strong><button type="button" className={props.hasFolder && !props.importComplete ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onLoad}>{props.importComplete ? '사진 다시 불러오기' : '사진 불러오기'}</button></div></li></ol>
       <section className="photo-scope-summary" aria-label="현재 작업 범위"><p>현재 작업 범위</p><div className="scope-work-list">{scopeGroups.map((group) => <div key={`${group.service}-${group.label}`}><b>{group.service}</b><span>{group.label} · {group.count}개 구역 · {group.phases.join(' / ')}</span></div>)}</div><small>총 {props.sections.length}개 Section · {phaseFolderCount}개 사진 폴더 · SERVICE 폴더는 같은 위치에 여러 Service가 있을 때만 추가됩니다.</small></section>
       <p className="folder-help"><b>선분류</b>는 사진을 넣기 전 표준 폴더를 만드는 방식이고, <b>후분류</b>는 기존 사진을 불러온 뒤 경로로 자동 분류하는 방식입니다.</p></section>
     <section className={`demo-strip${props.hasFolder || props.importComplete ? ' muted' : ''}`}><div><b>빠른 동작 확인</b><span>선택된 첫 Section에 BEFORE 3장 + AFTER 4장을 생성합니다.</span></div><button type="button" className="ghost" disabled={!scopeReady} onClick={props.onDemo}>샘플 사진 7장 불러오기</button></section>
-    <p className="photo-status-detail" aria-label="사진 입력 상세 상태">{props.status}</p>{props.embedded ? <div className="photo-next-row"><button type="button" className="primary" disabled={!scopeReady} onClick={props.onNext}>Report Input으로</button></div> : <div className="actionbar"><button type="button" className="text-button" onClick={props.onBack}>← Vessel / Scope</button><button type="button" className="primary" disabled={!scopeReady} onClick={props.onNext}>Report Input으로</button></div>}
+    <p className="photo-status-detail" aria-label="사진 입력 상세 상태">{props.status}</p><div className="actionbar"><button type="button" className="text-button" onClick={props.onBack}>← 선박 위치도 설정</button><button type="button" className="primary" disabled={!scopeReady} onClick={props.onNext}>Report Input으로</button></div>
   </div>;
 }
 

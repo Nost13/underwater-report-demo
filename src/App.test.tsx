@@ -3,16 +3,39 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 
+vi.mock('./app/vesselLookup', () => ({
+  lookupVessel: vi.fn(async () => [{
+    name: 'M.V. PACIFIC AURORA', imo: '9876543', callSign: 'HLPA7', type: 'Bulk Carrier',
+    loa: '225.0', breadth: '32.2', gt: '42100', dwt: '76000', yearBuilt: '2012',
+    ownerClient: '', classSociety: '', flag: '',
+  }]),
+}));
+
 async function verifyVessel(user: ReturnType<typeof userEvent.setup>) {
   await user.clear(screen.getByLabelText('Vessel name / IMO number / Call Sign'));
   await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), '9876543');
   await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
+  await screen.findByLabelText('VesselFinder 선박 제원');
 }
 
-async function buildCleaningGeneral(user: ReturnType<typeof userEvent.setup>) {
+async function buildScope(user: ReturnType<typeof userEvent.setup>) {
   await verifyVessel(user);
   await user.click(screen.getByRole('button', { name: '전체 적용' }));
   await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+}
+
+async function completeVesselDiagram(user: ReturnType<typeof userEvent.setup>) {
+  vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 1200, height: 320, close: vi.fn() })));
+  await user.click(screen.getByRole('button', { name: '선박 위치도 설정' }));
+  await user.upload(screen.getByLabelText('선박 사이드뷰 이미지'),
+    new File(['vessel'], 'vessel.png', { type: 'image/png' }));
+  await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+  await user.click(screen.getByRole('button', { name: '선박 위치도 설정 완료' }));
+}
+
+async function buildCleaningGeneral(user: ReturnType<typeof userEvent.setup>) {
+  await buildScope(user);
+  await completeVesselDiagram(user);
 }
 
 describe('desktop report workflow', () => {
@@ -31,7 +54,7 @@ describe('desktop report workflow', () => {
       loa: '208.73', breadth: '32.20', gt: '37158', dwt: '49924', yearBuilt: '2010',
       ownerClient: '', classSociety: '', flag: '',
     }]);
-    render(<App {...({ vesselLookup } as any)} />);
+    render(<App vesselLookup={vesselLookup} />);
 
     await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), 'STAR KVARVEN');
     await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
@@ -52,7 +75,7 @@ describe('desktop report workflow', () => {
     const vesselLookup = vi.fn(() => new Promise<[]>(resolve => {
       window.setTimeout(() => resolve([]), 250);
     }));
-    render(<App {...({ vesselLookup } as any)} />);
+    render(<App vesselLookup={vesselLookup} />);
 
     await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), '9947158');
     const click = user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
@@ -63,29 +86,34 @@ describe('desktop report workflow', () => {
     await click;
   });
 
-  it('keeps the photo workflow disabled until a Scope exists', async () => {
+  it('keeps the photo workflow unavailable until a Scope and diagram exist', async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(screen.getByRole('button', { name: '사진 폴더 선택' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '샘플 사진 7장 불러오기' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Report Input으로', exact: true })).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: /Report Input$/ }));
+    expect(screen.queryByRole('heading', { name: '사진 폴더' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Report Input으로' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /사진 폴더$/ }));
     expect(screen.getByRole('heading', { name: 'Vessel / Scope' })).toBeVisible();
   });
 
-  it('uses a compact wrapper before the embedded photo input section', () => {
+  it('separates Vessel / Scope from the vessel-diagram stage', async () => {
+    const user = userEvent.setup();
     render(<App />);
 
-    const scopeWorkspace = screen.getByRole('heading', { name: 'Vessel / Scope' }).closest('.workspace');
-    expect(scopeWorkspace).toHaveClass('scope-workspace');
-    expect(scopeWorkspace?.nextElementSibling).toHaveClass('photo-source-section');
+    await buildScope(user);
+
+    expect(screen.getByRole('button', { name: '선박 위치도 설정' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: '사진 폴더' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '선박 위치도 설정' }));
+    expect(screen.getByRole('heading', { name: '선박 위치도 설정' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Niche 맞추기로 이동' })).toBeDisabled();
   });
 
   it('lists NICHE components in findings-matrix reading order', () => {
     render(<App />);
 
-    expect([...screen.getByLabelText<HTMLSelectElement>('Niche component').options]
+    expect([...(screen.getByLabelText('Niche component') as unknown as HTMLSelectElement).options]
       .map((option) => option.value)).toEqual([
         'Bulbous Bow',
         'Bow Thruster',
@@ -159,15 +187,6 @@ describe('desktop report workflow', () => {
     expect(screen.queryByRole('button', { name: 'FWD PORT 작업 추가' })).not.toBeInTheDocument();
   });
 
-  it('shows a photo-folder next action as soon as Scope is built', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-
-    await buildCleaningGeneral(user);
-
-    expect(screen.getByRole('button', { name: '사진 폴더로 이동' })).toBeVisible();
-  });
-
   it('applies the active Service to NICHE units and allows a combined Unit Scope', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -215,7 +234,7 @@ describe('desktop report workflow', () => {
 
     await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
 
-    expect([...screen.getByLabelText<HTMLSelectElement>('Niche component').options]
+    expect([...(screen.getByLabelText('Niche component') as unknown as HTMLSelectElement).options]
       .map((option) => option.value)).toEqual(['Propeller Blade', 'Boss Cap']);
     expect(screen.getByRole('button', { name: '전체 적용' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'FWD PORT 작업 배정' })).toBeDisabled();
@@ -629,6 +648,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
     await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
     await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await completeVesselDiagram(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     await user.click(screen.getByRole('button', { name: '다음 Section' }));
 
@@ -739,14 +759,13 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('사진 폴더를 선택하세요');
   });
 
-  it('keeps Scope and photo-folder classification on the same setup page', async () => {
+  it('keeps Scope and photo-folder classification in separate workflow stages', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
 
-    expect(screen.getByRole('heading', { name: 'Vessel / Scope' })).toBeVisible();
     expect(screen.getByRole('heading', { name: '사진 폴더' })).toBeVisible();
-    expect(screen.getByRole('button', { name: /01.*준비/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Vessel / Scope' })).toBeVisible();
     expect(screen.getAllByText('선분류').length).toBeGreaterThan(0);
     expect(screen.getAllByText('후분류').length).toBeGreaterThan(0);
     expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('CLEANING');
@@ -767,10 +786,21 @@ describe('desktop report workflow', () => {
       vesselName: 'M.V. PACIFIC AURORA',
       templateUrl: 'templates/Detail_report_template.docx',
       section14TemplateUrl: 'templates/section1_4_template.docx',
+      vesselDiagram: expect.objectContaining({ imageName: 'vessel.png', confirmed: true }),
       reportInfo: expect.objectContaining({
         vessel: expect.objectContaining({ name: 'M.V. PACIFIC AURORA', imo: '9876543' }),
       }),
     }));
+  });
+
+  it('clears the confirmed vessel diagram when Scope is reset', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Vessel / Scope' }));
+    await user.click(screen.getByRole('button', { name: 'Scope 초기화' }));
+
+    expect(screen.queryByText('vessel.png')).not.toBeInTheDocument();
   });
 
   it('collapses Report Check by default and shows all preview pages in one view', async () => {
