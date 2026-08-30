@@ -1,8 +1,27 @@
 import JSZip from 'jszip';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createNicheSections } from '../domain/structure';
 import type { PhotoData } from '../domain/types';
+import type { VesselDiagramConfig } from '../vesselDiagram/types';
 import { writeTemplateReport } from './templateWriter';
+
+const vesselDiagram = (): VesselDiagramConfig => ({
+  imageFile: new File(['vessel'], 'vessel.png', { type: 'image/png' }),
+  imageName: 'vessel.png',
+  calibration: { sternX: 0.08, bowX: 0.92, hullTopY: 0.15, bottomY: 0.86 },
+  confirmed: true,
+  hullMarkers: [],
+  nicheMarkers: [
+    { id: 'propeller-group', groupId: 'propeller-group', shape: 'ELLIPSE', rect: { x: .1, y: .1, width: .1, height: .1 } },
+    { id: 'transducer-aft', groupId: 'transducer', shape: 'ELLIPSE', rect: { x: .2, y: .2, width: .1, height: .1 } },
+    { id: 'transducer-fwd', groupId: 'transducer', shape: 'ELLIPSE', rect: { x: .3, y: .3, width: .1, height: .1 } },
+  ],
+});
+
+const reportPhoto = (sectionId: string): PhotoData => ({
+  id: 'VESSEL-PHOTO', sectionId, phase: 'BEFORE', reportUse: true, order: 1,
+  relativePath: 'vessel-photo.jpg', file: new File(['image'], 'vessel-photo.jpg', { type: 'image/jpeg' }),
+});
 
 async function fixtureTemplate(): Promise<ArrayBuffer> {
   const zip = new JSZip();
@@ -10,6 +29,9 @@ async function fixtureTemplate(): Promise<ArrayBuffer> {
     + '<w:p><w:r><w:t>7. DETAILED SERVICE RECORD</w:t></w:r></w:p>'
     + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>{{BC}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
     + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>{{TITLE}}</w:t></w:r></w:p><w:p><w:r><w:t>{{WORK}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
+    + '<w:p><w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><wp:extent cx="5301000" cy="1260000"/><wp:docPr id="10" name="vessel_profile" descr="vessel_profile" title="Vessel profile base image"/><a:graphic><a:graphicData><a:blip r:embed="rId11"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
+    + '<w:p><w:r><w:drawing><wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:docPr id="11" name="zone_fwd" descr="zone_fwd"/></wp:anchor></w:drawing></w:r></w:p>'
+    + '<w:p><w:r><w:drawing><wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:docPr id="12" name="zone_bilge" descr="zone_bilge_keel&#10;zone_transducer"/></wp:anchor></w:drawing></w:r></w:p>'
     + '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>@FR {{FT}} {{FC}} @OR {{OL}} {{OT}}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
     + '<w:tbl>'
     + '<w:tr><w:trPr><w:trHeight w:val="3686"/></w:trPr><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc><w:tc><w:tcPr><w:shd w:fill="F2F2F2"/></w:tcPr><w:p/></w:tc></w:tr>'
@@ -31,12 +53,70 @@ async function fixtureTemplate(): Promise<ArrayBuffer> {
   zip.file('word/header1.xml', '<header>ORIGINAL HEADER</header>');
   zip.file('word/footer1.xml', '<footer>ORIGINAL FOOTER</footer>');
   zip.file('word/styles.xml', '<styles>ORIGINAL STYLES</styles>');
-  zip.file('word/_rels/document.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>');
+  zip.file('word/_rels/document.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId11" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/></Relationships>');
+  zip.file('word/media/image1.png', new Uint8Array([0]));
   zip.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
   return zip.generateAsync({ type: 'arraybuffer' });
 }
 
 describe('template Word writer', () => {
+  it('replaces the vessel profile with a composed diagram and removes legacy zone anchors', async () => {
+    const section = createNicheSections({ component: 'Transducer', type: 'SINGLE', quantity: 1, service: 'CLEANING' })[0];
+    const config = vesselDiagram();
+    const composeDiagram = vi.fn(async (_config: VesselDiagramConfig, ids: string[]) => new TextEncoder().encode(ids.join(',')));
+
+    const result = await writeTemplateReport({
+      vesselName: 'M.V. TEST', sections: [section], photos: [reportPhoto(section.id)], templateUrl: '/template.docx', vesselDiagram: config,
+    }, {
+      fetchTemplate: fixtureTemplate,
+      resize: async () => new Uint8Array([1, 2, 3]),
+      composeDiagram,
+    });
+
+    const zip = await JSZip.loadAsync(result.blob);
+    const xml = await zip.file('word/document.xml')!.async('text');
+    expect(composeDiagram).toHaveBeenCalledWith(config, ['transducer-aft', 'transducer-fwd']);
+    expect(xml).not.toContain('descr="zone_');
+    expect(xml).toContain('cx="5301000" cy="1260000"');
+    expect(xml).toContain('r:embed="rIdVesselDiagram1"');
+    expect(await zip.file('word/media/vessel-diagram-1.png')!.async('text')).toBe('transducer-aft,transducer-fwd');
+  });
+
+  it('rejects a linked marker pair when one resolved marker is not configured', async () => {
+    const section = createNicheSections({ component: 'Transducer', type: 'SINGLE', quantity: 1, service: 'CLEANING' })[0];
+    const config = vesselDiagram();
+    config.nicheMarkers = config.nicheMarkers.filter((marker) => marker.id !== 'transducer-fwd');
+
+    await expect(writeTemplateReport({
+      vesselName: 'M.V. TEST', sections: [section], photos: [reportPhoto(section.id)], templateUrl: '/template.docx', vesselDiagram: config,
+    }, {
+      fetchTemplate: fixtureTemplate,
+      resize: async () => new Uint8Array([1, 2, 3]),
+      composeDiagram: vi.fn(),
+    })).rejects.toThrow(`VESSEL_MARKER_NOT_FOUND:${section.id}`);
+  });
+
+  it('rejects an unconfirmed vessel diagram before exporting', async () => {
+    const section = createNicheSections({ component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'CLEANING' })[0];
+    const config = vesselDiagram();
+    config.confirmed = false;
+
+    await expect(writeTemplateReport({
+      vesselName: 'M.V. TEST', sections: [section], photos: [reportPhoto(section.id)], templateUrl: '/template.docx', vesselDiagram: config,
+    }, { fetchTemplate: fixtureTemplate })).rejects.toThrow('VESSEL_DIAGRAM_UNCONFIRMED');
+  });
+
+  it('includes the section when vessel composition fails', async () => {
+    const section = createNicheSections({ component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'CLEANING' })[0];
+
+    await expect(writeTemplateReport({
+      vesselName: 'M.V. TEST', sections: [section], photos: [reportPhoto(section.id)], templateUrl: '/template.docx', vesselDiagram: vesselDiagram(),
+    }, {
+      fetchTemplate: fixtureTemplate,
+      composeDiagram: async () => { throw new Error('png encoding failed'); },
+    })).rejects.toThrow(`VESSEL_DIAGRAM_COMPOSITION_FAILED:${section.id}`);
+  });
+
   it('preserves header and footer while filling text and the first photo slot', async () => {
     const section = createNicheSections({ component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'CLEANING' })[0];
     section.conditions.BEFORE = {
@@ -52,10 +132,12 @@ describe('template Word writer', () => {
       sections: [section],
       photos: [photo],
       templateUrl: '/template.docx',
+      vesselDiagram: vesselDiagram(),
     }, {
       fetchTemplate: fixtureTemplate,
       resize: async () => new Uint8Array([1, 2, 3]),
       download: () => undefined,
+      composeDiagram: async () => new Uint8Array([137, 80, 78, 71]),
     });
 
     const zip = await JSZip.loadAsync(result.blob);
@@ -95,8 +177,9 @@ describe('template Word writer', () => {
       id: phase, sectionId: section.id, phase: phase as 'BEFORE' | 'AFTER', reportUse: true, order: index + 1,
       relativePath: phase + '.jpg', file: new File(['image'], phase + '.jpg', { type: 'image/jpeg' }),
     }));
-    const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos, templateUrl: '/template.docx' }, {
+    const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos, templateUrl: '/template.docx', vesselDiagram: vesselDiagram() }, {
       fetchTemplate: fixtureTemplate, resize: async () => new Uint8Array([1, 2, 3]), download: () => undefined,
+      composeDiagram: async () => new Uint8Array([137, 80, 78, 71]),
     });
     const xml = await (await JSZip.loadAsync(result.blob)).file('word/document.xml')?.async('text');
     expect(result.pageCount).toBe(2);
@@ -113,9 +196,10 @@ describe('template Word writer', () => {
       id: 'FAILED', sectionId: section.id, phase: 'BEFORE', reportUse: true, order: 1,
       relativePath: 'failed.jpg', file: new File(['bad'], 'failed.jpg', { type: 'image/jpeg' }),
     };
-    const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos: [failed], templateUrl: '/template.docx' }, {
+    const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos: [failed], templateUrl: '/template.docx', vesselDiagram: vesselDiagram() }, {
       fetchTemplate: fixtureTemplate,
       resize: async () => { throw new Error('bad image'); },
+      composeDiagram: async () => new Uint8Array([137, 80, 78, 71]),
     });
     const xml = await (await JSZip.loadAsync(result.blob)).file('word/document.xml')?.async('text') ?? '';
     const document = new DOMParser().parseFromString(xml, 'application/xml');
@@ -133,8 +217,9 @@ describe('template Word writer', () => {
       id: 'B' + (index + 1), sectionId: section.id, phase: 'BEFORE', reportUse: true, order: index + 1,
       relativePath: 'B' + (index + 1) + '.jpg', file: new File(['image'], 'B' + (index + 1) + '.jpg', { type: 'image/jpeg' }),
     }));
-    const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos, templateUrl: '/template.docx' }, {
+    const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos, templateUrl: '/template.docx', vesselDiagram: vesselDiagram() }, {
       fetchTemplate: fixtureTemplate, resize: async () => new Uint8Array([1, 2, 3]), download: () => undefined,
+      composeDiagram: async () => new Uint8Array([137, 80, 78, 71]),
     });
     const zip = await JSZip.loadAsync(result.blob);
     const xml = await zip.file('word/document.xml')?.async('text') ?? '';

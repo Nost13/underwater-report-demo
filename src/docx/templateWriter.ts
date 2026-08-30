@@ -6,6 +6,8 @@ import { fillSection14Template } from './section14Writer';
 import type { ReportInfo } from '../app/reportInfo';
 import type { PhotoData, ReportLabelMap, ReportSection } from '../domain/types';
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
+import { composeVesselDiagram } from '../vesselDiagram/composer';
+import { resolveMarkerIds } from '../vesselDiagram/markers';
 
 export interface WordExportInput {
   vesselName: string;
@@ -15,7 +17,7 @@ export interface WordExportInput {
   reportLabels?: ReportLabelMap;
   reportInfo?: ReportInfo;
   section14TemplateUrl?: string;
-  vesselDiagram?: VesselDiagramConfig;
+  vesselDiagram: VesselDiagramConfig;
   fileName?: string;
 }
 
@@ -30,6 +32,7 @@ interface WriterDependencies {
   resize?: (file: File, maxEdge?: number) => Promise<Uint8Array>;
   download?: (blob: Blob, fileName: string) => void;
   fetchSection14Template?: () => Promise<ArrayBuffer | Uint8Array>;
+  composeDiagram?: (config: VesselDiagramConfig, markerIds: string[]) => Promise<Uint8Array>;
 }
 
 interface DocumentParts {
@@ -69,6 +72,7 @@ function splitTemplateDocument(xml: string): DocumentParts {
 }
 
 const WORD_NAMESPACE = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 const PHOTO_WIDTH_EMU = 3_236_400;
 const PHOTO_HEIGHT_EMU = 2_340_000;
 const drawingXml = (relationshipId: string, imageIndex: number) => [
@@ -143,7 +147,10 @@ function replaceTokenInParagraph(paragraph: Element, token: string, value: strin
 }
 
 function parseFragment(xml: string): Document {
-  const document = new DOMParser().parseFromString(`<root xmlns:w="${WORD_NAMESPACE}">${xml}</root>`, 'application/xml');
+  const document = new DOMParser().parseFromString(
+    `<root xmlns:w="${WORD_NAMESPACE}" xmlns:r="${RELATIONSHIP_NAMESPACE}">${xml}</root>`,
+    'application/xml',
+  );
   if (document.querySelector('parsererror')) throw new Error('TEMPLATE_FRAGMENT_INVALID');
   return document;
 }
@@ -250,6 +257,50 @@ function addRelationship(xml: string, id: string, target: string): string {
   return xml.replace('</Relationships>', relation + '</Relationships>');
 }
 
+function ensurePngContentType(xml: string): string {
+  return /<Default[^>]+Extension="png"/i.test(xml)
+    ? xml
+    : xml.replace('</Types>', '<Default Extension="png" ContentType="image/png"/></Types>');
+}
+
+function replaceVesselProfile(document: Document, relationshipId: string): void {
+  const profile = Array.from(document.getElementsByTagNameNS('*', 'docPr'))
+    .find((node) => node.getAttribute('descr') === 'vessel_profile' || node.getAttribute('name') === 'vessel_profile');
+  const drawing = profile ? closestElement(profile, 'drawing') : null;
+  const blip = drawing ? drawing.getElementsByTagNameNS('*', 'blip')[0] : undefined;
+  if (!blip) throw new Error('VESSEL_PROFILE_DRAWING_NOT_FOUND');
+  for (const attribute of Array.from(blip.attributes)) {
+    if (attribute.localName === 'embed') blip.removeAttributeNode(attribute);
+  }
+  blip.setAttribute('r:embed', relationshipId);
+}
+
+function hasLegacyZoneDescription(description: string | null): boolean {
+  return (description ?? '').split(/\r?\n/).some((line) => line.startsWith('zone_'));
+}
+
+function removeLegacyZoneShapes(document: Document): void {
+  const zoneRuns = Array.from(document.getElementsByTagNameNS('*', 'docPr'))
+    .filter((node) => hasLegacyZoneDescription(node.getAttribute('descr')))
+    .map((node) => {
+      const anchor = closestElement(node, 'anchor');
+      return anchor ? closestElement(anchor, 'r') : null;
+    })
+    .filter((run): run is Element => run !== null);
+  for (const run of zoneRuns) run.remove();
+  if (Array.from(document.getElementsByTagNameNS('*', 'docPr'))
+    .some((node) => hasLegacyZoneDescription(node.getAttribute('descr')))) {
+    throw new Error('LEGACY_ZONE_SHAPES_REMAIN');
+  }
+}
+
+function assertDiagramMarkers(config: VesselDiagramConfig, markerIds: string[], section: ReportSection): void {
+  const configuredIds = new Set([...config.hullMarkers, ...config.nicheMarkers].map((marker) => marker.id));
+  if (!markerIds.length || markerIds.some((id) => !configuredIds.has(id))) {
+    throw new Error(`VESSEL_MARKER_NOT_FOUND:${section.id}`);
+  }
+}
+
 function splitBody(xml: string): { prefix: string; body: string; sectionProperties: string; suffix: string } {
   const open = xml.match(/<w:body(?:\s[^>]*)?>/);
   const closeIndex = xml.lastIndexOf('</w:body>');
@@ -308,7 +359,8 @@ async function prependSection14Package(
   const detailedParts = splitBody(detailedDocumentXml);
   let mergedRelationshipsXml = section14RelationshipsXml;
   let detailedBody = detailedParts.body;
-  const embedIds = [...new Set(Array.from(detailedBody.matchAll(/r:embed="([^"]+)"/g), (match) => match[1]))];
+  const embedIds = [...new Set(Array.from(detailedBody.matchAll(/(?:\b[\w.-]+:)?embed="([^"]+)"/g), (match) => match[1]))];
+  let detailedImageIndex = 0;
   for (let index = 0; index < embedIds.length; index += 1) {
     const originalId = embedIds[index];
     const target = relationshipTarget(detailedRelationshipsXml, originalId);
@@ -316,11 +368,17 @@ async function prependSection14Package(
     const source = detailedZip.file(`word/${target}`);
     if (!source) throw new Error(`REPORT_IMAGE_NOT_FOUND:${target}`);
     const extension = target.match(/\.([^.]+)$/)?.[1] ?? 'jpg';
-    const copiedName = `detail-image-${index + 1}.${extension}`;
-    const replacementId = `rIdDetailedImage${index + 1}`;
+    const isVesselDiagram = /^rIdVesselDiagram\d+$/.test(originalId);
+    if (!isVesselDiagram) detailedImageIndex += 1;
+    const copiedName = isVesselDiagram ? target.slice(target.lastIndexOf('/') + 1) : `detail-image-${detailedImageIndex}.${extension}`;
+    const replacementId = isVesselDiagram ? originalId : `rIdDetailedImage${detailedImageIndex}`;
     section14Zip.file(`word/media/${copiedName}`, await source.async('uint8array'));
     mergedRelationshipsXml = addRelationship(mergedRelationshipsXml, replacementId, copiedName);
-    detailedBody = detailedBody.replaceAll(`r:embed="${originalId}"`, `r:embed="${replacementId}"`);
+    const escapedId = originalId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    detailedBody = detailedBody.replace(
+      new RegExp(`((?:\\b[\\w.-]+:)?embed=")${escapedId}(")`, 'g'),
+      `$1${replacementId}$2`,
+    );
   }
   const pageBreak = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
   section14Zip.file(
@@ -328,7 +386,7 @@ async function prependSection14Package(
     section14Parts.prefix + section14Parts.body + pageBreak + detailedBody + section14Parts.sectionProperties + section14Parts.suffix,
   );
   section14Zip.file('word/_rels/document.xml.rels', mergedRelationshipsXml);
-  section14Zip.file('[Content_Types].xml', ensureJpegContentType(section14ContentTypesXml));
+  section14Zip.file('[Content_Types].xml', ensurePngContentType(ensureJpegContentType(section14ContentTypesXml)));
   return section14Zip.generateAsync({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -345,6 +403,8 @@ export async function writeTemplateReport(
     return response.arrayBuffer();
   });
   const resize = dependencies.resize ?? resizeForReport;
+  const composeDiagram = dependencies.composeDiagram ?? composeVesselDiagram;
+  if (!input.vesselDiagram?.confirmed) throw new Error('VESSEL_DIAGRAM_UNCONFIRMED');
   const template = await fetchTemplate();
   const zip = await JSZip.loadAsync(template);
   const documentEntry = zip.file('word/document.xml');
@@ -359,8 +419,10 @@ export async function writeTemplateReport(
   let relationshipsXml = await relationshipEntry.async('text');
   let contentTypesXml = await contentTypesEntry.async('text');
   contentTypesXml = ensureJpegContentType(contentTypesXml);
+  contentTypesXml = ensurePngContentType(contentTypesXml);
   const skipped: string[] = [];
   let imageIndex = 0;
+  let diagramIndex = 0;
   const renderedBodies: string[] = [];
   for (const page of pages) {
     const pageDocument = parseFragment(page.kind === 'first' ? documentParts.firstBody : documentParts.continuationBody);
@@ -373,6 +435,26 @@ export async function writeTemplateReport(
       '@FR': page.values.fr, '{{FT}}': page.values.ft, '{{FC}}': page.values.fc,
       '@OR': page.values.or, '{{OL}}': page.values.ol, '{{OT}}': page.values.ot,
     });
+    if (page.kind === 'first') {
+      const markerIds = resolveMarkerIds(page.section);
+      assertDiagramMarkers(input.vesselDiagram, markerIds, page.section);
+      let diagram: Uint8Array;
+      try {
+        diagram = await composeDiagram(input.vesselDiagram, markerIds);
+      } catch {
+        throw new Error(`VESSEL_DIAGRAM_COMPOSITION_FAILED:${page.section.id}`);
+      }
+      diagramIndex += 1;
+      const diagramName = `vessel-diagram-${diagramIndex}.png`;
+      const diagramRelationshipId = `rIdVesselDiagram${diagramIndex}`;
+      zip.file(
+        `word/media/${diagramName}`,
+        Array.from(diagram),
+      );
+      relationshipsXml = addRelationship(relationshipsXml, diagramRelationshipId, diagramName);
+      replaceVesselProfile(pageDocument, diagramRelationshipId);
+      removeLegacyZoneShapes(pageDocument);
+    }
     const caption = page.values.photoCaption;
     for (let index = 0; index < page.photos.length; index += 1) {
       const photo = page.photos[index];

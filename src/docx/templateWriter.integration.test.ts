@@ -4,9 +4,31 @@ import { describe, expect, it } from 'vitest';
 import { createNicheSections } from '../domain/structure';
 import type { PhotoData } from '../domain/types';
 import { emptyReportInfo } from '../app/reportInfo';
+import type { VesselDiagramConfig } from '../vesselDiagram/types';
 import { writeTemplateReport } from './templateWriter';
 
 const templatePath = 'public/templates/Detail_report_template.docx';
+
+const configuredMarkerIds = [
+  'hull-fwd', 'hull-fwd-mid', 'hull-mid', 'hull-mid-aft', 'hull-aft',
+  'propeller-group', 'aft-services', 'rudder-group', 'fwd-services', 'bulbous-bow',
+  'transducer-aft', 'transducer-fwd', 'anode-aft', 'anode-fwd', 'bilge-keel-1', 'bilge-keel-2',
+];
+
+const vesselDiagram = (): VesselDiagramConfig => ({
+  imageFile: new File(['vessel'], 'vessel.png', { type: 'image/png' }),
+  imageName: 'vessel.png',
+  calibration: { sternX: .08, bowX: .92, hullTopY: .15, bottomY: .86 },
+  confirmed: true,
+  hullMarkers: configuredMarkerIds.slice(0, 5).map((id) => ({
+    id, groupId: 'hull' as const, shape: 'RECTANGLE' as const, rect: { x: .1, y: .1, width: .1, height: .1 },
+  })),
+  nicheMarkers: configuredMarkerIds.slice(5).map((id) => ({
+    id, groupId: 'propeller-group' as const, shape: 'ELLIPSE' as const, rect: { x: .1, y: .1, width: .1, height: .1 },
+  })),
+});
+
+const composeDiagram = async (_config: VesselDiagramConfig, ids: string[]) => new TextEncoder().encode(ids.join(','));
 
 describe('bundled Detail report template', () => {
   it('places the populated Section 1–4 pages before detailed service records', async () => {
@@ -34,12 +56,14 @@ describe('bundled Detail report template', () => {
       sections: [section],
       photos: [photo],
       templateUrl: 'templates/Detail_report_template.docx',
+      vesselDiagram: vesselDiagram(),
       reportInfo,
       section14TemplateUrl: 'templates/section1_4_template.docx',
     }, {
       fetchTemplate: async () => Uint8Array.from(detailBytes),
       fetchSection14Template: async () => Uint8Array.from(section14Bytes),
       resize: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+      composeDiagram,
     });
 
     const output = await JSZip.loadAsync(result.blob);
@@ -57,6 +81,77 @@ describe('bundled Detail report template', () => {
       .toEqual(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]));
     expect(await output.file('word/_rels/document.xml.rels')?.async('text'))
       .toContain('Target="media/detail-image-1.jpg"');
+  });
+
+  it('replaces each first-page vessel profile without changing bundled-template structure', async () => {
+    const [detailBytes, section14Bytes] = await Promise.all([
+      readFile(templatePath),
+      readFile('public/templates/section1_4_template.docx'),
+    ]);
+    const source = await JSZip.loadAsync(detailBytes);
+    const sourceXml = await source.file('word/document.xml')!.async('text');
+    const sourceDocument = new DOMParser().parseFromString(sourceXml, 'application/xml');
+    const profile = Array.from(sourceDocument.getElementsByTagNameNS('*', 'docPr'))
+      .find((node) => node.getAttribute('descr') === 'vessel_profile')!;
+    const sourceDrawing = profile.parentElement?.parentElement;
+    const sourceProfileExtent = sourceDrawing?.getElementsByTagNameNS('*', 'extent')[0];
+    if (!sourceProfileExtent) throw new Error('SOURCE_PROFILE_EXTENT_NOT_FOUND');
+    const sourceExtent = [sourceProfileExtent.getAttribute('cx'), sourceProfileExtent.getAttribute('cy')];
+    const sourceFonts = [...new Set(Array.from(sourceDocument.getElementsByTagNameNS('*', 'rFonts'))
+      .map((font) => font.getAttributeNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'ascii'))
+      .filter((font): font is string => Boolean(font)))];
+    const sourceTableWidths = Array.from(sourceDocument.getElementsByTagNameNS('*', 'tblW'))
+      .map((width) => width.getAttributeNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w'));
+    const sections = [
+      createNicheSections({ component: 'Propeller Blade', type: 'QUANTITY', quantity: 1, service: 'CLEANING' })[0],
+      createNicheSections({ component: 'Transducer', type: 'SINGLE', quantity: 1, service: 'CLEANING' })[0],
+      createNicheSections({ component: 'Anode / ICCP', type: 'SIDE', quantity: 1, service: 'CLEANING' })[0],
+      createNicheSections({ component: 'Bilge Keel', type: 'QUANTITY', quantity: 2, service: 'CLEANING' })[1],
+    ];
+    const photos: PhotoData[] = sections.map((section, index) => ({
+      id: `DIAGRAM-${index}`, sectionId: section.id, phase: 'BEFORE', reportUse: true, order: 1,
+      relativePath: `diagram-${index}.jpg`, file: new File(['image'], `diagram-${index}.jpg`, { type: 'image/jpeg' }),
+    }));
+    const reportInfo = emptyReportInfo();
+    reportInfo.vessel.name = 'M.V. DIAGRAM TEST';
+
+    const result = await writeTemplateReport({
+      vesselName: 'M.V. DIAGRAM TEST', sections, photos,
+      templateUrl: 'templates/Detail_report_template.docx', vesselDiagram: vesselDiagram(),
+      reportInfo, section14TemplateUrl: 'templates/section1_4_template.docx',
+    }, {
+      fetchTemplate: async () => Uint8Array.from(detailBytes),
+      fetchSection14Template: async () => Uint8Array.from(section14Bytes),
+      resize: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+      composeDiagram,
+    });
+
+    const output = await JSZip.loadAsync(result.blob);
+    const xml = await output.file('word/document.xml')!.async('text');
+    const document = new DOMParser().parseFromString(xml, 'application/xml');
+    const text = document.documentElement.textContent ?? '';
+    const relationships = await output.file('word/_rels/document.xml.rels')!.async('text');
+    expect(result.pageCount).toBe(4);
+    for (let index = 1; index <= 4; index += 1) {
+      expect(relationships).toContain(`Id="rIdVesselDiagram${index}"`);
+      expect(await output.file(`word/media/vessel-diagram-${index}.png`)!.async('text')).not.toBe('');
+    }
+    expect(xml).not.toMatch(/descr="zone_/);
+    const outputExtents = Array.from(document.getElementsByTagNameNS('*', 'docPr'))
+      .filter((node) => node.getAttribute('descr') === 'vessel_profile')
+      .map((node) => {
+        const extent = node.parentElement?.parentElement?.getElementsByTagNameNS('*', 'extent')[0];
+        return [extent?.getAttribute('cx'), extent?.getAttribute('cy')];
+      });
+    expect(outputExtents).toHaveLength(4);
+    expect(outputExtents).toEqual(Array.from({ length: 4 }, () => sourceExtent));
+    for (const font of sourceFonts) expect(xml).toContain(`w:ascii="${font}"`);
+    for (const width of sourceTableWidths) expect(xml).toContain(`w:w="${width}"`);
+    expect(text.indexOf('1. GENERAL INFORMATION')).toBeLessThan(text.indexOf('7. DETAILED SERVICE RECORD'));
+    const embeddedRelationshipIds = Array.from(document.getElementsByTagNameNS('*', 'blip'))
+      .map((blip) => Array.from(blip.attributes).find((attribute) => attribute.localName === 'embed')?.value);
+    expect(embeddedRelationshipIds.filter((id) => /^rIdDetailedImage\d+$/.test(id ?? ''))).toHaveLength(4);
+    expect(embeddedRelationshipIds.filter((id) => /^rIdVesselDiagram\d+$/.test(id ?? ''))).toHaveLength(4);
   });
 
   it('preserves header and footer and renders first plus continuation pages', async () => {
@@ -98,9 +193,11 @@ describe('bundled Detail report template', () => {
       sections: [section],
       photos,
       templateUrl: 'templates/Detail_report_template.docx',
+      vesselDiagram: vesselDiagram(),
     }, {
       fetchTemplate: async () => Uint8Array.from(templateBytes),
       resize: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+      composeDiagram,
     });
 
     const output = await JSZip.loadAsync(result.blob);
@@ -162,9 +259,11 @@ describe('bundled Detail report template', () => {
       sections: [section],
       photos: [photo],
       templateUrl: 'templates/Detail_report_template.docx',
+      vesselDiagram: vesselDiagram(),
     }, {
       fetchTemplate: async () => Uint8Array.from(templateBytes),
       resize: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+      composeDiagram,
     });
 
     const output = await JSZip.loadAsync(result.blob);
@@ -227,9 +326,11 @@ describe('bundled Detail report template', () => {
       sections: [section],
       photos: [photo],
       templateUrl: 'templates/Detail_report_template.docx',
+      vesselDiagram: vesselDiagram(),
     }, {
       fetchTemplate: async () => Uint8Array.from(templateBytes),
       resize: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+      composeDiagram,
     });
     const documentXml = await (await JSZip.loadAsync(result.blob))
       .file('word/document.xml')?.async('text') ?? '';
