@@ -69,7 +69,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border-radius: 8px; background: #fff; color: var(--ink); }
 .input-action { display: grid; grid-template-columns: 1fr auto; }
 .input-action input { border-radius: 8px 0 0 8px; }
-.input-action button { min-width: 104px; border: 0; border-radius: 0 8px 8px 0; background: var(--navy-900); color: #fff; font-size: 11px; font-weight: 750; }
+.input-action button { min-width: 104px; border: 0; border-radius: 0 8px 8px 0; background: var(--navy-900); color: #fff; font-size: 11px; font-weight: 750; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.input-action button.lookup-pending:disabled { opacity: 1; }
+.vessel-lookup-spinner { width: 14px; height: 14px; flex: 0 0 14px; border: 2px solid rgba(255, 255, 255, .38); border-top-color: #fff; border-radius: 50%; animation: vessel-lookup-spin .75s linear infinite; }
+@keyframes vessel-lookup-spin { to { transform: rotate(360deg); } }
 .vessel-match-select { width: 100%; margin-top: 8px; height: 36px; color: #274953; font-size: 10px; }
 .empty-note { margin-top: 18px; min-height: 154px; display: grid; place-items: center; border: 1px dashed #cdd9dd; border-radius: 12px; background: #f8fafb; color: #829099; font-size: 11px; }
 .vessel-card { margin-top: 18px; padding: 18px; display: grid; gap: 16px; border: 1px solid #d6e5e4; border-radius: 12px; background: linear-gradient(140deg, #f7fcfb, #edf7f6); }

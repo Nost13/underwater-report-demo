@@ -157,6 +157,7 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
   const [imo, setImo] = useState('');
   const [vessel, setVessel] = useState<(typeof DEMO_VESSELS)[number] | null>(null);
   const [vesselMatches, setVesselMatches] = useState<(typeof DEMO_VESSELS)[number][]>([]);
+  const [isVesselLookupPending, setIsVesselLookupPending] = useState(false);
   const [reportInfo, setReportInfo] = useState<ReportInfo>(() => emptyReportInfo());
   const [activeService, setActiveService] = useState<ServiceKind>('CLEANING');
   const [generalScope, setGeneralScope] = useState<GeneralScopeState>(() => ({
@@ -434,14 +435,20 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
   };
 
   const lookupReportVessel = async () => {
-    const matches = await vesselLookup(imo);
-    setVesselMatches(matches);
-    const found = matches[0] ?? null;
-    setVessel(found);
-    if (found) {
-      setReportInfo(reportInfoFromVessel(found));
-      setStatus(`${found.name} 선박 정보를 VesselFinder에서 불러왔습니다.`);
-    } else setStatus('VesselFinder에서 조회 결과를 찾지 못했습니다. 선박 정보를 직접 입력할 수 있습니다.');
+    if (isVesselLookupPending) return;
+    setIsVesselLookupPending(true);
+    try {
+      const matches = await vesselLookup(imo);
+      setVesselMatches(matches);
+      const found = matches[0] ?? null;
+      setVessel(found);
+      if (found) {
+        setReportInfo(reportInfoFromVessel(found));
+        setStatus(`${found.name} 선박 정보를 VesselFinder에서 불러왔습니다.`);
+      } else setStatus('VesselFinder에서 조회 결과를 찾지 못했습니다. 선박 정보를 직접 입력할 수 있습니다.');
+    } finally {
+      setIsVesselLookupPending(false);
+    }
   };
 
   const runExport = async () => {
@@ -488,7 +495,7 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         addNiche={addNiche} removeNiche={(id) => setNicheItems((items) => items.filter((item) => item.id !== id))}
         onNicheToggle={(groupId, targetId) => changeNicheTarget(groupId, targetId, (target) => toggleTargetService(target, activeService))}
         onNicheRemove={(groupId, targetId, service) => changeNicheTarget(groupId, targetId, (target) => removeTargetService(target, service))}
-        reportInfo={reportInfo} setReportInfo={setReportInfo} vesselMatches={vesselMatches} onVesselSelect={(next) => { setVessel(next); setReportInfo(reportInfoFromVessel(next)); }} onLookup={lookupReportVessel}
+        reportInfo={reportInfo} setReportInfo={setReportInfo} vesselMatches={vesselMatches} onVesselSelect={(next) => { setVessel(next); setReportInfo(reportInfoFromVessel(next)); }} onLookup={lookupReportVessel} vesselLookupPending={isVesselLookupPending}
         onBuild={buildScope} onReset={resetScope} sectionCount={report.sections.length} draftSections={draftSections}
         onPhotos={() => document.getElementById('photo-source')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}
       /><PhotoSource embedded
@@ -582,7 +589,7 @@ interface VesselScopeProps {
   addNiche: () => void; removeNiche: (id: string) => void;
   onNicheToggle: (groupId: string, targetId: string) => void;
   onNicheRemove: (groupId: string, targetId: string, service: ServiceKind) => void;
-  onLookup: () => void; onBuild: () => void; onReset: () => void;
+  onLookup: () => void; vesselLookupPending: boolean; onBuild: () => void; onReset: () => void;
   sectionCount: number; draftSections: ReportSection[]; onPhotos: () => void;
 }
 
@@ -608,7 +615,7 @@ function VesselScope(props: VesselScopeProps) {
     <div className="page-heading"><div><p className="step-kicker">STEP 01</p><h2>Vessel / Scope</h2><p>Vessel DB는 선박 확인에만 사용됩니다. 보고서와 사진은 이 브라우저 탭에만 있습니다.</p></div><span className="privacy-chip">서버 저장 없음</span></div>
     <div className="scope-grid">
       <section className="panel vessel-panel"><div className="panel-title"><span>01</span><div><h3>Vessel 확인</h3><p>운영부 VesselFinder 조회</p></div></div>
-        <label className="field"><span>Vessel name / IMO number / Call Sign</span><div className="input-action"><input aria-label="Vessel name / IMO number / Call Sign" value={props.imo} disabled={locked} onChange={(event) => props.setImo(event.target.value)} /><button type="button" disabled={locked} onClick={props.onLookup}>Vessel 확인</button></div></label>
+        <label className="field"><span>Vessel name / IMO number / Call Sign</span><div className="input-action"><input aria-label="Vessel name / IMO number / Call Sign" value={props.imo} disabled={locked} onChange={(event) => props.setImo(event.target.value)} /><button type="button" className={props.vesselLookupPending ? 'lookup-pending' : undefined} aria-label={props.vesselLookupPending ? '선박 확인 중' : 'Vessel 확인'} disabled={locked || props.vesselLookupPending} onClick={props.onLookup}>{props.vesselLookupPending && <span className="vessel-lookup-spinner" role="status" aria-label="선박 조회 진행 중" />}<span>{props.vesselLookupPending ? '확인 중…' : 'Vessel 확인'}</span></button></div></label>
         {props.vesselMatches.length > 1 && <select className="vessel-match-select" aria-label="선박 조회 결과" value={props.vessel?.imo ?? ''} onChange={(event) => { const selected = props.vesselMatches.find((item) => item.imo === event.target.value); if (selected) props.onVesselSelect(selected); }}><option value="">선박을 선택하세요</option>{props.vesselMatches.map((item) => <option key={`${item.imo}-${item.name}`} value={item.imo}>{item.name} · IMO {item.imo || '—'}</option>)}</select>}
         {props.vessel ? <section className="vessel-card" aria-label="VesselFinder 선박 제원">
           <div className="vessel-card-main"><div className="vessel-icon">MV</div><div><span>VESSEL NAME</span><strong>{props.vessel.name}</strong><em>{props.vessel.type || '—'}</em></div></div>

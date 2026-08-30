@@ -47,6 +47,22 @@ describe('desktop report workflow', () => {
     expect(within(particulars).getByLabelText('Job No')).toHaveValue('US-HMM-2603001');
   });
 
+  it('shows a disabled progress control while VesselFinder lookup is running', async () => {
+    const user = userEvent.setup();
+    const vesselLookup = vi.fn(() => new Promise<[]>(resolve => {
+      window.setTimeout(() => resolve([]), 250);
+    }));
+    render(<App {...({ vesselLookup } as any)} />);
+
+    await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), '9947158');
+    const click = user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
+
+    expect(await screen.findByRole('button', { name: '선박 확인 중' })).toBeDisabled();
+    expect(screen.getByRole('status', { name: '선박 조회 진행 중' })).toBeVisible();
+    expect(screen.getByText('확인 중…')).toBeVisible();
+    await click;
+  });
+
   it('keeps the photo workflow disabled until a Scope exists', async () => {
     const user = userEvent.setup();
     render(<App />);
