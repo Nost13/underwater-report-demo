@@ -34,8 +34,9 @@ const NICHE_TEMPLATES = {
   'anode-fwd': { x: 0.69, y: 0.61, width: 0.055, height: 0.12 },
 } as const;
 
-export function createDefaultNicheMarkers(calibration: HullCalibration, _bilgeQuantity: number): ZoneMarker[] {
-  return Object.entries(NICHE_TEMPLATES).map(([id, rect]) => ({ id, groupId: id, rect: projectTemplateRect(rect, calibration), shape: 'ELLIPSE' }));
+export function createDefaultNicheMarkers(calibration: HullCalibration, bilgeQuantity: number): ZoneMarker[] {
+  const nicheMarkers = Object.entries(NICHE_TEMPLATES).map(([id, rect]) => ({ id, groupId: id, rect: projectTemplateRect(rect, calibration), shape: 'ELLIPSE' as const }));
+  return [...nicheMarkers, ...createBilgeKeelMarkers(calibration, bilgeQuantity)];
 }
 
 export function createBilgeKeelMarkers(calibration: HullCalibration, quantity: number): ZoneMarker[] {
@@ -49,5 +50,5 @@ export function createBilgeKeelMarkers(calibration: HullCalibration, quantity: n
 }
 
 export function resetMarker(markerId: string, calibration: HullCalibration, bilgeQuantity: number): ZoneMarker | null {
-  return [...createDefaultHullMarkers(calibration), ...createDefaultNicheMarkers(calibration, bilgeQuantity), ...createBilgeKeelMarkers(calibration, bilgeQuantity)].find((marker) => marker.id === markerId) ?? null;
+  return [...createDefaultHullMarkers(calibration), ...createDefaultNicheMarkers(calibration, bilgeQuantity)].find((marker) => marker.id === markerId) ?? null;
 }

@@ -45,9 +45,10 @@ describe('vessel diagram geometry', () => {
 
   it('creates all niche defaults as ellipse markers', () => {
     const markers = createDefaultNicheMarkers({ sternX: 0.1, bowX: 0.9, hullTopY: 0.2, bottomY: 0.8 }, 3);
-    expect(markers).toHaveLength(9);
+    expect(markers).toHaveLength(12);
     expect(markers.every((marker) => marker.shape === 'ELLIPSE')).toBe(true);
     expect(markers.map((marker) => marker.id)).toContain('propeller-group');
+    expect(markers.map((marker) => marker.id)).toContain('bilge-keel-3');
   });
 
   it('normalizes invalid Bilge Keel quantities to one marker', () => {
