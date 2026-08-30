@@ -74,6 +74,14 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('heading', { name: 'Vessel / Scope' })).toBeVisible();
   });
 
+  it('uses a compact wrapper before the embedded photo input section', () => {
+    render(<App />);
+
+    const scopeWorkspace = screen.getByRole('heading', { name: 'Vessel / Scope' }).closest('.workspace');
+    expect(scopeWorkspace).toHaveClass('scope-workspace');
+    expect(scopeWorkspace?.nextElementSibling).toHaveClass('photo-source-section');
+  });
+
   it('lists NICHE components in findings-matrix reading order', () => {
     render(<App />);
 

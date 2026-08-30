@@ -51,6 +51,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 
 .workspace { min-height: calc(100vh - 78px); padding: 26px 30px 90px; overflow: auto; }
 .workspace.wide { max-width: 1260px; margin: 0 auto; }
+.workspace.scope-workspace { min-height: 0; padding-bottom: 18px; }
 .page-heading { margin: 2px 0 22px; display: flex; align-items: flex-start; justify-content: space-between; }
 .page-heading h2 { margin: 6px 0 6px; font-size: 28px; letter-spacing: -.04em; }
 .page-heading p:not(.step-kicker) { margin: 0; color: var(--muted); font-size: 12px; }

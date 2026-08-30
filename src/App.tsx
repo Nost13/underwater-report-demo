@@ -611,7 +611,7 @@ function VesselScope(props: VesselScopeProps) {
     vessel: { ...current.vessel, [field]: value },
   }));
 
-  return <div className="workspace wide">
+  return <div className="workspace wide scope-workspace">
     <div className="page-heading"><div><p className="step-kicker">STEP 01</p><h2>Vessel / Scope</h2><p>Vessel DB는 선박 확인에만 사용됩니다. 보고서와 사진은 이 브라우저 탭에만 있습니다.</p></div><span className="privacy-chip">서버 저장 없음</span></div>
     <div className="scope-grid">
       <section className="panel vessel-panel"><div className="panel-title"><span>01</span><div><h3>Vessel 확인</h3><p>운영부 VesselFinder 조회</p></div></div>
