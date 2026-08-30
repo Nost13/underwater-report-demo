@@ -1,7 +1,21 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+
+const { composeVesselDiagram } = vi.hoisted(() => ({
+  composeVesselDiagram: vi.fn(async () => new Uint8Array([137, 80, 78, 71])),
+}));
+
+vi.mock('./vesselDiagram/composer', () => ({ composeVesselDiagram }));
+
+vi.mock('./browser/images', () => ({
+  ThumbnailPool: class {
+    async acquire() {
+      return { url: 'blob:thumbnail', release: () => undefined };
+    }
+  },
+}));
 
 vi.mock('./app/vesselLookup', () => ({
   lookupVessel: vi.fn(async () => [{
@@ -10,6 +24,18 @@ vi.mock('./app/vesselLookup', () => ({
     ownerClient: '', classSociety: '', flag: '',
   }]),
 }));
+
+beforeEach(() => {
+  vi.stubGlobal('URL', {
+    createObjectURL: vi.fn(() => 'blob:preview'),
+    revokeObjectURL: vi.fn(),
+  });
+});
+
+afterEach(() => {
+  composeVesselDiagram.mockClear();
+  vi.unstubAllGlobals();
+});
 
 async function verifyVessel(user: ReturnType<typeof userEvent.setup>) {
   await user.clear(screen.getByLabelText('Vessel name / IMO number / Call Sign'));
@@ -36,6 +62,32 @@ async function completeVesselDiagram(user: ReturnType<typeof userEvent.setup>) {
 async function buildCleaningGeneral(user: ReturnType<typeof userEvent.setup>) {
   await buildScope(user);
   await completeVesselDiagram(user);
+}
+
+async function addNiche(
+  user: ReturnType<typeof userEvent.setup>,
+  component: string,
+  type: 'SINGLE' | 'SIDE' | 'QUANTITY' | 'SIDE_QUANTITY',
+  quantity: number,
+) {
+  await user.selectOptions(screen.getByLabelText('Niche component'), component);
+  await user.selectOptions(screen.getByLabelText('Niche type'), type);
+  const quantityInput = screen.getByLabelText('Quantity');
+  await user.clear(quantityInput);
+  await user.type(quantityInput, String(quantity));
+  await user.tab();
+  await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+}
+
+async function selectReportSection(
+  user: ReturnType<typeof userEvent.setup>,
+  query: string,
+  name: RegExp,
+) {
+  await user.click(screen.getByRole('button', { name: '전체 Section 목록 열기' }));
+  const picker = screen.getByRole('dialog', { name: '전체 Section' });
+  await user.type(within(picker).getByRole('searchbox', { name: 'Section 검색' }), query);
+  await user.click(within(picker).getByRole('button', { name }));
 }
 
 describe('desktop report workflow', () => {
@@ -846,6 +898,53 @@ describe('desktop report workflow', () => {
       .toHaveStyle({ backgroundColor: '#02AE4F' });
     expect(within(firstPage).getAllByTestId('template-photo-slot')).toHaveLength(4);
   });
+
+  it('composes Preview pages with canonical marker IDs regardless of custom Word labels', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await verifyVessel(user);
+    await addNiche(user, 'Propeller Blade', 'QUANTITY', 1);
+    await addNiche(user, 'Transducer', 'SINGLE', 1);
+    await addNiche(user, 'Anode / ICCP', 'SIDE', 1);
+    await addNiche(user, 'Bilge Keel', 'QUANTITY', 2);
+    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await completeVesselDiagram(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
+    const addCurrentPhoto = async (name: string) => {
+      await user.click(screen.getByRole('button', { name: 'BEFORE에 사진 추가' }));
+      await user.upload(manualInput, new File(['photo'], name, { type: 'image/jpeg' }));
+    };
+    await addCurrentPhoto('propeller.jpg');
+    await selectReportSection(user, 'TRANSDUCER', /CLEANING TRANSDUCER Section 열기/);
+    await addCurrentPhoto('transducer.jpg');
+    await selectReportSection(user, 'ANODE', /CLEANING ANODE \/ ICCP · PORT Section 열기/);
+    await addCurrentPhoto('anode.jpg');
+    await selectReportSection(user, 'BILGE KEEL/01', /CLEANING BILGE KEEL · 01 Section 열기/);
+    await addCurrentPhoto('bilge-1.jpg');
+    await selectReportSection(user, 'BILGE KEEL/02', /CLEANING BILGE KEEL · 02 Section 열기/);
+    await addCurrentPhoto('bilge-2.jpg');
+
+    await selectReportSection(user, 'PROPELLER', /CLEANING PROPELLER 01 Section 열기/);
+    await user.click(screen.getByRole('button', { name: '보고서 표기 설정' }));
+    await user.clear(screen.getByLabelText('상세 제목'));
+    await user.type(screen.getByLabelText('상세 제목'), 'CUSTOM PROPULSION LABEL');
+    await user.click(screen.getByRole('button', { name: '표기 설정 닫기' }));
+    await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
+
+    const previewSection = screen.getByLabelText('Preview section');
+    const selectPreview = async (name: RegExp, expected: string[]) => {
+      const option = within(previewSection).getByRole('option', { name }) as HTMLOptionElement;
+      await user.selectOptions(previewSection, option.value);
+      await waitFor(() => expect(composeVesselDiagram).toHaveBeenLastCalledWith(expect.anything(), expected));
+    };
+    await selectPreview(/PROPELLER BLADE\/01/, ['propeller-group']);
+    await selectPreview(/TRANSDUCER$/, ['transducer-aft', 'transducer-fwd']);
+    await selectPreview(/ANODE \/ ICCP\/PORT$/, ['anode-aft', 'anode-fwd']);
+    await selectPreview(/BILGE KEEL\/01$/, ['bilge-keel-1']);
+    await selectPreview(/BILGE KEEL\/02$/, ['bilge-keel-2']);
+  }, 15_000);
 
   it('keeps a directory-input fallback for browsers without the folder picker API', () => {
     const { container } = render(<App />);

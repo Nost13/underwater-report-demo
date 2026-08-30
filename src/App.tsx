@@ -5,6 +5,7 @@ import { createDemoPhotos, COMPONENT_OPTIONS, DEMO_VESSELS, SERVICES } from './a
 import { emptyReportInfo, reportInfoForScopes, reportInfoFromVessel, type ReportInfo } from './app/reportInfo';
 import { lookupVessel } from './app/vesselLookup';
 import { VesselDiagramEditor } from './app/VesselDiagramEditor';
+import { VesselDiagramPreview } from './app/VesselDiagramPreview';
 import { createBilgeKeelMarkers } from './vesselDiagram/geometry';
 import { bilgeQuantityFromSections, requiredMarkerGroups } from './vesselDiagram/markers';
 import type { VesselDiagramConfig, ZoneMarker } from './vesselDiagram/types';
@@ -573,8 +574,9 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         dispatch={dispatch} onOpen={selectPhotoFolder} onAddPhotos={addPhotosToPhase} onBack={() => setStage(2)} onNext={() => setStage(4)}
       />}
 
-      {stage === 4 && activeSection && <CheckPreview
+      {stage === 4 && activeSection && vesselDiagram?.confirmed && <CheckPreview
         report={report} activeSection={activeSection} issues={issues}
+        vesselDiagram={vesselDiagram}
         vesselName={scopeMeta?.vesselName ?? 'UNDERWATER REPORT'}
         onIssue={focusIssue} onSection={focusReportSection}
         onNext={() => setStage(5)}
@@ -992,6 +994,7 @@ function UnmatchedCard({ photo, onAssign }: { photo: PhotoData; onAssign: () => 
 
 interface CheckPreviewProps {
   report: ReportState; activeSection: ReportSection; vesselName: string;
+  vesselDiagram: VesselDiagramConfig;
   issues: ReturnType<typeof checkReport>;
   onIssue: (sectionId: string | null) => void; onSection: (sectionId: string) => void; onNext: () => void;
 }
@@ -1014,6 +1017,7 @@ function CheckPreview(props: CheckPreviewProps) {
           pageNumber={pageNumber}
           totalPages={allWordPages.length}
           vesselName={props.vesselName}
+          vesselDiagram={props.vesselDiagram}
         />;
       }) : <div className="preview-empty"><b>0P</b><span>Report Use 사진을 추가하면 Word 템플릿 페이지가 자동 생성됩니다.</span></div>}</div>
       <div className="preview-footer"><span>실제 Word 모델 기준 · Phase별 첫 페이지 4장 · 이후 6장</span><button type="button" className="primary" onClick={props.onNext}>Word 준비</button></div>
@@ -1041,26 +1045,24 @@ function TemplateConditionTable({
   return <table className="template-condition-table"><caption>{title}</caption><thead><tr>{headings.map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody><tr><td>{rating && <span className={templateRatingClass(rating)} style={fill ? { backgroundColor: `#${fill}` } : undefined}>{rating}</span>}</td><td>{values[0]}</td><td>{values[1]}</td></tr></tbody></table>;
 }
 
-function TemplateShipDiagram() {
-  return <div className="template-location-diagram" aria-label="선박 위치도 미리보기"><svg viewBox="0 0 820 170" aria-hidden="true"><path d="M70 108 L712 108 L770 72 L744 126 L692 143 L126 143 L76 124 Z" /><path d="M146 108 V70 H192 V108 M305 108 V50 H334 V108 M478 108 V31 H512 V108 M620 108 V65 H652 V108" /><path d="M84 124 H730 M126 108 V143 M214 108 V143 M302 108 V143 M390 108 V143 M478 108 V143 M566 108 V143 M654 108 V143" /><circle cx="132" cy="130" r="21" /></svg></div>;
-}
-
 function WordTemplatePreviewPage({
   page,
   pageNumber,
   totalPages,
   vesselName,
+  vesselDiagram,
 }: {
   page: WordPhasePage;
   pageNumber: number;
   totalPages: number;
   vesselName: string;
+  vesselDiagram: VesselDiagramConfig;
 }) {
   const slotCount = page.kind === 'first' ? 4 : 6;
   return <article className={`report-page word-template-page ${page.kind}`} aria-label={`Word template preview page ${pageNumber}`}>
     <header className="template-page-header"><div className="template-brand"><div className="template-logo"><b>US</b><span>UNDERWATER<br />SOLUTION</span></div><div><b>Underwater Solution Co.,Ltd</b><strong>UNDERWATER SERVICE REPORT</strong><span>Underwater Inspection &amp; Cleaning</span><span>Photo Documentation</span></div></div><dl><div><dt>Job No</dt><dd>—</dd></div><div><dt>Vessel</dt><dd>{vesselName}</dd></div><div><dt /><dd>Company Confidential</dd></div><div><dt /><dd>PAGE {pageNumber} / {totalPages}</dd></div></dl></header>
     <section className="template-page-body"><h3>7. DETAILED SERVICE RECORD</h3><div className="template-area-title"><b>{page.values.bc}</b>{page.values.sideLabel && <span>{page.values.sideLabel}</span>}</div>
-      {page.kind === 'first' && <><div className="template-work-row"><b>{page.values.title}</b><span><small>WORK PERFORM</small><strong>{page.values.work}</strong></span></div><TemplateShipDiagram /><div className="template-condition-tables"><TemplateConditionTable title="FOULING CONDITION" rating={page.values.fr} headings={['RATING', 'TYPE', 'COVERAGE']} values={[page.values.ft, page.values.fc]} /><TemplateConditionTable title="OBSERVED CONDITION" rating={page.values.or} headings={['RATING', 'LEVEL', 'TYPE']} values={[page.values.ol, page.values.ot]} /></div></>}
+      {page.kind === 'first' && <><div className="template-work-row"><b>{page.values.title}</b><span><small>WORK PERFORM</small><strong>{page.values.work}</strong></span></div><VesselDiagramPreview config={vesselDiagram} section={page.section} /><div className="template-condition-tables"><TemplateConditionTable title="FOULING CONDITION" rating={page.values.fr} headings={['RATING', 'TYPE', 'COVERAGE']} values={[page.values.ft, page.values.fc]} /><TemplateConditionTable title="OBSERVED CONDITION" rating={page.values.or} headings={['RATING', 'LEVEL', 'TYPE']} values={[page.values.ol, page.values.ot]} /></div></>}
       <div className={`template-photo-grid ${page.kind}`}>{Array.from({ length: slotCount }, (_, index) => {
         const photo = page.photos[index];
         return <figure data-testid="template-photo-slot" className={photo ? 'filled' : 'empty'} key={photo?.id ?? `empty-${index}`}><div>{photo ? <PhotoThumb file={photo.file} alt={photo.file.name} /> : <span>N/A</span>}</div><figcaption>{photo ? page.values.photoCaption : 'N/A'}</figcaption></figure>;

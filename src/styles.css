@@ -570,6 +570,10 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .template-location-diagram { height: 81px; flex: 0 0 81px; display: grid; place-items: center; border: 1px solid #737373; overflow: hidden; }
 .template-location-diagram svg { width: 93%; height: 90%; fill: none; stroke: #697278; stroke-width: 1.35; }
 .template-location-diagram circle { fill: rgba(209,65,60,.28); stroke: #c5413c; }
+.template-location-diagram > img { width: 100%; height: 100%; display: block; object-fit: contain; }
+.template-location-diagram-loading, .template-location-diagram-error { padding: 8px; font-size: 6px; font-weight: 700; text-align: center; }
+.template-location-diagram-loading { color: #697278; }
+.template-location-diagram-error { color: #b42318; }
 .template-condition-tables { height: 55px; flex: 0 0 55px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .template-condition-table { width: 100%; height: 100%; border: 1px solid #777; border-collapse: separate; border-spacing: 5px 0; table-layout: fixed; text-align: center; }
 .template-condition-table caption { height: 16px; padding-top: 3px; border-bottom: 1px solid #777; font-size: 7px; font-weight: 800; }
