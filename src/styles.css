@@ -169,6 +169,51 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .ghost { border: 1px solid #cbd7dc; background: #fff; color: #29434e; }
 .text-button { border: 0; background: transparent; color: #56707a; }
 .full { width: 100%; }
+
+/* Vessel diagram calibration editor */
+.vessel-diagram-editor { max-width: 1260px; margin: 0 auto; padding: 26px 30px 90px; }
+.diagram-editor-head { margin-bottom: 18px; display: flex; align-items: end; justify-content: space-between; gap: 18px; }
+.diagram-editor-head h2 { margin: 5px 0 0; color: var(--navy-900); font-size: 26px; letter-spacing: -.04em; }
+.diagram-editor-head > p { margin: 0; color: var(--muted); font-size: var(--font-ui-sm); }
+.diagram-upload { min-height: 70px; margin-bottom: 14px; padding: 12px 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; border: 1px dashed #a9c8c6; border-radius: 11px; background: #f5fbfa; color: #365e61; }
+.diagram-upload > span { color: var(--teal-700); font-size: var(--font-ui-sm); font-weight: 850; }
+.diagram-upload input { height: auto; padding: 0; border: 0; background: transparent; }
+.diagram-upload b { min-width: 0; color: var(--navy-900); font-size: var(--font-ui-sm); overflow-wrap: anywhere; }
+.diagram-error { margin: -4px 0 14px; color: var(--danger); font-size: var(--font-ui-sm); font-weight: 750; }
+.diagram-editor-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(250px, .7fr); gap: 18px; align-items: start; }
+.diagram-panel, .diagram-controls { border: 1px solid var(--line); border-radius: 13px; background: var(--paper); box-shadow: 0 4px 14px rgba(23,44,54,.025); }
+.diagram-panel { padding: 14px; }
+.vessel-diagram-surface { position: relative; width: 100%; aspect-ratio: 2048 / 488; overflow: hidden; border: 1px solid #c9d8dc; border-radius: 9px; background: linear-gradient(180deg, #dfecef, #f7fbfc); touch-action: none; }
+.vessel-diagram-surface > img { width: 100%; height: 100%; display: block; object-fit: contain; }
+.vessel-diagram-surface > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.vessel-diagram-surface svg line { pointer-events: stroke; stroke: #b45309; stroke-width: 10; vector-effect: non-scaling-stroke; cursor: ew-resize; }
+.vessel-diagram-surface svg line:nth-of-type(3), .vessel-diagram-surface svg line:nth-of-type(4) { cursor: ns-resize; }
+.vessel-marker { position: absolute; z-index: 2; min-width: 8px; min-height: 8px; padding: 0; border: 2px solid var(--teal-700); background: rgba(20, 134, 124, .18); color: var(--navy-900); cursor: grab; touch-action: none; }
+.vessel-marker.ellipse { border-radius: 50%; }
+.vessel-marker.selected { border-color: var(--danger); background: rgba(180, 35, 24, .19); box-shadow: 0 0 0 2px rgba(180, 35, 24, .17); }
+.vessel-marker:active { cursor: grabbing; }
+.marker-label { position: absolute; left: 50%; top: 50%; width: max-content; max-width: 150px; padding: 2px 4px; transform: translate(-50%, -50%); border-radius: 4px; background: rgba(255,255,255,.84); color: var(--navy-900); font-size: 9px; font-weight: 850; pointer-events: none; }
+.marker-handle { position: absolute; z-index: 3; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 3px; background: var(--teal-700); }
+.marker-handle.nw { left: -7px; top: -7px; cursor: nwse-resize; }
+.marker-handle.ne { right: -7px; top: -7px; cursor: nesw-resize; }
+.marker-handle.sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+.marker-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.diagram-controls { padding: 13px; display: grid; gap: 14px; }
+.diagram-control-actions { display: grid; gap: 7px; }
+.diagram-control-actions .ghost { min-height: 40px; padding: 0 10px; text-align: left; }
+.diagram-group-list { display: grid; gap: 7px; }
+.diagram-group-list h3 { margin: 0 0 2px; font-size: var(--font-ui-md); }
+.diagram-marker-group { min-height: 42px; padding: 7px 9px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #d7e4e6; border-radius: 8px; background: #f8fbfb; color: var(--navy-900); text-align: left; }
+.diagram-marker-group:hover, .diagram-marker-group:focus-visible { border-color: #8bbdb9; background: #eef9f7; }
+.diagram-marker-group b { font-size: var(--font-ui-sm); }
+.diagram-marker-group span { color: var(--muted); font-size: var(--font-ui-xs); }
+.diagram-group-list details { border-top: 1px solid var(--line); }
+.diagram-group-list summary { min-height: 40px; display: flex; align-items: center; color: #48646d; font-size: var(--font-ui-sm); font-weight: 800; cursor: pointer; }
+.diagram-group-list details[open] { display: grid; gap: 7px; }
+.diagram-hull-help { display: grid; gap: 5px; padding: 11px; border-radius: 8px; background: #f1f7f7; color: #4d6871; font-size: var(--font-ui-sm); line-height: 1.5; }
+.diagram-hull-help b { color: var(--teal-700); }
+.diagram-editor-footer { margin-top: 18px; display: flex; justify-content: space-between; gap: 8px; }
+.diagram-editor-footer .primary, .diagram-editor-footer .ghost { min-height: 42px; }
 .actionbar { position: fixed; z-index: 15; left: 202px; right: 30px; bottom: 16px; min-height: 58px; padding: 9px 11px 9px 18px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #d5dfe3; border-radius: 12px; background: rgba(255,255,255,.96); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
 .actionbar > span { color: var(--muted); font-size: 10px; }
 .actionbar > div { display: flex; gap: 7px; }
@@ -619,4 +664,16 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
   .photo-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .report-workspace.unmatched-open .photo-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .check-layout { grid-template-columns: 280px minmax(0, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .vessel-diagram-editor { padding: 20px 16px 32px; }
+  .diagram-editor-head { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .diagram-editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .diagram-controls { grid-template-columns: 1fr 1fr; align-items: start; }
+  .diagram-control-actions { grid-template-columns: 1fr 1fr; }
+  .diagram-control-actions .ghost:last-child { grid-column: 1 / -1; }
+  .diagram-hull-help, .diagram-group-list { grid-column: 1 / -1; }
+  .marker-handle { width: 16px; height: 16px; }
+  .diagram-upload input { min-height: 40px; }
 }
