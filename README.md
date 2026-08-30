@@ -13,18 +13,21 @@ ZIP에 실행 런타임이 포함되어 있어 별도 Node.js 설치나 서버 �
 
 ## 빠른 확인 순서
 
-1. IMO `9876543`으로 Vessel 확인
-2. 작업 브러시를 선택하고 GENERAL/NICHE의 필요한 위치에 작업 배정
+1. **Vessel / Scope** — IMO `9876543`으로 Vessel 확인 후 작업 브러시로 GENERAL/NICHE 작업을 배정하고 Scope를 만듭니다.
    - `전체/PORT/STBD/BOTTOM 적용`으로 빠르게 채우고, 예외 위치만 클릭해 변경합니다.
    - 한 위치에 여러 작업이 있으면 작은 `+` 버튼으로 작업을 추가합니다.
-3. Scope 만들기
-4. `사진 입력으로` 이동 후 `사진 폴더 선택`
-5. 새 작업이면 `표준 폴더 구조 생성`, 기존 폴더면 `사진 불러오기` 선택
-6. Report Input에서 BEFORE/AFTER 또는 CURRENT Condition과 Report Use 확인
-   - 사진을 넣을 Phase의 `이곳에 배정` 버튼을 먼저 누른 뒤 UNMATCHED 사진을 배정합니다.
-   - 잘못 배정한 사진은 `이동`하거나 보고서에서 완전히 `삭제`할 수 있습니다.
-7. Check / Preview에서 누락 패널과 자동 페이지 확인
-8. Word 준비 → Word 보고서 다운로드
+2. **Vessel Diagram** — 로컬 선박 사이드뷰 PNG/JPG를 넣고 **Hull 맞추기**에서 선미·선수·상단·Bottom 기준선을 먼저 맞춘 뒤 **Niche 맞추기**로 이동합니다. Hull을 확정하기 전에는 Niche 위치를 확정할 수 없습니다.
+3. **사진 폴더** — 새 작업이면 `표준 폴더 구조 생성`, 기존 폴더면 `사진 불러오기`를 선택합니다.
+4. **Report Input** — BEFORE/AFTER 또는 CURRENT Condition과 Report Use를 확인합니다. 사진을 넣을 Phase의 `이곳에 배정` 버튼을 먼저 누른 뒤 UNMATCHED 사진을 배정하고, 잘못 배정한 사진은 `이동`하거나 완전히 `삭제`할 수 있습니다.
+5. **Check / Preview** — 누락 패널과 자동 페이지를 확인합니다.
+6. **Word** — Word 준비 → Word 보고서 다운로드를 선택합니다.
+
+## 선박 위치도
+
+- 선박 사이드뷰 이미지는 이 브라우저 탭에서만 사용됩니다. 보고서 생성에도 이미지는 서버로 전송하거나 저장하지 않습니다.
+- Transducer와 Anode / ICCP는 선미·선수의 연결된 두 표식을 함께 사용합니다. Propeller 계열은 하나의 공유 표식을 사용합니다.
+- Bilge Keel은 Scope 수량에 맞춰 Unit 표식이 자동으로 만들어지며, 각 Unit의 상세 페이지에는 해당 Unit 표식만 표시됩니다.
+- Preview와 Word에는 편집 가능한 떠 있는 표식이 아니라, 각 상세 페이지의 Section에 맞춰 합성한 평면 PNG 선박 위치도가 들어갑니다.
 
 ## 사진 폴더
 

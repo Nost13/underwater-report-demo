@@ -1,12 +1,46 @@
 import { expect, test } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { request as rawRequest } from 'node:http';
 import JSZip from 'jszip';
 
-async function buildGeneralScope(page: import('@playwright/test').Page) {
+import type { Page } from '@playwright/test';
+
+const vesselFixture = {
+  vesselName: 'M.V. PACIFIC AURORA',
+  vesselType: 'Bulk Carrier',
+  imoNo: '9876543',
+  callsign: '3EAB7',
+  loa: '229.0',
+  breadth: '32.3',
+  gt: '43,000',
+  dwt: '82,000',
+  built: '2018',
+  ownerClient: 'Demo Client',
+};
+
+test.beforeEach(async ({ page }) => {
+  await page.route('https://marine-ops-dashboard.vercel.app/api/vessels**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ matches: [vesselFixture] }),
+    });
+  });
+});
+
+async function completeVesselDiagram(page: Page, filePath = 'e2e/fixtures/vessel-side.png') {
+  await page.getByRole('button', { name: '선박 위치도 설정' }).click();
+  await page.getByLabel('선박 사이드뷰 이미지').setInputFiles(filePath);
+  await page.getByRole('button', { name: 'Niche 맞추기로 이동' }).click();
+  await page.getByRole('button', { name: '선박 위치도 설정 완료' }).click();
+  await expect(page.getByRole('heading', { name: '사진 폴더' })).toBeVisible();
+}
+
+async function buildGeneralScope(page: Page) {
   await page.goto('./');
   await page.waitForLoadState('networkidle');
   await expect(page.locator('[data-nextjs-dialog], .vite-error-overlay')).toHaveCount(0);
+  await page.getByLabel('Vessel name / IMO number / Call Sign').fill('9876543');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await expect(page.getByText('M.V. PACIFIC AURORA').first()).toBeVisible();
   await page.getByRole('button', { name: '전체 적용' }).click();
@@ -14,11 +48,13 @@ async function buildGeneralScope(page: import('@playwright/test').Page) {
   await expect(page.locator('.scope-ready')).toContainText('총 15 sections');
   await expect(page.locator('.scope-summary')).toContainText('CLEANING 15');
   await expect(page.getByRole('button', { name: 'Cleaning 작업 선택' })).toBeDisabled();
+  await completeVesselDiagram(page);
 }
 
 test('Polishing prepares Propeller and can add matching Fin Blades at 1440px', async ({ page }) => {
   await page.goto('./');
   await page.waitForLoadState('networkidle');
+  await page.getByLabel('Vessel name / IMO number / Call Sign').fill('9876543');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByLabel('Niche component').selectOption('Boss Cap');
   await page.getByRole('button', { name: 'Polishing 작업 선택' }).click();
@@ -41,10 +77,12 @@ test('Polishing prepares Propeller and can add matching Fin Blades at 1440px', a
 test('group defaults preserve unit overrides across direct Section navigation', async ({ page }) => {
   await page.goto('./');
   await page.waitForLoadState('networkidle');
+  await page.getByLabel('Vessel name / IMO number / Call Sign').fill('9876543');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByRole('button', { name: 'Polishing 작업 선택' }).click();
   await page.getByRole('button', { name: 'Niche 추가' }).click();
   await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await completeVesselDiagram(page);
   await page.getByRole('button', { name: 'Report Input으로' }).click();
 
   await page.getByRole('button', {
@@ -132,14 +170,14 @@ test('12px application typography keeps photo controls readable without overflow
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 
   await page.getByRole('button', { name: 'Check / Preview' }).last().click();
-  expect(await page.locator('.report-page').first().evaluate((node) => getComputedStyle(node).fontSize)).toBe('14px');
+  expect(await page.locator('.report-page').first().evaluate((node) => getComputedStyle(node).fontSize)).toBe('7px');
 });
 
 test('the unified photo input assigns UNMATCHED photos to the clicked phase, moves them, and adds directly', async ({ page }) => {
   await buildGeneralScope(page);
   const directoryInput = page.locator('input[type="file"][webkitdirectory]');
   await expect(directoryInput).toHaveAttribute('webkitdirectory', '');
-  await directoryInput.setInputFiles('e2e/fixtures');
+  await directoryInput.setInputFiles('e2e/manual-fixture');
   await expect(page.getByLabel('사진 입력 진행 상태')).toContainText('UNMATCHED');
   await page.getByRole('button', { name: 'Report Input으로' }).click();
   await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
@@ -203,6 +241,7 @@ test('one physical target can carry Cleaning and Inspection with unambiguous fol
 
   await page.goto('./');
   await page.waitForLoadState('networkidle');
+  await page.getByLabel('Vessel name / IMO number / Call Sign').fill('9876543');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByRole('button', { name: '전체 적용' }).click();
   await page.getByRole('button', { name: 'Inspection 작업 선택' }).click();
@@ -212,6 +251,7 @@ test('one physical target can carry Cleaning and Inspection with unambiguous fol
   await expect(page.locator('.scope-ready')).toContainText('총 16 sections');
   await expect(page.locator('.scope-summary')).toContainText('CLEANING 15');
   await expect(page.locator('.scope-summary')).toContainText('INSPECTION 1');
+  await completeVesselDiagram(page);
 
   await page.getByRole('button', { name: '사진 폴더 선택' }).click();
   await page.getByRole('button', { name: '표준 폴더 구조 생성' }).click();
@@ -228,11 +268,13 @@ test('one physical target can carry Cleaning and Inspection with unambiguous fol
 test('an Inspection exception uses CURRENT while other Sections keep BEFORE and AFTER', async ({ page }) => {
   await page.goto('./');
   await page.waitForLoadState('networkidle');
+  await page.getByLabel('Vessel name / IMO number / Call Sign').fill('9876543');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByRole('button', { name: '전체 적용' }).click();
   await page.getByRole('button', { name: 'Inspection 작업 선택' }).click();
   await page.getByRole('button', { name: 'AFT STBD 작업 배정', exact: true }).click();
   await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await completeVesselDiagram(page);
   await page.getByRole('button', { name: 'Report Input으로' }).click();
 
   await expect(page.locator('.phase-panel.before')).toBeVisible();
@@ -244,6 +286,182 @@ test('an Inspection exception uses CURRENT while other Sections keep BEFORE and 
   await expect(page.locator('.phase-panel.current')).toBeVisible();
   await expect(page.locator('.phase-panel.before')).toHaveCount(0);
   await expect(page.locator('.phase-panel.after')).toHaveCount(0);
+});
+
+test('vessel diagram receives real guide, marker, resize, and keyboard input at desktop and narrow widths', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('./');
+  await page.waitForLoadState('networkidle');
+  await page.getByLabel('Vessel name / IMO number / Call Sign').fill('9876543');
+  await page.getByRole('button', { name: 'Vessel 확인' }).click();
+  await page.getByRole('button', { name: '전체 적용' }).click();
+  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await page.getByRole('button', { name: '선박 위치도 설정' }).click();
+  await page.getByLabel('선박 사이드뷰 이미지').setInputFiles('e2e/fixtures/vessel-side.png');
+
+  const workspace = page.locator('.diagram-workspace');
+  const surface = page.locator('.vessel-diagram-surface');
+  const [workspaceBox, surfaceBox] = await Promise.all([workspace.boundingBox(), surface.boundingBox()]);
+  expect(workspaceBox).not.toBeNull();
+  expect(surfaceBox).not.toBeNull();
+  expect(surfaceBox!.x).toBeGreaterThanOrEqual(workspaceBox!.x);
+  expect(surfaceBox!.x + surfaceBox!.width).toBeLessThanOrEqual(workspaceBox!.x + workspaceBox!.width + 1);
+
+  const sternGuide = page.getByRole('slider', { name: '선미 기준선' });
+  const hullTopGuide = page.getByRole('slider', { name: 'Hull 상단선' });
+  const initialStern = Number(await sternGuide.getAttribute('x1'));
+  const initialHullTop = Number(await hullTopGuide.getAttribute('y1'));
+  await page.mouse.move(surfaceBox!.x + surfaceBox!.width * 0.08, surfaceBox!.y + surfaceBox!.height * 0.02);
+  await page.mouse.down();
+  await page.mouse.move(surfaceBox!.x + surfaceBox!.width * 0.1, surfaceBox!.y + surfaceBox!.height * 0.02, { steps: 4 });
+  await page.mouse.up();
+  await expect(sternGuide).not.toHaveAttribute('x1', String(initialStern));
+  await page.mouse.move(surfaceBox!.x + surfaceBox!.width * 0.98, surfaceBox!.y + surfaceBox!.height * 0.15);
+  await page.mouse.down();
+  await page.mouse.move(surfaceBox!.x + surfaceBox!.width * 0.98, surfaceBox!.y + surfaceBox!.height * 0.21, { steps: 4 });
+  await page.mouse.up();
+  await expect(hullTopGuide).not.toHaveAttribute('y1', String(initialHullTop));
+
+  const aftMarker = page.getByRole('button', { name: 'AFT Hull 표식', exact: true });
+  const markerBeforeMove = await aftMarker.boundingBox();
+  expect(markerBeforeMove).not.toBeNull();
+  await page.mouse.move(markerBeforeMove!.x + markerBeforeMove!.width / 2, markerBeforeMove!.y + markerBeforeMove!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(markerBeforeMove!.x + markerBeforeMove!.width / 2 - 24, markerBeforeMove!.y + markerBeforeMove!.height / 2 + 8, { steps: 4 });
+  await page.mouse.up();
+  const markerAfterMove = await aftMarker.boundingBox();
+  expect(markerAfterMove!.x).toBeLessThan(markerBeforeMove!.x - 10);
+
+  const resizeHandle = aftMarker.locator('.marker-handle.se');
+  const handleBox = await resizeHandle.boundingBox();
+  expect(handleBox).not.toBeNull();
+  expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className, {
+    x: handleBox!.x + handleBox!.width / 2,
+    y: handleBox!.y + handleBox!.height / 2,
+  })).toContain('marker-handle se');
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2 + 20, handleBox!.y + handleBox!.height / 2 + 8, { steps: 4 });
+  await page.mouse.up();
+  const markerAfterResize = await aftMarker.boundingBox();
+  expect(markerAfterResize!.width).toBeGreaterThan(markerAfterMove!.width + 8);
+
+  await aftMarker.focus();
+  await page.keyboard.press('ArrowRight');
+  const markerAfterKeyboard = await aftMarker.boundingBox();
+  expect(markerAfterKeyboard!.x).toBeGreaterThan(markerAfterResize!.x);
+  await page.screenshot({ path: 'e2e/vessel-editor-1440.png', fullPage: true });
+
+  await page.setViewportSize({ width: 800, height: 900 });
+  const actionColumns = await page.locator('.diagram-control-actions').evaluate((node) => (
+    getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length
+  ));
+  expect(actionColumns).toBe(2);
+  await page.screenshot({ path: 'e2e/vessel-editor-narrow.png', fullPage: true });
+
+  await page.getByRole('button', { name: 'Niche 맞추기로 이동' }).click();
+  await page.getByRole('button', { name: '선박 위치도 설정 완료' }).click();
+  await expect(page.getByRole('heading', { name: '사진 폴더' })).toBeVisible();
+});
+
+test('linked and Bilge markers produce preview-identical flattened Word PNGs', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto('./');
+  await page.waitForLoadState('networkidle');
+  await page.getByLabel('Vessel name / IMO number / Call Sign').fill('9876543');
+  await page.getByRole('button', { name: 'Vessel 확인' }).click();
+
+  const addNiche = async (component: string, type: string, quantity: number) => {
+    await page.getByLabel('Niche component').selectOption(component);
+    await page.getByLabel('Niche type').selectOption(type);
+    await page.getByLabel('Quantity').fill(String(quantity));
+    await page.getByRole('button', { name: 'Niche 추가' }).click();
+  };
+  await addNiche('Propeller Blade', 'SINGLE', 1);
+  await addNiche('Transducer', 'SINGLE', 1);
+  await addNiche('Anode / ICCP', 'SIDE', 1);
+  await addNiche('Bilge Keel', 'QUANTITY', 3);
+  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await completeVesselDiagram(page);
+  await page.getByRole('button', { name: 'Report Input으로' }).click();
+  const vesselPhoto = await readFile('e2e/fixtures/vessel-side.png');
+
+  const selectSection = async (query: string, expectedSection: string) => {
+    await page.getByRole('button', { name: '전체 Section 목록 열기' }).click();
+    const picker = page.getByRole('dialog', { name: '전체 Section' });
+    await picker.getByRole('searchbox', { name: 'Section 검색' }).fill(query);
+    await picker.getByRole('button', { name: /Section 열기/ }).first().click();
+    await expect(picker).toHaveCount(0);
+    await expect(page.locator('.input-heading')).toContainText(expectedSection);
+  };
+  const addPreviewPhoto = async (index: number) => {
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'BEFORE에 사진 추가' }).click();
+    await (await chooser).setFiles({
+      name: `vessel-preview-${index}.png`,
+      mimeType: 'image/png',
+      buffer: vesselPhoto,
+    });
+  };
+  for (const [index, [sectionQuery, expectedSection]] of [
+    ['PROPELLER BLADE', 'PROPELLER BLADE'],
+    ['TRANSDUCER', 'TRANSDUCER'],
+    ['ANODE / ICCP PORT', 'ANODE / ICCP'],
+    ['BILGE KEEL 03', 'BILGE KEEL/03'],
+  ].entries()) {
+    await selectSection(sectionQuery, expectedSection);
+    await addPreviewPhoto(index);
+    await expect(page.locator('.topbar')).toContainText(`${index + 1} PHOTOS`);
+  }
+
+  await page.getByRole('button', { name: 'Check / Preview' }).last().click();
+  await expect(page.getByLabel('전체 Report Preview')).toBeVisible();
+  const previewSelect = page.getByLabel('Preview section');
+  const previewOptions = await previewSelect.locator('option').evaluateAll((options) => options.map((option) => (
+    (option as HTMLOptionElement).value
+  )));
+  const previewHash = async (component: string, unit?: string) => {
+    const sectionId = previewOptions.find((value) => value.includes(component) && (!unit || value.includes(unit)));
+    expect(sectionId).toBeDefined();
+    await previewSelect.selectOption(sectionId!);
+    const image = page.getByRole('img', { name: '선박 위치도 미리보기' });
+    await expect(image).toBeVisible();
+    const source = await image.getAttribute('src');
+    expect(source).not.toBeNull();
+    return page.evaluate(async (source) => {
+      const bytes = await (await fetch(source)).arrayBuffer();
+      const digest = await crypto.subtle.digest('SHA-256', bytes);
+      return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+    }, source!);
+  };
+  const previewHashes = [
+    await previewHash('PROPELLER BLADE'),
+    await previewHash('TRANSDUCER'),
+    await previewHash('ANODE / ICCP'),
+    await previewHash('BILGE KEEL', '03'),
+  ];
+  expect(Array.from(new Set(previewHashes))).toHaveLength(4);
+  await page.screenshot({ path: 'e2e/vessel-preview-parity-1440.png', fullPage: true });
+
+  await page.getByRole('button', { name: 'Word 준비' }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Word 보고서 다운로드' }).click();
+  const download = await downloadPromise;
+  const outputPath = 'e2e/vessel-diagram-parity.docx';
+  await download.saveAs(outputPath);
+  const zip = await JSZip.loadAsync(await readFile(outputPath));
+  const documentXml = await zip.file('word/document.xml')?.async('text') ?? '';
+  const relationshipsXml = await zip.file('word/_rels/document.xml.rels')?.async('text') ?? '';
+  const diagramFiles = zip.file(/word\/media\/vessel-diagram-\d+\.png/);
+  expect(documentXml).not.toContain('descr="zone_');
+  expect(documentXml).toContain('rIdVesselDiagram');
+  expect(diagramFiles.length).toBe(4);
+  expect((relationshipsXml.match(/Id="rIdVesselDiagram\d+"/g) ?? [])).toHaveLength(4);
+  const documentHashes = await Promise.all(diagramFiles.map(async (file) => (
+    createHash('sha256').update(await file.async('uint8array')).digest('hex')
+  )));
+  expect(new Set(documentHashes)).toEqual(new Set(previewHashes));
 });
 
 test('complete 1440px flow covers preview, QA focus, repagination, and Word download', async ({ page }) => {
@@ -343,8 +561,8 @@ test('complete 1440px flow covers preview, QA focus, repagination, and Word down
   expect(browserErrors).toEqual([]);
 });
 
-test('packaged server rejects malformed and traversal paths without stopping', async ({ request }, testInfo) => {
-  test.skip(!String(testInfo.project.use.baseURL).includes('4173'), 'Packaged server check');
+test('packaged server rejects malformed and traversal paths without stopping', async ({ request }) => {
+  test.skip(process.env.PACKAGED_DEMO_SERVER !== 'true', 'Requires the packaged server, not the Vite development server');
   const rawStatus = (path: string) => new Promise<number>((resolve, reject) => {
     const outgoing = rawRequest({ host: '127.0.0.1', port: 4173, path }, (response) => {
       response.resume();
