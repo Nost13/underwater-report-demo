@@ -300,11 +300,18 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   await page.getByRole('button', { name: '선박 위치도 설정' }).click();
   await page.getByLabel('선박 사이드뷰 이미지').setInputFiles('e2e/fixtures/vessel-side.png');
 
-  const workspace = page.locator('.diagram-workspace');
+  const workspace = page.locator('.workspace').filter({ has: page.locator('.vessel-diagram-editor') });
+  const editor = page.locator('.vessel-diagram-editor');
   const surface = page.locator('.vessel-diagram-surface');
-  const [workspaceBox, surfaceBox] = await Promise.all([workspace.boundingBox(), surface.boundingBox()]);
+  const [workspaceBox, editorBox, surfaceBox] = await Promise.all([
+    workspace.boundingBox(), editor.boundingBox(), surface.boundingBox(),
+  ]);
   expect(workspaceBox).not.toBeNull();
+  expect(editorBox).not.toBeNull();
   expect(surfaceBox).not.toBeNull();
+  expect(workspaceBox!.x + workspaceBox!.width).toBeLessThanOrEqual(1440);
+  expect(editorBox!.x).toBeGreaterThanOrEqual(workspaceBox!.x);
+  expect(editorBox!.x + editorBox!.width).toBeLessThanOrEqual(workspaceBox!.x + workspaceBox!.width + 1);
   expect(surfaceBox!.x).toBeGreaterThanOrEqual(workspaceBox!.x);
   expect(surfaceBox!.x + surfaceBox!.width).toBeLessThanOrEqual(workspaceBox!.x + workspaceBox!.width + 1);
 
