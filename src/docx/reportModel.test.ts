@@ -83,11 +83,14 @@ describe('Word report phase model', () => {
     const fwdPort = general.find((item) => item.component === 'FWD' && item.side === 'PORT')!;
     const fwdStbd = general.find((item) => item.component === 'FWD' && item.side === 'STBD')!;
     const aftBottom = general.find((item) => item.component === 'AFT' && item.side === 'BOTTOM')!;
-    const ropeGuard = createNicheSections({ component: 'Rope Guard', type: 'SINGLE', quantity: 1, service: 'INSPECTION' })[0];
-    const propeller = createNicheSections({ component: 'Propeller Blade', type: 'QUANTITY', quantity: 1, service: 'INSPECTION' })[0];
-    const finBlade = createNicheSections({ component: 'Fin Blade', type: 'QUANTITY', quantity: 1, service: 'INSPECTION' })[0];
-    const bossCap = createNicheSections({ component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'INSPECTION' })[0];
-    const shuffled = [bossCap, aftBottom, finBlade, propeller, fwdStbd, ropeGuard, fwdPort];
+    const niches = [
+      'Bulbous Bow', 'Bow Thruster', 'Bilge Keel', 'Sea Chest',
+      'Discharge Pipe', 'Anode / ICCP', 'Transducer', 'Stern Frame',
+      'Rope Guard', 'Propeller Blade', 'Fin Blade', 'Boss Cap', 'Rudder & Pintle',
+    ].map((component) => createNicheSections({
+      component, type: 'SINGLE', quantity: 1, service: 'INSPECTION',
+    })[0]);
+    const shuffled = [...niches].reverse().concat(aftBottom, fwdStbd, fwdPort);
 
     expect(buildWordPhasePages(
       shuffled,
@@ -96,10 +99,19 @@ describe('Word report phase model', () => {
       ['FWD', 'PORT'],
       ['FWD', 'STBD'],
       ['AFT', 'BOTTOM'],
+      ['BULBOUS BOW', ''],
+      ['BOW THRUSTER', ''],
+      ['BILGE KEEL', ''],
+      ['SEA CHEST', ''],
+      ['DISCHARGE PIPE', ''],
+      ['ANODE / ICCP', ''],
+      ['TRANSDUCER', ''],
+      ['STERN FRAME', ''],
       ['ROPE GUARD', ''],
       ['PROPELLER BLADE', ''],
       ['FIN BLADE', ''],
       ['BOSS CAP', ''],
+      ['RUDDER & PINTLE', ''],
     ]);
   });
 

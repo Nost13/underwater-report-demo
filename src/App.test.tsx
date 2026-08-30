@@ -74,6 +74,26 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('heading', { name: 'Vessel / Scope' })).toBeVisible();
   });
 
+  it('lists NICHE components in findings-matrix reading order', () => {
+    render(<App />);
+
+    expect([...screen.getByLabelText<HTMLSelectElement>('Niche component').options]
+      .map((option) => option.value)).toEqual([
+        'Bulbous Bow',
+        'Bow Thruster',
+        'Bilge Keel',
+        'Sea Chest',
+        'Discharge Pipe',
+        'Anode / ICCP',
+        'Transducer',
+        'Stern Frame',
+        'Rope Guard',
+        'Propeller Blade',
+        'Boss Cap',
+        'Rudder & Pintle',
+      ]);
+  });
+
   it('assigns GENERAL by Service brush without overwriting exceptions and supports undo', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -276,23 +296,6 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('ROPE GUARD 배정 상태')).toHaveTextContent('INSPECTION');
     expect(screen.getAllByLabelText(/PROPELLER BLADE UNIT \d{2} 배정 상태/)).toHaveLength(5);
     expect(screen.getAllByLabelText(/FIN BLADE UNIT \d{2} 배정 상태/)).toHaveLength(5);
-  });
-
-  it('uses visible quantity controls for side-less Fin Blade units', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    await verifyVessel(user);
-    await user.selectOptions(screen.getByLabelText('Niche component'), 'Fin Blade');
-
-    expect(screen.getByLabelText('Quantity')).toHaveValue(4);
-    await user.click(screen.getByRole('button', { name: '수량 증가' }));
-    expect(screen.getByLabelText('Quantity')).toHaveValue(5);
-    await user.click(screen.getByRole('button', { name: '수량 감소' }));
-    expect(screen.getByLabelText('Quantity')).toHaveValue(4);
-
-    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
-    expect(screen.getByLabelText('FIN BLADE UNIT 04 배정 상태')).toBeVisible();
-    expect(screen.queryByLabelText('FIN BLADE PORT UNIT 01 배정 상태')).not.toBeInTheDocument();
   });
 
   it('keeps the quantity buttons within the 1 to 12 range', async () => {

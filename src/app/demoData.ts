@@ -27,16 +27,18 @@ export interface ComponentOption {
 }
 
 export const COMPONENT_OPTIONS: ComponentOption[] = [
+  { name: 'Bulbous Bow', defaultType: 'SIDE', defaultQuantity: 1 },
+  { name: 'Bow Thruster', defaultType: 'SIDE', defaultQuantity: 1 },
+  { name: 'Bilge Keel', defaultType: 'SIDE', defaultQuantity: 1 },
   { name: 'Sea Chest', defaultType: 'SIDE_QUANTITY', defaultQuantity: 2 },
-  { name: 'Propeller Blade', defaultType: 'QUANTITY', defaultQuantity: 4 },
-  { name: 'Fin Blade', defaultType: 'QUANTITY', defaultQuantity: 4 },
-  { name: 'Rope Guard', defaultType: 'SINGLE', defaultQuantity: 1 },
-  { name: 'Boss Cap', defaultType: 'SINGLE', defaultQuantity: 1 },
+  { name: 'Discharge Pipe', defaultType: 'SINGLE', defaultQuantity: 1 },
+  { name: 'Anode / ICCP', defaultType: 'SIDE', defaultQuantity: 1 },
   { name: 'Transducer', defaultType: 'SINGLE', defaultQuantity: 1 },
   { name: 'Stern Frame', defaultType: 'SINGLE', defaultQuantity: 1 },
-  { name: 'Bilge Keel', defaultType: 'SIDE', defaultQuantity: 1 },
-  { name: 'Thruster Grating', defaultType: 'SIDE', defaultQuantity: 1 },
-  { name: 'Rudder', defaultType: 'SINGLE', defaultQuantity: 1 },
+  { name: 'Rope Guard', defaultType: 'SINGLE', defaultQuantity: 1 },
+  { name: 'Propeller Blade', defaultType: 'QUANTITY', defaultQuantity: 4 },
+  { name: 'Boss Cap', defaultType: 'SINGLE', defaultQuantity: 1 },
+  { name: 'Rudder & Pintle', defaultType: 'SIDE', defaultQuantity: 1 },
 ];
 
 export const SERVICES: Array<{ value: ServiceKind; label: string }> = [
