@@ -177,15 +177,19 @@ describe('template Word writer', () => {
       id: phase, sectionId: section.id, phase: phase as 'BEFORE' | 'AFTER', reportUse: true, order: index + 1,
       relativePath: phase + '.jpg', file: new File(['image'], phase + '.jpg', { type: 'image/jpeg' }),
     }));
-    const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos, templateUrl: '/template.docx', vesselDiagram: vesselDiagram() }, {
+    const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos, templateUrl: '/template.docx', vesselDiagram: vesselDiagram(), workPerformLabels: {
+      [`${section.id}::BEFORE`]: 'Arrival',
+      [`${section.id}::AFTER`]: 'After',
+    } }, {
       fetchTemplate: fixtureTemplate, resize: async () => new Uint8Array([1, 2, 3]), download: () => undefined,
       composeDiagram: async () => new Uint8Array([137, 80, 78, 71]),
     });
     const xml = await (await JSZip.loadAsync(result.blob)).file('word/document.xml')?.async('text');
     expect(result.pageCount).toBe(2);
-    expect(xml).toContain('BOSS CAP (Before)');
-    expect(xml).toContain('BOSS CAP (After)');
-    expect(xml?.indexOf('BOSS CAP (Before)')).toBeLessThan(xml?.indexOf('BOSS CAP (After)') ?? 0);
+    expect(xml).not.toContain('BOSS CAP (Before)');
+    expect(xml).not.toContain('BOSS CAP (After)');
+    expect(xml).toContain('Cleaning Arrival');
+    expect(xml).toContain('Cleaning After');
     expect(xml).not.toContain('w:type="page"');
     expect(xml?.match(/pageBreakBefore/g)).toHaveLength(1);
   });
@@ -224,7 +228,8 @@ describe('template Word writer', () => {
     const zip = await JSZip.loadAsync(result.blob);
     const xml = await zip.file('word/document.xml')?.async('text') ?? '';
     expect(result.pageCount).toBe(2);
-    expect(xml.match(/BOSS CAP \(Before\)/g)).toHaveLength(1);
+    expect(xml).not.toContain('BOSS CAP (Before)');
+    expect(xml).toContain('Cleaning Before');
     expect(xml.match(/7\. DETAILED SERVICE RECORD/g)).toHaveLength(2);
     expect(xml).not.toMatch(/\{\{(?:P\d+|BC|TITLE|WORK|FT|FC|OL|OT|SIDE_LABEL)\}\}|@(?:FR|OR)/);
     expect(zip.file('word/media/image5.jpg')).not.toBeNull();

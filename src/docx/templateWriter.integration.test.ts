@@ -208,8 +208,9 @@ describe('bundled Detail report template', () => {
     expect(result.pageCount).toBe(2);
     expect(documentText.match(/7\. DETAILED SERVICE RECORD/g)).toHaveLength(2);
     expect(documentText).toContain('NICHE AREAS & COMPONENTS / PROPELLER');
-    expect(documentText).toContain('PROPELLER BLADE 1 (Before)');
-    expect(documentText).toContain('Polishing');
+    expect(documentText).toContain('PROPELLER BLADE 1');
+    expect(documentText).not.toContain('PROPELLER BLADE 1 (Before)');
+    expect(documentText).toContain('Polishing Before');
     expect(documentText).not.toContain('Propeller Polishing');
     expect(documentText).toContain('70%');
     expect(documentXml).not.toMatch(/\{\{(?:P\d+|BC|TITLE|WORK|FT|FC|OL|OT|SIDE_LABEL)\}\}|@(?:FR|OR)/);

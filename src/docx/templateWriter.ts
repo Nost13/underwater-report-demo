@@ -381,10 +381,9 @@ async function prependSection14Package(
       `$1${replacementId}$2`,
     );
   }
-  const pageBreak = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
   section14Zip.file(
     'word/document.xml',
-    section14Parts.prefix + section14Parts.body + pageBreak + detailedBody + section14Parts.sectionProperties + section14Parts.suffix,
+    section14Parts.prefix + section14Parts.body + detailedBody + section14Parts.sectionProperties + section14Parts.suffix,
   );
   section14Zip.file('word/_rels/document.xml.rels', mergedRelationshipsXml);
   section14Zip.file('[Content_Types].xml', ensurePngContentType(ensureJpegContentType(section14ContentTypesXml)));
@@ -413,7 +412,7 @@ export async function writeTemplateReport(
   const contentTypesEntry = zip.file('[Content_Types].xml');
   if (!documentEntry || !relationshipEntry || !contentTypesEntry) throw new Error('TEMPLATE_INVALID');
 
-  const pages = buildWordPhasePages(input.sections, input.photos, input.reportLabels);
+  const pages = buildWordPhasePages(input.sections, input.photos, input.reportLabels, input.workPerformLabels);
   if (!pages.length) throw new Error('NO_REPORT_PHOTOS');
   const templateXml = await documentEntry.async('text');
   const documentParts = splitTemplateDocument(templateXml);
@@ -432,7 +431,8 @@ export async function writeTemplateReport(
     setRatingCellFill(pageDocument, '@OR', page.values.or);
     replaceText(pageDocument, {
       '{{BC}}': page.values.bc, '{{SIDE_LABEL}}': page.values.sideLabel,
-      '{{TITLE}}': page.values.title, '{{WORK}}': page.values.work,
+      '{{TITLE}}': page.values.title,
+      '{{WORK}}': [page.values.work, page.values.workAdditional].filter(Boolean).join(' '),
       '@FR': page.values.fr, '{{FT}}': page.values.ft, '{{FC}}': page.values.fc,
       '@OR': page.values.or, '{{OL}}': page.values.ol, '{{OT}}': page.values.ot,
     });
