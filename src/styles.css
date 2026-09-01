@@ -255,7 +255,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .diagram-alignment-status span { color: var(--muted); font-size: var(--font-ui-sm); }
 .diagram-alignment-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .diagram-alignment-actions .ghost { min-height: 38px; padding: 0 11px; background: #fff; }
-.diagram-controls { padding: 13px; display: grid; grid-template-columns: minmax(250px, .6fr) minmax(0, 1.6fr); gap: 14px; }
+.diagram-controls { padding: 13px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .diagram-control-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
 .diagram-control-actions .ghost { min-height: 40px; padding: 0 10px; text-align: left; }
 .diagram-group-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
@@ -731,7 +731,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
   .vessel-diagram-editor { padding: 20px 16px 32px; }
   .diagram-editor-head { align-items: flex-start; flex-direction: column; gap: 5px; }
   .diagram-editor-grid { grid-template-columns: minmax(0, 1fr); }
-  .diagram-controls { grid-template-columns: 1fr 1fr; align-items: start; }
+  .diagram-controls { grid-template-columns: minmax(0, 1fr); align-items: start; }
   .diagram-control-actions { grid-template-columns: 1fr 1fr; }
   .diagram-control-actions .ghost:last-child { grid-column: 1 / -1; }
   .diagram-hull-help, .diagram-group-list { grid-column: 1 / -1; }
