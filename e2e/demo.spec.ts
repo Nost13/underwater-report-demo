@@ -360,6 +360,42 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   expect(markerAfterKeyboard!.x).toBeGreaterThan(markerAfterResize!.x);
   await page.screenshot({ path: 'e2e/vessel-editor-1440.png', fullPage: true });
 
+  await page.getByRole('button', { name: 'Niche 맞추기로 이동' }).click();
+  const callouts = page.locator('.diagram-callout-label');
+  await expect(callouts.first()).toBeVisible();
+  const laneBoxes = await callouts.evaluateAll((nodes) => nodes.map((node) => {
+    const box = node.getBoundingClientRect();
+    return { left: box.left, right: box.right, top: box.top };
+  }));
+  for (let first = 0; first < laneBoxes.length; first += 1) {
+    for (let second = first + 1; second < laneBoxes.length; second += 1) {
+      if (Math.abs(laneBoxes[first].top - laneBoxes[second].top) < 2) {
+        expect(
+          laneBoxes[first].right <= laneBoxes[second].left
+          || laneBoxes[second].right <= laneBoxes[first].left,
+        ).toBe(true);
+      }
+    }
+  }
+
+  const aftTransducer = page.getByRole('button', { name: 'Transducer AFT 표식' });
+  const fwdTransducer = page.getByRole('button', { name: 'Transducer FWD 표식' });
+  await aftTransducer.click({ modifiers: ['Control'] });
+  await fwdTransducer.click({ modifiers: ['Control'] });
+  await expect(page.getByRole('toolbar', { name: '표식 정렬' })).toBeVisible();
+  await page.getByRole('button', { name: '상단 정렬' }).click();
+  const [aftTransducerBox, fwdTransducerBox] = await Promise.all([
+    aftTransducer.boundingBox(),
+    fwdTransducer.boundingBox(),
+  ]);
+  expect(aftTransducerBox!.y).toBeCloseTo(fwdTransducerBox!.y, 0);
+  const [editorRight, viewportWidth] = await Promise.all([
+    editor.evaluate((node) => node.getBoundingClientRect().right),
+    page.evaluate(() => window.innerWidth),
+  ]);
+  expect(editorRight).toBeLessThanOrEqual(viewportWidth);
+  await page.screenshot({ path: 'e2e/vessel-editor-callouts-1440.png', fullPage: true });
+
   await page.setViewportSize({ width: 800, height: 900 });
   const actionColumns = await page.locator('.diagram-control-actions').evaluate((node) => (
     getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length
@@ -367,7 +403,6 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   expect(actionColumns).toBe(2);
   await page.screenshot({ path: 'e2e/vessel-editor-narrow.png', fullPage: true });
 
-  await page.getByRole('button', { name: 'Niche 맞추기로 이동' }).click();
   await page.getByRole('button', { name: '선박 위치도 설정 완료' }).click();
   await expect(page.getByRole('heading', { name: '사진 폴더' })).toBeVisible();
 });
