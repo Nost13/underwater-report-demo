@@ -607,6 +607,38 @@ describe('VesselDiagramEditor', () => {
     expect(selected.every(({ rect }) => rect.y === selected[0].rect.y)).toBe(true);
   });
 
+  it('matches selected circle sizes to the first selected circle and preserves centers', async () => {
+    const user = userEvent.setup();
+    const draft = existingDraft();
+    const reference = draft.nicheMarkers.find(({ id }) => id === 'transducer-aft')!;
+    const target = draft.nicheMarkers.find(({ id }) => id === 'transducer-fwd')!;
+    target.rect = {
+      x: target.rect.x + target.rect.width / 4,
+      y: target.rect.y + target.rect.height / 4,
+      width: target.rect.width / 2,
+      height: target.rect.height / 2,
+    };
+    const targetCenter = {
+      x: target.rect.x + target.rect.width / 2,
+      y: target.rect.y + target.rect.height / 2,
+    };
+    const latest = recordDraft(draft, [nicheSection('TRANSDUCER')]);
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+
+    for (const name of ['Transducer AFT 표식', 'Transducer FWD 표식']) {
+      const marker = screen.getByRole('button', { name });
+      fireEvent.pointerDown(marker, { pointerId: 1, ctrlKey: true });
+      fireEvent.pointerUp(marker, { pointerId: 1, ctrlKey: true });
+    }
+    await user.click(screen.getByRole('button', { name: '원형 동일 크기' }));
+
+    const resized = latest().nicheMarkers.find(({ id }) => id === 'transducer-fwd')!;
+    expect(resized.rect.width).toBe(reference.rect.width);
+    expect(resized.rect.height).toBe(reference.rect.height);
+    expect(resized.rect.x + resized.rect.width / 2).toBeCloseTo(targetCenter.x, 10);
+    expect(resized.rect.y + resized.rect.height / 2).toBeCloseTo(targetCenter.y, 10);
+  });
+
   it('recreates a presentation URL from an existing draft after remount', async () => {
     const file = new File(['png'], 'vessel.png', { type: 'image/png' });
     const value: VesselDiagramConfig = {

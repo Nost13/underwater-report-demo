@@ -106,3 +106,30 @@ export function distributeMarkerSelection(
     return { ...marker, rect };
   });
 }
+
+export function matchCircleSelectionSize(
+  markers: ZoneMarker[],
+  selectedIds: readonly string[],
+): ZoneMarker[] {
+  const ids = new Set(selectedIds);
+  const reference = selectedIds
+    .map((id) => markers.find((marker) => marker.id === id))
+    .find((marker) => marker?.shape === 'CIRCLE');
+  const selectedCircleCount = markers.filter((marker) => ids.has(marker.id) && marker.shape === 'CIRCLE').length;
+  if (!reference || selectedCircleCount < 2) return markers;
+
+  return markers.map((marker) => {
+    if (!ids.has(marker.id) || marker.shape !== 'CIRCLE' || marker.id === reference.id) return marker;
+    const centerX = marker.rect.x + marker.rect.width / 2;
+    const centerY = marker.rect.y + marker.rect.height / 2;
+    return {
+      ...marker,
+      rect: {
+        x: clampOrigin(centerX - reference.rect.width / 2, reference.rect.width),
+        y: clampOrigin(centerY - reference.rect.height / 2, reference.rect.height),
+        width: reference.rect.width,
+        height: reference.rect.height,
+      },
+    };
+  });
+}

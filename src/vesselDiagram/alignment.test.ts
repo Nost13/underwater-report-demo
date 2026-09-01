@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   alignMarkerSelection,
   distributeMarkerSelection,
+  matchCircleSelectionSize,
   translateMarkerSelection,
 } from './alignment';
 import type { ZoneMarker } from './types';
@@ -50,5 +51,27 @@ describe('marker alignment', () => {
   it('returns the original collection when too few markers are selected', () => {
     expect(alignMarkerSelection(markers, ['a'], 'LEFT')).toBe(markers);
     expect(distributeMarkerSelection(markers, ['a', 'b'], 'HORIZONTAL')).toBe(markers);
+  });
+
+  it('matches selected circles to the first selected circle without moving their centers', () => {
+    const circles: ZoneMarker[] = [
+      { id: 'reference', groupId: 'point', shape: 'CIRCLE', rect: { x: .1, y: .2, width: .08, height: .12 } },
+      { id: 'target', groupId: 'point', shape: 'CIRCLE', rect: { x: .6, y: .5, width: .04, height: .06 } },
+      { id: 'unselected', groupId: 'point', shape: 'CIRCLE', rect: { x: .8, y: .7, width: .03, height: .04 } },
+      { id: 'bilge', groupId: 'bilge-keel', shape: 'ELLIPSE', rect: { x: .3, y: .8, width: .2, height: .05 } },
+    ];
+    const targetCenter = {
+      x: circles[1].rect.x + circles[1].rect.width / 2,
+      y: circles[1].rect.y + circles[1].rect.height / 2,
+    };
+
+    const result = matchCircleSelectionSize(circles, ['reference', 'target', 'bilge']);
+
+    expect(result[1].rect.width).toBe(.08);
+    expect(result[1].rect.height).toBe(.12);
+    expect(result[1].rect.x + result[1].rect.width / 2).toBeCloseTo(targetCenter.x, 10);
+    expect(result[1].rect.y + result[1].rect.height / 2).toBeCloseTo(targetCenter.y, 10);
+    expect(result[2]).toBe(circles[2]);
+    expect(result[3]).toBe(circles[3]);
   });
 });

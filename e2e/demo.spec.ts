@@ -180,8 +180,9 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   await directoryInput.setInputFiles('e2e/manual-fixture');
   await expect(page.getByLabel('사진 입력 진행 상태')).toContainText('UNMATCHED');
   await page.getByRole('button', { name: 'Report Input으로' }).click();
-  await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
+  await page.getByRole('button', { name: 'AFTER 불러온 사진 선택' }).click();
   await expect(page.getByLabel('UNMATCHED 사진 배정')).toBeVisible();
+  await expect(page.locator('.assignment-target')).toContainText('AFTER');
   await expect(page.locator('.report-workspace')).toHaveClass(/unmatched-open/);
   const beforePanel = page.locator('.phase-panel.before');
   const beforeWidthWithDrawer = (await beforePanel.boundingBox())?.width ?? 0;
@@ -192,8 +193,7 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   await expect(page.locator('.report-workspace')).not.toHaveClass(/unmatched-open/);
   const beforeWidthWithoutDrawer = (await beforePanel.boundingBox())?.width ?? 0;
   expect(beforeWidthWithoutDrawer).toBeGreaterThan(beforeWidthWithDrawer);
-  await page.getByRole('button', { name: 'UNMATCHED 1' }).click();
-  await page.getByRole('button', { name: 'AFTER 이곳에 사진 배정' }).click();
+  await page.getByRole('button', { name: 'AFTER 불러온 사진 선택' }).click();
   await expect(page.locator('.assignment-target')).toContainText('AFTER');
   await page.getByRole('button', { name: 'manual.jpg 사진 배정' }).click();
   await expect(page.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
@@ -210,7 +210,7 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
   await page.getByRole('button', { name: 'manual.jpg 삭제' }).click();
   await expect(page.locator('.phase-panel.after')).not.toContainText('manual.jpg');
-  await page.getByRole('button', { name: 'AFTER에 사진 추가' }).click();
+  await page.getByRole('button', { name: 'AFTER 새 사진 추가' }).click();
   await page.locator('input[type="file"]:not([webkitdirectory])').setInputFiles('e2e/fixtures/manual.jpg');
   await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
 });
@@ -316,9 +316,15 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   expect(surfaceBox!.x + surfaceBox!.width).toBeLessThanOrEqual(workspaceBox!.x + workspaceBox!.width + 1);
   const editorImageBox = await page.getByLabel('웹 편집 선박 이미지 영역').boundingBox();
   expect(editorImageBox).not.toBeNull();
-  expect(editorImageBox!.x - surfaceBox!.x).toBeGreaterThan(surfaceBox!.width * .04);
-  expect(surfaceBox!.x + surfaceBox!.width - editorImageBox!.x - editorImageBox!.width)
-    .toBeGreaterThan(surfaceBox!.width * .04);
+  expect(editorImageBox!.x).toBeCloseTo(surfaceBox!.x, 0);
+  expect(editorImageBox!.width).toBeCloseTo(surfaceBox!.width, 0);
+  const panelBox = await page.locator('.diagram-panel').boundingBox();
+  const stageBox = await page.locator('.diagram-callout-stage').boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(stageBox).not.toBeNull();
+  expect(stageBox!.x - panelBox!.x).toBeGreaterThan(panelBox!.width * .04);
+  expect(panelBox!.x + panelBox!.width - stageBox!.x - stageBox!.width)
+    .toBeGreaterThan(panelBox!.width * .04);
 
   const sternGuide = page.getByRole('slider', { name: '선미 기준선' });
   const hullTopGuide = page.getByRole('slider', { name: 'Hull 상단선' });
@@ -336,6 +342,9 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   await expect(hullTopGuide).not.toHaveAttribute('y1', String(initialHullTop));
 
   const aftMarker = page.getByRole('button', { name: 'AFT Hull 표식', exact: true });
+  const resizeHandle = aftMarker.locator('.marker-handle.se');
+  await expect(resizeHandle).toHaveCSS('opacity', '0');
+  await expect(resizeHandle).toHaveCSS('pointer-events', 'none');
   const markerBeforeMove = await aftMarker.boundingBox();
   expect(markerBeforeMove).not.toBeNull();
   await page.mouse.move(markerBeforeMove!.x + markerBeforeMove!.width / 2, markerBeforeMove!.y + markerBeforeMove!.height / 2);
@@ -345,7 +354,8 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   const markerAfterMove = await aftMarker.boundingBox();
   expect(markerAfterMove!.x).toBeLessThan(markerBeforeMove!.x - 10);
 
-  const resizeHandle = aftMarker.locator('.marker-handle.se');
+  await expect(resizeHandle).toHaveCSS('opacity', '1');
+  await expect(resizeHandle).toHaveCSS('pointer-events', 'auto');
   const handleBox = await resizeHandle.boundingBox();
   expect(handleBox).not.toBeNull();
   expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className, {
@@ -449,7 +459,7 @@ test('linked and Bilge markers produce preview-identical flattened Word PNGs', a
   };
   const addPreviewPhoto = async (index: number) => {
     const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'BEFORE에 사진 추가' }).click();
+    await page.getByRole('button', { name: 'BEFORE 새 사진 추가' }).click();
     await (await chooser).setFiles({
       name: `vessel-preview-${index}.png`,
       mimeType: 'image/png',

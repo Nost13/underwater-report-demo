@@ -70,6 +70,12 @@ describe('vessel diagram geometry', () => {
     expect(propeller.shape).toBe('CIRCLE');
     expect(propeller.rect.width * DIAGRAM_WIDTH)
       .toBeCloseTo(propeller.rect.height * DIAGRAM_HEIGHT, 8);
+    expect(propeller.rect.width * DIAGRAM_WIDTH).toBeCloseTo(80, 8);
+    const pointMarkers = markers.filter((marker) => marker.shape === 'CIRCLE');
+    expect(pointMarkers.every((marker) => (
+      Math.abs(marker.rect.width * DIAGRAM_WIDTH - 80) < 1e-8
+      && Math.abs(marker.rect.height * DIAGRAM_HEIGHT - 80) < 1e-8
+    ))).toBe(true);
     expect(bilge.shape).toBe('ELLIPSE');
   });
 

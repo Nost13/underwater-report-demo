@@ -43,8 +43,7 @@ export function projectTemplateRect(rect: NormalizedRect, calibration: HullCalib
   return clampRect({ x: calibration.sternX + rect.x * length, y: calibration.hullTopY + rect.y * height, width: rect.width * length, height: rect.height * height });
 }
 
-export function inscribeCircle(rect: NormalizedRect): NormalizedRect {
-  const diameter = Math.min(rect.width * DIAGRAM_WIDTH, rect.height * DIAGRAM_HEIGHT);
+export function inscribeCircle(rect: NormalizedRect, diameter = Math.min(rect.width * DIAGRAM_WIDTH, rect.height * DIAGRAM_HEIGHT)): NormalizedRect {
   const width = diameter / DIAGRAM_WIDTH;
   const height = diameter / DIAGRAM_HEIGHT;
   return clampRect({
@@ -72,7 +71,7 @@ export function createDefaultNicheMarkers(calibration: HullCalibration, bilgeQua
   const nicheMarkers = Object.entries(NICHE_TEMPLATES).map(([id, rect]) => ({
     id,
     groupId: id,
-    rect: inscribeCircle(projectTemplateRect(rect, calibration)),
+    rect: inscribeCircle(projectTemplateRect(rect, calibration), 80),
     shape: 'CIRCLE' as const,
   }));
   return [...nicheMarkers, ...createBilgeKeelMarkers(calibration, bilgeQuantity)];

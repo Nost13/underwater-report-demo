@@ -573,8 +573,8 @@ describe('desktop report workflow', () => {
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
-    expect(screen.getByRole('button', { name: 'BEFORE에 사진 추가' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'AFTER에 사진 추가' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'AFTER 새 사진 추가' })).toBeVisible();
   });
 
   it('uses a phase-colored header target and Condition edits do not change it', async () => {
@@ -710,12 +710,9 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
     expect(screen.queryByLabelText('UNMATCHED 사진 배정')).not.toBeInTheDocument();
-    const unmatchedButton = screen.getByRole('button', { name: 'UNMATCHED 1' });
-    expect(unmatchedButton).toBeEnabled();
-
-    await user.click(unmatchedButton);
+    expect(screen.getByRole('button', { name: 'UNMATCHED 1' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'AFTER 불러온 사진 선택' }));
     expect(screen.getByLabelText('UNMATCHED 사진 배정')).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'AFTER 이곳에 사진 배정' }));
     expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFTER');
     await user.click(screen.getByRole('button', { name: 'manual.jpg 사진 배정' }));
     expect(screen.queryByLabelText('UNMATCHED 사진 배정')).not.toBeInTheDocument();
@@ -839,7 +836,7 @@ describe('desktop report workflow', () => {
     const { container } = render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
-    await user.click(screen.getByRole('button', { name: 'BEFORE에 사진 추가' }));
+    await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
     await user.upload(manualInput, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
 
@@ -861,7 +858,7 @@ describe('desktop report workflow', () => {
     const { container } = render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
-    await user.click(screen.getByRole('button', { name: 'BEFORE에 사진 추가' }));
+    await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
     await user.upload(manualInput, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
 
@@ -976,9 +973,9 @@ describe('desktop report workflow', () => {
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
-    await user.click(screen.getByRole('button', { name: 'BEFORE에 사진 추가' }));
+    await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
     await user.upload(manualInput, new File(['before'], 'before.jpg', { type: 'image/jpeg' }));
-    await user.click(screen.getByRole('button', { name: 'AFTER에 사진 추가' }));
+    await user.click(screen.getByRole('button', { name: 'AFTER 새 사진 추가' }));
     await user.upload(manualInput, new File(['after'], 'after.jpg', { type: 'image/jpeg' }));
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
 
@@ -1010,7 +1007,7 @@ describe('desktop report workflow', () => {
 
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
     const addCurrentPhoto = async (name: string) => {
-      await user.click(screen.getByRole('button', { name: 'BEFORE에 사진 추가' }));
+      await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
       await user.upload(manualInput, new File(['photo'], name, { type: 'image/jpeg' }));
     };
     await addCurrentPhoto('propeller.jpg');

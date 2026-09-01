@@ -225,7 +225,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .diagram-editor-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
 .diagram-panel, .diagram-controls { border: 1px solid var(--line); border-radius: 13px; background: var(--paper); box-shadow: 0 4px 14px rgba(23,44,54,.025); }
 .diagram-panel { min-width: 0; padding: 14px; }
-.diagram-callout-stage { position: relative; width: 100%; aspect-ratio: 2048 / 688; overflow: hidden; border: 1px solid #c9d8dc; border-radius: 9px; background: #fff; }
+.diagram-callout-stage { position: relative; width: 88%; margin-inline: auto; aspect-ratio: 2048 / 688; overflow: hidden; border: 1px solid #c9d8dc; border-radius: 9px; background: #fff; }
 .diagram-callout-stage .vessel-diagram-surface { position: absolute; z-index: 1; left: 0; top: calc(100% * 100 / 688); width: 100%; height: calc(100% * 488 / 688); aspect-ratio: auto; border: 0; border-radius: 0; }
 .diagram-callout-lines { position: absolute; z-index: 3; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .diagram-callout-line { fill: none; stroke: #54747b; stroke-width: 2; vector-effect: non-scaling-stroke; }
@@ -233,7 +233,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .diagram-callout-label { position: absolute; z-index: 4; width: calc(100% * 180 / 2048); min-height: 38px; padding: 5px 7px; display: grid; place-items: center; transform: translate(-50%, -50%); overflow: hidden; border: 1px solid #9fb8bd; border-radius: 6px; background: rgba(255,255,255,.96); color: var(--navy-900); font-size: var(--font-ui-sm); font-weight: 850; line-height: 1.15; text-align: center; overflow-wrap: anywhere; white-space: normal; cursor: pointer; }
 .diagram-callout-label.selected { border-color: var(--danger); background: #fff3f1; color: #8f2c24; }
 .vessel-diagram-surface { position: relative; width: 100%; aspect-ratio: 2048 / 488; overflow: hidden; border: 1px solid #c9d8dc; border-radius: 9px; background: #fff; touch-action: none; }
-.diagram-editor-image-area { position: absolute; z-index: 0; inset: 0 6%; pointer-events: none; }
+.diagram-editor-image-area { position: absolute; z-index: 0; inset: 0; pointer-events: none; }
 .diagram-editor-image-area > img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .vessel-diagram-surface > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .vessel-diagram-surface svg .diagram-guide-hit { pointer-events: stroke; stroke: transparent; stroke-width: 40; vector-effect: non-scaling-stroke; cursor: ew-resize; }
@@ -244,7 +244,8 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .vessel-marker.ellipse, .vessel-marker.circle { border-radius: 50%; }
 .vessel-marker.selected { border-color: var(--danger); background: rgba(180, 35, 24, .19); box-shadow: 0 0 0 2px rgba(180, 35, 24, .17); }
 .vessel-marker:active { cursor: grabbing; }
-.marker-handle { position: absolute; z-index: 3; width: 40px; height: 40px; background: transparent; }
+.marker-handle { position: absolute; z-index: 3; width: 40px; height: 40px; opacity: 0; pointer-events: none; background: transparent; }
+.vessel-marker.selected .marker-handle { opacity: 1; pointer-events: auto; }
 .marker-handle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 3px; background: var(--teal-700); }
 .marker-handle.nw { left: -20px; top: -20px; cursor: nwse-resize; }
 .marker-handle.ne { right: -20px; top: -20px; cursor: nesw-resize; }
@@ -488,6 +489,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .phase-panel.current .phase-select[aria-pressed="true"] { border-color: #2563a3; background: #2563a3; color: #fff; box-shadow: 0 3px 8px rgba(37,99,163,.22); }
 .phase-select:focus-visible { outline: 3px solid rgba(14,141,134,.25); outline-offset: 2px; }
 .phase-add { min-height: 26px; padding: 0 8px; font-size: 8px; }
+.phase-import { min-height: 34px; padding: 0 10px; border-color: #8bbdb9; background: #eef9f7; color: var(--teal-700); font-size: 9px; }
 .condition-tables { padding: 10px 13px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-bottom: 1px solid #edf1f2; background: #fbfcfc; }
 .condition-group { min-width: 0; border: 1px solid #dbe5e8; border-radius: 7px; overflow: hidden; background: #fff; }
 .condition-group header { padding: 6px 8px; border-bottom: 1px solid #dbe5e8; background: #f0f3f4; color: #324d59; font-size: 8px; font-weight: 900; letter-spacing: .05em; text-align: center; }

@@ -3,6 +3,7 @@ import type { ReportSection } from '../domain/types';
 import {
   alignMarkerSelection,
   distributeMarkerSelection,
+  matchCircleSelectionSize,
   translateMarkerSelection,
   type MarkerAlignment,
   type MarkerDistribution,
@@ -203,6 +204,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   const allMarkers = value ? [...value.hullMarkers, ...value.nicheMarkers] : [];
   const visibleMarkers = value ? (step === 'HULL' ? value.hullMarkers : value.nicheMarkers) : [];
   const visibleSelectedIds = selectedIds.filter((id) => visibleMarkers.some((marker) => marker.id === id));
+  const visibleSelectedCircleIds = visibleSelectedIds.filter((id) => visibleMarkers.some((marker) => marker.id === id && marker.shape === 'CIRCLE'));
   const scopedAftComponents = new Set(sections
     .filter((section) => section.area === 'NICHE')
     .map((section) => section.component.trim().toUpperCase()));
@@ -468,6 +470,14 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     });
   };
 
+  const matchSelectedCircleSizes = () => {
+    if (!value || visibleSelectedCircleIds.length < 2) return;
+    const collection = step === 'HULL' ? 'hullMarkers' : 'nicheMarkers';
+    replace({
+      [collection]: matchCircleSelectionSize(value[collection], visibleSelectedIds),
+    });
+  };
+
   const selectGroup = (groupId: string) => setSelectedIds(allMarkers.filter((marker) => markerGroup(marker) === groupId).map((marker) => marker.id));
   const presentGroups = [...new Set(allMarkers.map(markerGroup))];
   const relevantGroupIds = requiredGroups.map((group) => group.id);
@@ -578,6 +588,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
           <button type="button" className="ghost" aria-label="하단 정렬" onClick={() => applyAlignment('BOTTOM')}>하단</button>
           <button type="button" className="ghost" aria-label="가로 균등 배치" disabled={visibleSelectedIds.length < 3} onClick={() => applyDistribution('HORIZONTAL')}>가로 간격</button>
           <button type="button" className="ghost" aria-label="세로 균등 배치" disabled={visibleSelectedIds.length < 3} onClick={() => applyDistribution('VERTICAL')}>세로 간격</button>
+          <button type="button" className="ghost" aria-label="원형 동일 크기" disabled={visibleSelectedCircleIds.length < 2} onClick={matchSelectedCircleSizes}>원형 동일 크기</button>
         </div>
       </div>}
       <aside className="diagram-controls">
