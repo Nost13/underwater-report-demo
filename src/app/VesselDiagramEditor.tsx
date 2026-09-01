@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { ReportSection } from '../domain/types';
+import { translateMarkerSelection } from '../vesselDiagram/alignment';
 import {
   clampRect,
   createDefaultHullMarkers,
@@ -39,6 +40,8 @@ type Interaction = {
   startRects?: ZoneMarker[];
   groupBounds?: NormalizedRect;
   cancelled?: boolean;
+  moved?: boolean;
+  collapseOnClick?: boolean;
 };
 
 const MIN_WIDTH = 8 / DIAGRAM_WIDTH;
@@ -65,6 +68,9 @@ const markerGroup = (marker: ZoneMarker) => {
 
 const markerName = (marker: ZoneMarker) => {
   if (marker.id.startsWith('hull-')) return `${marker.id.slice(5).toUpperCase().replaceAll('-', ' ')} Hull`;
+  if (marker.id.startsWith('transducer-')) return `Transducer ${marker.id.endsWith('-aft') ? 'AFT' : 'FWD'}`;
+  if (marker.id.startsWith('anode-')) return `Anode ${marker.id.endsWith('-aft') ? 'AFT' : 'FWD'}`;
+  if (marker.id.startsWith('bilge-keel-')) return `Bilge Keel ${String(marker.unit ?? 1).padStart(2, '0')}`;
   return DISPLAY_NAMES[markerGroup(marker)] ?? marker.id;
 };
 
@@ -176,6 +182,14 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     if (imageUrl) URL.revokeObjectURL(imageUrl);
   }, [imageUrl]);
 
+  useEffect(() => {
+    const clearSelection = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedIds([]);
+    };
+    window.addEventListener('keydown', clearSelection);
+    return () => window.removeEventListener('keydown', clearSelection);
+  }, []);
+
   const replace = (patch: Partial<VesselDiagramConfig>) => {
     if (value) onChange({ ...value, ...patch, confirmed: false });
   };
@@ -210,10 +224,22 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
 
   const startMarkerInteraction = (event: PointerEvent<HTMLElement>, marker: ZoneMarker, kind: Interaction['kind'], edge?: Interaction['edge']) => {
     event.stopPropagation();
+    const toggled = event.ctrlKey || event.metaKey;
+    if (toggled && selectedIds.includes(marker.id)) {
+      setSelectedIds(selectedIds.filter((id) => id !== marker.id));
+      interactionRef.current = null;
+      return;
+    }
+    const activeIds = toggled
+      ? [...selectedIds, marker.id]
+      : selectedIds.includes(marker.id)
+        ? selectedIds
+        : [marker.id];
+    setSelectedIds(activeIds);
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    setSelectedIds((ids) => ids.includes(marker.id) ? ids : [marker.id]);
-    const selected = allMarkers.filter((candidate) => selectedIds.includes(candidate.id));
-    const moveBilgeGroup = kind !== 'GUIDE'
+    const selected = allMarkers.filter((candidate) => activeIds.includes(candidate.id));
+    const moveSelection = kind === 'MOVE' && selected.length > 1;
+    const resizeBilgeGroup = kind === 'RESIZE'
       && markerGroup(marker) === 'bilge-keel'
       && selected.length > 1
       && selected.every((candidate) => markerGroup(candidate) === 'bilge-keel');
@@ -223,7 +249,9 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
       startPoint: pointFor(event),
       startRect: marker.rect,
       edge,
-      ...(moveBilgeGroup ? {
+      moved: false,
+      collapseOnClick: !toggled && kind === 'MOVE' && activeIds.length > 1,
+      ...(moveSelection || resizeBilgeGroup ? {
         markerIds: selected.map((candidate) => candidate.id),
         startRects: selected,
         groupBounds: markerBounds(selected),
@@ -261,6 +289,9 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     if (!interaction || interaction.cancelled || !value) return;
     const point = pointFor(event);
     const delta = { x: point.x - interaction.startPoint.x, y: point.y - interaction.startPoint.y };
+    if (interaction.kind !== 'GUIDE' && (Math.abs(delta.x) > 1e-8 || Math.abs(delta.y) > 1e-8)) {
+      interactionRef.current = { ...interaction, moved: true };
+    }
     if (interaction.kind === 'GUIDE') {
       const next = { ...value.calibration };
       const guideId = interaction.id as keyof HullCalibration;
@@ -276,17 +307,11 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     if (!target) return;
     if (interaction.markerIds && interaction.startRects && interaction.groupBounds) {
       const startBounds = interaction.groupBounds;
+      const collection = interaction.id.startsWith('hull-') ? 'hullMarkers' : 'nicheMarkers';
       if (interaction.kind === 'MOVE') {
-        const nextBounds = translateRect(startBounds, delta);
-        const starts = new Map(interaction.startRects.map((marker) => [marker.id, marker]));
-        replace({ nicheMarkers: value.nicheMarkers.map((marker) => {
-          const start = starts.get(marker.id);
-          return start ? { ...marker, rect: {
-            ...start.rect,
-            x: nextBounds.x + (start.rect.x - startBounds.x),
-            y: nextBounds.y + (start.rect.y - startBounds.y),
-          } } : marker;
-        }) });
+        const moved = translateMarkerSelection(interaction.startRects, interaction.markerIds, delta);
+        const movedById = new Map(moved.map((marker) => [marker.id, marker]));
+        replace({ [collection]: value[collection].map((marker) => movedById.get(marker.id) ?? marker) });
         return;
       }
       const groupMinimum = {
@@ -297,7 +322,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
       const scaleX = nextBounds.width / startBounds.width;
       const scaleY = nextBounds.height / startBounds.height;
       const starts = new Map(interaction.startRects.map((marker) => [marker.id, marker]));
-      replace({ nicheMarkers: value.nicheMarkers.map((marker) => {
+      replace({ [collection]: value[collection].map((marker) => {
         const start = starts.get(marker.id);
         if (!start) return marker;
         return {
@@ -319,7 +344,11 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     replace({ [collection]: value[collection].map((marker) => marker.id === interaction.id ? { ...marker, rect: nextRect } : marker) });
   };
 
-  const finishInteraction = () => { interactionRef.current = null; };
+  const finishInteraction = () => {
+    const interaction = interactionRef.current;
+    if (interaction?.collapseOnClick && !interaction.moved) setSelectedIds([interaction.id]);
+    interactionRef.current = null;
+  };
 
   const moveByKey = (event: KeyboardEvent<HTMLButtonElement>, marker: ZoneMarker) => {
     if (!value) return;
@@ -332,19 +361,15 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     const deltaY = event.key === 'ArrowUp' ? -amount / DIAGRAM_HEIGHT : event.key === 'ArrowDown' ? amount / DIAGRAM_HEIGHT : 0;
     const collection = marker.id.startsWith('hull-') ? 'hullMarkers' : 'nicheMarkers';
     const selected = value[collection].filter((candidate) => selectedIds.includes(candidate.id));
-    const moveGroup = selectedIds.includes(marker.id) && selected.length > 1
-      && selected.every((candidate) => markerGroup(candidate) === 'bilge-keel');
+    const moveGroup = selectedIds.includes(marker.id) && selected.length > 1;
     const moving = moveGroup ? selected : [marker];
-    const bounds = markerBounds(moving);
-    const nextBounds = translateRect(bounds, { x: deltaX, y: deltaY });
-    const movingIds = new Set(moving.map((candidate) => candidate.id));
-    replace({ [collection]: value[collection].map((candidate) => movingIds.has(candidate.id)
-      ? { ...candidate, rect: {
-        ...candidate.rect,
-        x: nextBounds.x + (candidate.rect.x - bounds.x),
-        y: nextBounds.y + (candidate.rect.y - bounds.y),
-      } }
-      : candidate) });
+    replace({
+      [collection]: translateMarkerSelection(
+        value[collection],
+        moving.map((candidate) => candidate.id),
+        { x: deltaX, y: deltaY },
+      ),
+    });
   };
 
   const resetSelected = () => {
@@ -462,7 +487,9 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
         if (!value) return;
         setStep('NICHE');
       }}>Niche 맞추기로 이동</button>}
-      {value && step === 'NICHE' && <button type="button" className="ghost" onClick={() => setStep('HULL')}>Hull 맞추기로 돌아가기</button>}
+      {value && step === 'NICHE' && <button type="button" className="ghost" onClick={() => {
+        setStep('HULL');
+      }}>Hull 맞추기로 돌아가기</button>}
       {value && step === 'NICHE' && <button type="button" className="primary" disabled={!canConfirm} onClick={() => {
         if (!canConfirm) return;
         const confirmed = { ...value, confirmed: true };

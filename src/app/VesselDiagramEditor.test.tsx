@@ -88,7 +88,7 @@ describe('VesselDiagramEditor', () => {
       ? latest().nicheMarkers.filter(({ id }) => id.startsWith('bilge-keel-'))
       : latest().hullMarkers.filter(({ id }) => id === 'hull-aft');
     const originals = markers();
-    const marker = mode === 'group' ? screen.getAllByLabelText('Bilge keel 표식')[0] : screen.getByLabelText('AFT Hull 표식');
+    const marker = mode === 'group' ? screen.getAllByLabelText(/Bilge Keel \d+ 표식/)[0] : screen.getByLabelText('AFT Hull 표식');
     for (const [dx, dy] of [[5000, 0], [-5000, 0], [0, 5000], [0, -5000], [30, 20]]) {
       fireEvent.pointerDown(marker, { clientX: 100, clientY: 100, pointerId: 1 });
       fireEvent.pointerMove(marker, { clientX: 100 + dx, clientY: 100 + dy, pointerId: 1 });
@@ -128,7 +128,7 @@ describe('VesselDiagramEditor', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
       fireEvent.click(screen.getByRole('button', { name: 'Bilge keel 그룹 선택' }));
     }
-    const marker = mode === 'group' ? screen.getAllByLabelText('Bilge keel 표식')[0] : screen.getByLabelText('AFT Hull 표식');
+    const marker = mode === 'group' ? screen.getAllByLabelText(/Bilge Keel \d+ 표식/)[0] : screen.getByLabelText('AFT Hull 표식');
     fireEvent.keyDown(marker, { key, shiftKey: true });
     const moved = mode === 'group' ? latest().nicheMarkers.filter(({ id }) => id.startsWith('bilge-keel-')) : [latest().hullMarkers[0]];
     expect(moved[0].rect.x).toBeCloseTo(wantX, 10);
@@ -170,7 +170,7 @@ describe('VesselDiagramEditor', () => {
     expect(confirm).toHaveBeenCalledOnce();
     expect(latest()).toBe(draft);
     if (step === 'HULL') await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
-    screen.getAllByLabelText('Bilge keel 표식').forEach((marker) => expect(marker).toHaveAttribute('aria-pressed', 'true'));
+    screen.getAllByLabelText(/Bilge Keel \d+ 표식/).forEach((marker) => expect(marker).toHaveAttribute('aria-pressed', 'true'));
   });
 
   it('accepts automatic layout using current asymmetric calibration and invalidates the saved state', async () => {
@@ -218,7 +218,7 @@ describe('VesselDiagramEditor', () => {
 
     await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
     expect(screen.getByRole('heading', { name: 'Niche 맞추기' })).toBeVisible();
-    expect(screen.getAllByLabelText('Transducer 표식')).toHaveLength(2);
+    expect(screen.getAllByLabelText(/Transducer (AFT|FWD) 표식/)).toHaveLength(2);
   });
 
   it('keeps the existing draft when an image cannot be decoded', async () => {
@@ -350,7 +350,7 @@ describe('VesselDiagramEditor', () => {
     render(<RecordingHarness />);
     await uploadVessel(user);
     await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
-    const niche = screen.getAllByLabelText('Transducer 표식')[0];
+    const niche = screen.getAllByLabelText(/Transducer (AFT|FWD) 표식/)[0];
     fireEvent.pointerDown(niche, { clientX: 100, clientY: 100, pointerId: 1 });
     fireEvent.pointerMove(niche, { clientX: 120, clientY: 100, pointerId: 1 });
     fireEvent.pointerUp(niche, { pointerId: 1 });
@@ -415,7 +415,7 @@ describe('VesselDiagramEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
     await user.click(screen.getByRole('button', { name: 'Bilge keel 그룹 선택' }));
     const before = changes.at(-1)!.nicheMarkers.filter(({ id }) => id.startsWith('bilge-keel-'));
-    const marker = screen.getAllByLabelText('Bilge keel 표식')[0];
+    const marker = screen.getAllByLabelText(/Bilge Keel \d+ 표식/)[0];
     fireEvent.pointerDown(marker, { clientX: 100, clientY: 100, pointerId: 1 });
     fireEvent.pointerMove(marker, { clientX: 120, clientY: 100, pointerId: 1 });
     fireEvent.pointerUp(marker, { pointerId: 1 });
@@ -426,7 +426,7 @@ describe('VesselDiagramEditor', () => {
     expect(after[0].rect.width).toBe(before[0].rect.width);
     expect(after[1].rect.width).toBe(before[1].rect.width);
 
-    const handle = screen.getAllByLabelText('Bilge keel se 크기 조절')[0];
+    const handle = screen.getAllByLabelText(/Bilge Keel \d+ se 크기 조절/)[0];
     fireEvent.pointerDown(handle, { clientX: 100, clientY: 100, pointerId: 2 });
     fireEvent.pointerMove(handle, { clientX: 120, clientY: 110, pointerId: 2 });
     fireEvent.pointerUp(handle, { pointerId: 2 });
@@ -450,7 +450,7 @@ describe('VesselDiagramEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
     await user.click(screen.getByRole('button', { name: 'Bilge keel 그룹 선택' }));
 
-    const handle = screen.getAllByLabelText('Bilge keel se 크기 조절')[0];
+    const handle = screen.getAllByLabelText(/Bilge Keel \d+ se 크기 조절/)[0];
     fireEvent.pointerDown(handle, { clientX: 100, clientY: 100, pointerId: 1 });
     fireEvent.pointerMove(handle, { clientX: -5000, clientY: -5000, pointerId: 1 });
     fireEvent.pointerUp(handle, { pointerId: 1 });
@@ -465,6 +465,64 @@ describe('VesselDiagramEditor', () => {
       expect(marker.rect.x + marker.rect.width).toBeLessThanOrEqual(1);
       expect(marker.rect.y + marker.rect.height).toBeLessThanOrEqual(1);
     }
+  });
+
+  it('Ctrl-selects arbitrary markers, plain-clicks one, and clears with Escape', async () => {
+    const user = userEvent.setup();
+    recordDraft(existingDraft(), [
+      nicheSection('TRANSDUCER'),
+      nicheSection('ANODE / ICCP'),
+      nicheSection('BILGE KEEL', 2),
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    const aft = screen.getByRole('button', { name: 'Transducer AFT 표식' });
+    const fwd = screen.getByRole('button', { name: 'Transducer FWD 표식' });
+
+    await user.keyboard('{Control>}');
+    await user.click(aft);
+    await user.click(fwd);
+    await user.keyboard('{/Control}');
+    expect(aft).toHaveAttribute('aria-pressed', 'true');
+    expect(fwd).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(aft);
+    expect(aft).toHaveAttribute('aria-pressed', 'true');
+    expect(fwd).toHaveAttribute('aria-pressed', 'false');
+
+    await user.keyboard('{Escape}');
+    expect(aft).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('moves a mixed multi-selection as one bounded group', async () => {
+    const user = userEvent.setup();
+    const latest = recordDraft(existingDraft(), [
+      nicheSection('TRANSDUCER'),
+      nicheSection('ANODE / ICCP'),
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    const aft = screen.getByRole('button', { name: 'Transducer AFT 표식' });
+    const anode = screen.getByRole('button', { name: 'Anode AFT 표식' });
+    fireEvent.pointerDown(aft, { clientX: 100, clientY: 100, pointerId: 1, ctrlKey: true });
+    fireEvent.pointerUp(aft, { pointerId: 1, ctrlKey: true });
+    fireEvent.pointerDown(anode, { clientX: 100, clientY: 100, pointerId: 2, ctrlKey: true });
+    fireEvent.pointerUp(anode, { pointerId: 2, ctrlKey: true });
+    const before = latest().nicheMarkers.filter(({ id }) => [
+      'transducer-aft',
+      'anode-aft',
+    ].includes(id));
+
+    fireEvent.pointerDown(aft, { clientX: 100, clientY: 100, pointerId: 3 });
+    fireEvent.pointerMove(aft, { clientX: 130, clientY: 120, pointerId: 3 });
+    fireEvent.pointerUp(aft, { pointerId: 3 });
+    const after = latest().nicheMarkers.filter(({ id }) => [
+      'transducer-aft',
+      'anode-aft',
+    ].includes(id));
+
+    expect(after[0].rect.x - before[0].rect.x)
+      .toBeCloseTo(after[1].rect.x - before[1].rect.x, 8);
+    expect(after[0].rect.y - before[0].rect.y)
+      .toBeCloseTo(after[1].rect.y - before[1].rect.y, 8);
   });
 
   it('recreates a presentation URL from an existing draft after remount', async () => {
