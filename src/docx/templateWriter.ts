@@ -4,7 +4,7 @@ import { buildWordPhasePages } from './reportModel';
 import { RATING_FILLS } from './ratingPalette';
 import { fillSection14Template } from './section14Writer';
 import type { ReportInfo } from '../app/reportInfo';
-import type { PhotoData, ReportLabelMap, ReportSection } from '../domain/types';
+import type { PhotoData, ReportLabelMap, ReportSection, WorkPerformLabelMap } from '../domain/types';
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
 import { composeVesselDiagram } from '../vesselDiagram/composer';
 import { resolveMarkerIds } from '../vesselDiagram/markers';
@@ -15,6 +15,7 @@ export interface WordExportInput {
   photos: PhotoData[];
   templateUrl: string;
   reportLabels?: ReportLabelMap;
+  workPerformLabels?: WorkPerformLabelMap;
   reportInfo?: ReportInfo;
   section14TemplateUrl?: string;
   vesselDiagram: VesselDiagramConfig;

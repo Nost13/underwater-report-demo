@@ -1012,6 +1012,28 @@ describe('desktop report workflow', () => {
     expect(within(firstPage).getAllByTestId('template-photo-slot')).toHaveLength(4);
   });
 
+  it('edits a separate WORK PERFORM supporting label and keeps the service in Preview', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+
+    const additional = screen.getByLabelText('BEFORE WORK PERFORM 추가 문구');
+    expect(additional).toHaveValue('Before');
+    await user.clear(additional);
+    await user.type(additional, 'Arrival');
+
+    const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
+    await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
+    await user.upload(manualInput, new File(['before'], 'before.jpg', { type: 'image/jpeg' }));
+    await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
+
+    const firstPage = screen.getAllByRole('article', { name: /Word template preview page/ })[0];
+    expect(within(firstPage).getByText('Cleaning')).toBeVisible();
+    expect(within(firstPage).getByText('Arrival')).toBeVisible();
+    expect(within(firstPage).queryByText(/\(Before\)/)).not.toBeInTheDocument();
+  });
+
   it('composes Preview pages with canonical marker IDs regardless of custom Word labels', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);

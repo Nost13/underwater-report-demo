@@ -485,6 +485,11 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .condition-revert { min-height: 26px; padding: 0 8px; border: 1px solid #d8b77e; border-radius: 6px; background: #fff9ee; color: #8b520e; font-size: 8px; font-weight: 800; }
 .phase-head p { margin: 0; color: #849198; font-size: 7px; }
 .phase-head > div:last-child { justify-content: flex-end; }
+.work-perform-editor { padding: 9px 14px; display: grid; grid-template-columns: auto minmax(100px, auto) minmax(220px, 360px); align-items: center; justify-content: end; gap: 10px; border-bottom: 1px solid #e5ebee; background: #fbfdfd; }
+.work-perform-editor > span, .work-perform-editor label > span { color: #73858d; font-size: 8px; font-weight: 850; letter-spacing: .06em; }
+.work-perform-editor > strong { color: var(--navy-950); font-size: 11px; }
+.work-perform-editor label { display: grid; grid-template-columns: auto minmax(140px, 1fr); align-items: center; gap: 8px; }
+.work-perform-editor input { min-height: 32px; padding: 6px 9px; }
 .phase-select { min-height: 34px; padding: 0 12px; border: 1px solid #80959d; border-radius: 7px; background: #e7eef1; color: #294c58; font-size: 9px; font-weight: 850; }
 .phase-select[aria-pressed="true"] { border-color: #405e69; background: #405e69; color: #fff; box-shadow: 0 3px 8px rgba(32,65,77,.22); }
 .phase-panel.after .phase-select { border-color: #56a8a0; background: #e2f4f1; color: #08766e; }
@@ -627,6 +632,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .template-work-row > span { display: flex; align-items: baseline; gap: 7px; font-size: 8px; }
 .template-work-row small { font-size: 7px; font-weight: 800; }
 .template-work-row strong { font-size: 8px; }
+.template-work-row em { color: #4c5a60; font-size: 8px; font-style: normal; font-weight: 800; }
 .template-location-diagram { height: 81px; flex: 0 0 81px; display: grid; place-items: center; border: 1px solid #737373; overflow: hidden; }
 .template-location-diagram svg { width: 93%; height: 90%; fill: none; stroke: #697278; stroke-width: 1.35; }
 .template-location-diagram circle { fill: rgba(209,65,60,.28); stroke: #c5413c; }

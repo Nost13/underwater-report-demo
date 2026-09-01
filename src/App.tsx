@@ -21,6 +21,7 @@ import {
 } from './app/conditionDefaults';
 import { initialReportState, reportReducer, selectedPages, type ReportState } from './app/reportState';
 import { conciseSectionLabel, defaultReportLabels, reportLabelKey } from './app/reportLabels';
+import { workPerformLabelKey } from './app/workPerformLabels';
 import { filterSections, groupSections, sectionWindow } from './app/sectionNavigator';
 import { createSectionTree, folderRelativePath, pickDirectory, scanImages, type DirectoryHandleLike } from './browser/directory';
 import { ThumbnailPool, type ThumbnailLease } from './browser/images';
@@ -513,6 +514,7 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         sections: report.sections,
         photos: report.photos,
         reportLabels: report.reportLabels,
+        workPerformLabels: report.workPerformLabels,
         reportInfo,
         vesselDiagram,
         templateUrl: 'templates/Detail_report_template.docx',
@@ -806,9 +808,7 @@ function ReportInput(props: ReportInputProps) {
   const labels = props.report.reportLabels[labelKey] ?? defaultReportLabels(props.activeSection);
   const defaults = defaultReportLabels(props.activeSection);
   const sectionIssues = props.issues.filter((issue) => issue.sectionId === props.activeSection.id);
-  const previewPhase = props.activeSection.phases[0];
-  const previewSuffix = previewPhase === 'CURRENT' ? '' : ` (${previewPhase === 'BEFORE' ? 'Before' : 'After'})`;
-  const previewTitle = `${labels.detailTitle}${props.activeSection.unit ? ` ${props.activeSection.unit}` : ''}${previewSuffix}`;
+  const previewTitle = `${labels.detailTitle}${props.activeSection.unit ? ` ${props.activeSection.unit}` : ''}`;
   const previewBc = `${props.activeSection.area === 'NICHE' ? 'NICHE AREAS & COMPONENTS' : 'GENERAL AREAS'} / ${labels.upperAreaLabel}`;
   const focusSection = (index: number) => {
     const section = props.report.sections[index];
@@ -851,7 +851,7 @@ function ReportInput(props: ReportInputProps) {
           onFocusPhase={(phase) => props.onSelectPhotoTarget({ sectionId: props.activeSection.id, phase })}
         />
       </div>
-      <div className="phase-stack">{props.activeSection.phases.map((phase) => <PhasePanel key={phase} phase={phase} section={props.activeSection} sections={props.report.sections} photos={props.activePhotos.filter((photo) => photo.phase === phase)} dispatch={props.dispatch} source={props.report.conditionSources[props.activeSection.id]?.[phase] ?? 'GROUP'} unmatchedCount={props.unmatched.length} onChooseImported={props.onChooseImported} onAddPhotos={props.onAddPhotos} selected={props.activePhotoTarget?.sectionId === props.activeSection.id && props.activePhotoTarget.phase === phase} onSelect={() => props.onSelectPhotoTarget({ sectionId: props.activeSection.id, phase })} />)}</div>
+      <div className="phase-stack">{props.activeSection.phases.map((phase) => <PhasePanel key={phase} phase={phase} section={props.activeSection} sections={props.report.sections} photos={props.activePhotos.filter((photo) => photo.phase === phase)} dispatch={props.dispatch} source={props.report.conditionSources[props.activeSection.id]?.[phase] ?? 'GROUP'} workPerformLabel={props.report.workPerformLabels[workPerformLabelKey(props.activeSection.id, phase)] ?? ''} unmatchedCount={props.unmatched.length} onChooseImported={props.onChooseImported} onAddPhotos={props.onAddPhotos} selected={props.activePhotoTarget?.sectionId === props.activeSection.id && props.activePhotoTarget.phase === phase} onSelect={() => props.onSelectPhotoTarget({ sectionId: props.activeSection.id, phase })} />)}</div>
       <p className="photo-delete-note">삭제는 보고서 참조만 제거하며 원본 파일은 유지됩니다.</p>
     </section>
     {props.unmatchedOpen && props.unmatched.length > 0 && <aside className="unmatched-drawer" id="unmatched" aria-label="UNMATCHED 사진 배정"><div className="unmatched-head"><div><p className="eyebrow">MANUAL ASSIGN</p><h3>UNMATCHED</h3></div><div><span>{props.unmatched.length}</span><button type="button" aria-label="UNMATCHED 닫기" onClick={props.onCloseUnmatched}>×</button></div></div><p className="unmatched-help">확실하지 않은 경로는 추측하지 않습니다. 사진을 클릭하면 현재 선택된 위치에 바로 배정됩니다.</p><div className="unmatched-list">{props.unmatched.map((photo) => <UnmatchedCard key={photo.id} photo={photo} onAssign={() => props.onAssignUnmatched(photo.id)} />)}</div><button type="button" className="ghost full" onClick={props.onOpen}>사진 더 불러오기</button></aside>}
@@ -950,7 +950,7 @@ function GroupConditionDraftEditor({ condition, phase, onApply }: {
   </>;
 }
 
-function PhasePanel({ phase, section, sections, photos, dispatch, source, unmatchedCount, onChooseImported, onAddPhotos, selected, onSelect }: { phase: Phase; section: ReportSection; sections: ReportSection[]; photos: PhotoData[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; source: ConditionSource; unmatchedCount: number; onChooseImported: (target: { sectionId: string; phase: Phase }) => void; onAddPhotos: (sectionId: string, phase: Phase) => void; selected: boolean; onSelect: () => void }) {
+function PhasePanel({ phase, section, sections, photos, dispatch, source, workPerformLabel, unmatchedCount, onChooseImported, onAddPhotos, selected, onSelect }: { phase: Phase; section: ReportSection; sections: ReportSection[]; photos: PhotoData[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; source: ConditionSource; workPerformLabel: string; unmatchedCount: number; onChooseImported: (target: { sectionId: string; phase: Phase }) => void; onAddPhotos: (sectionId: string, phase: Phase) => void; selected: boolean; onSelect: () => void }) {
   const condition = section.conditions[phase];
   if (!condition) return null;
   const selectFromPanel = (event: React.MouseEvent<HTMLElement>) => {
@@ -965,6 +965,7 @@ function PhasePanel({ phase, section, sections, photos, dispatch, source, unmatc
   };
   return <section className={`phase-panel ${phase.toLowerCase()}${selected ? ' selected' : ''}`} aria-label={`${phase} 사진 갤러리`} aria-current={selected ? 'true' : undefined} tabIndex={0} onClick={selectFromPanel} onKeyDown={selectFromKeyboard}>
     <div className="phase-head"><div><span>{phase}</span><b>{photos.filter((photo) => photo.reportUse).length} PHOTOS</b><em className={`condition-source ${source.toLowerCase()}`}>{source === 'OVERRIDE' ? '개별 수정' : '기본값 사용'}</em></div><div>{source === 'OVERRIDE' && <button type="button" className="condition-revert" aria-label={`${phase} 기본값으로 되돌리기`} onClick={() => dispatch({ type: 'REVERT_CONDITION_TO_GROUP', sectionId: section.id, phase })}>기본값으로 되돌리기</button>}<button type="button" className="phase-select" aria-label={`${phase} ${selected ? '현재 사진 배정 위치' : '이곳에 사진 배정'}`} aria-pressed={selected} onClick={onSelect}><span>{selected ? '✓ 현재 사진 배정 위치' : '이곳에 사진 배정'}</span></button>{unmatchedCount > 0 && <button type="button" className="ghost phase-import" aria-label={`${phase} 불러온 사진 선택`} onClick={() => onChooseImported({ sectionId: section.id, phase })}>불러온 사진 선택 ({unmatchedCount})</button>}<button type="button" className="ghost phase-add" aria-label={`${phase} 새 사진 추가`} onClick={() => onAddPhotos(section.id, phase)}>새 사진 추가</button></div></div>
+    <div className="work-perform-editor"><span>WORK PERFORM</span><strong>{section.service[0] + section.service.slice(1).toLowerCase()}</strong><label><span>추가 문구</span><input aria-label={`${phase} WORK PERFORM 추가 문구`} value={workPerformLabel} onChange={(event) => dispatch({ type: 'UPDATE_WORK_PERFORM_LABEL', sectionId: section.id, phase, value: event.target.value })} /></label></div>
     <div className="phase-condition"><ConditionEditor ariaPrefix={phase} condition={condition} onPatch={(patch) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch })} /></div>
     <div className="photo-list">{photos.length ? photos.map((photo) => <PhotoRow key={photo.id} photo={photo} phasePhotos={photos} section={section} phase={phase} sections={sections} dispatch={dispatch} />) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>이 Phase에 사진을 추가하거나 폴더에서 불러오세요.</p></div>}</div>
   </section>;
@@ -1017,7 +1018,8 @@ function CheckPreview(props: CheckPreviewProps) {
     props.report.sections,
     props.report.photos,
     props.report.reportLabels,
-  ), [props.report.sections, props.report.photos, props.report.reportLabels]);
+    props.report.workPerformLabels,
+  ), [props.report.sections, props.report.photos, props.report.reportLabels, props.report.workPerformLabels]);
   const wordPages = allWordPages.filter((page) => page.section.id === props.activeSection.id);
   return <div className="check-layout"><aside className="qa-panel"><div className="qa-title"><p className="step-kicker">STEP 04</p><h2>Report Check</h2><span>{props.issues.length}</span></div><p>누락과 오류만 확인하고, 필요할 때 목록을 펼쳐 해당 Section으로 이동합니다.</p>{props.issues.length ? <><button type="button" className="qa-summary" aria-expanded={issuesOpen} onClick={() => setIssuesOpen((open) => !open)}>Report Check {props.issues.length} issues <span>{issuesOpen ? '접기' : '목록 보기'}</span></button>{issuesOpen && <div className="qa-list">{props.issues.map((issue) => <button type="button" key={issue.id} onClick={() => props.onIssue(issue.sectionId)}><span className={`issue-icon ${issue.kind.toLowerCase()}`}>!</span><span><b>{issue.kind.replaceAll('_', ' ')}</b><em>{issue.message}</em></span><i>→</i></button>)}</div>}</> : <div className="qa-clear"><b>✓</b><span>확인할 오류가 없습니다.</span></div>}</aside>
     <section className="preview-area"><div className="preview-toolbar"><div><p className="eyebrow">WORD TEMPLATE PREVIEW · ALL PAGES</p><h2>{props.activeSection.id}</h2></div><select aria-label="Preview section" value={props.activeSection.id} onChange={(event) => props.onSection(event.target.value)}>{props.report.sections.map((section) => <option key={section.id}>{section.id}</option>)}</select><b className="preview-count">{wordPages.length} PAGES</b></div>
@@ -1074,7 +1076,7 @@ function WordTemplatePreviewPage({
   return <article className={`report-page word-template-page ${page.kind}`} aria-label={`Word template preview page ${pageNumber}`}>
     <header className="template-page-header"><div className="template-brand"><div className="template-logo"><b>US</b><span>UNDERWATER<br />SOLUTION</span></div><div><b>Underwater Solution Co.,Ltd</b><strong>UNDERWATER SERVICE REPORT</strong><span>Underwater Inspection &amp; Cleaning</span><span>Photo Documentation</span></div></div><dl><div><dt>Job No</dt><dd>—</dd></div><div><dt>Vessel</dt><dd>{vesselName}</dd></div><div><dt /><dd>Company Confidential</dd></div><div><dt /><dd>PAGE {pageNumber} / {totalPages}</dd></div></dl></header>
     <section className="template-page-body"><h3>7. DETAILED SERVICE RECORD</h3><div className="template-area-title"><b>{page.values.bc}</b>{page.values.sideLabel && <span>{page.values.sideLabel}</span>}</div>
-      {page.kind === 'first' && <><div className="template-work-row"><b>{page.values.title}</b><span><small>WORK PERFORM</small><strong>{page.values.work}</strong></span></div><VesselDiagramPreview config={vesselDiagram} section={page.section} /><div className="template-condition-tables"><TemplateConditionTable title="FOULING CONDITION" rating={page.values.fr} headings={['RATING', 'TYPE', 'COVERAGE']} values={[page.values.ft, page.values.fc]} /><TemplateConditionTable title="OBSERVED CONDITION" rating={page.values.or} headings={['RATING', 'LEVEL', 'TYPE']} values={[page.values.ol, page.values.ot]} /></div></>}
+      {page.kind === 'first' && <><div className="template-work-row"><b>{page.values.title}</b><span><small>WORK PERFORM</small><strong>{page.values.work}</strong>{page.values.workAdditional && <em>{page.values.workAdditional}</em>}</span></div><VesselDiagramPreview config={vesselDiagram} section={page.section} /><div className="template-condition-tables"><TemplateConditionTable title="FOULING CONDITION" rating={page.values.fr} headings={['RATING', 'TYPE', 'COVERAGE']} values={[page.values.ft, page.values.fc]} /><TemplateConditionTable title="OBSERVED CONDITION" rating={page.values.or} headings={['RATING', 'LEVEL', 'TYPE']} values={[page.values.ol, page.values.ot]} /></div></>}
       <div className={`template-photo-grid ${page.kind}`}>{Array.from({ length: slotCount }, (_, index) => {
         const photo = page.photos[index];
         return <figure data-testid="template-photo-slot" className={photo ? 'filled' : 'empty'} key={photo?.id ?? `empty-${index}`}><div>{photo ? <PhotoThumb file={photo.file} alt={photo.file.name} /> : <span>N/A</span>}</div><figcaption>{photo ? page.values.photoCaption : 'N/A'}</figcaption></figure>;
@@ -1085,6 +1087,6 @@ function WordTemplatePreviewPage({
 }
 
 function ExportScreen({ vesselName, report, status, onBack, onExport, onDiagramSetup, busy }: { vesselName: string; report: ReportState; status: string; onBack: () => void; onExport: () => void; onDiagramSetup?: () => void; busy: boolean }) {
-  const wordPageCount = buildWordPhasePages(report.sections, report.photos, report.reportLabels).length;
+  const wordPageCount = buildWordPhasePages(report.sections, report.photos, report.reportLabels, report.workPerformLabels).length;
   return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 05</p><h2>Word 보고서 다운로드</h2><p>공식 Detail Service Record 템플릿에 Phase별 사진과 Condition을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>Detail Service Record 템플릿 · {wordPageCount} Word pages · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Layout</dt><dd>A4 Portrait · Phase-first</dd></div><div><dt>Page rule</dt><dd>4 + 6 / phase</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p role={onDiagramSetup ? 'alert' : undefined}>{status}</p>{onDiagramSetup && <button type="button" className="ghost" onClick={onDiagramSetup}>선박 위치도 설정으로 돌아가기</button>}</div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Check / Preview</button></div></div>;
 }
