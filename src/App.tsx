@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createDemoPhotos, COMPONENT_OPTIONS, DEMO_VESSELS, SERVICES } from './app/demoData';
 import { emptyReportInfo, reportInfoForScopes, reportInfoFromVessel, type ReportInfo } from './app/reportInfo';
+import { ReportInformation } from './app/ReportInformation';
 import { lookupVessel } from './app/vesselLookup';
 import { VesselDiagramEditor } from './app/VesselDiagramEditor';
 import { VesselDiagramPreview } from './app/VesselDiagramPreview';
@@ -51,7 +52,7 @@ import type {
 } from './domain/types';
 
 const thumbnails = new ThumbnailPool();
-const stages = ['Vessel / Scope', 'Vessel Diagram', '사진 폴더', 'Report Input', 'Check / Preview', 'Word'];
+const stages = ['Vessel / Scope', 'Report Information', 'Vessel Diagram', '사진 폴더', 'Report Input', 'Check / Preview', 'Word'];
 
 const newId = () =>
   globalThis.crypto?.randomUUID?.() ?? `photo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -471,13 +472,13 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
       setStatus('먼저 Scope를 만들어야 Report Input으로 이동할 수 있습니다.');
       return;
     }
-    setStage(3);
+    setStage(4);
   };
 
   const focusIssue = (sectionId: string | null) => {
     if (sectionId) focusReportSection(sectionId);
     else setUnmatchedOpen(true);
-    setStage(3);
+    setStage(4);
   };
 
   const lookupReportVessel = async () => {
@@ -543,7 +544,7 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
     <input {...{ webkitdirectory: '' }} ref={fallbackInput} className="visually-hidden" type="file" multiple accept="image/*" onChange={(event) => importFallback(event.target.files)} />
     <input ref={manualInput} className="visually-hidden" type="file" multiple accept="image/*" onChange={(event) => { importManualPhotos(event.target.files); event.currentTarget.value = ''; }} />
     <StageRail active={stage} onMove={(next) => {
-      if (next === 0 || (next === 1 && report.sections.length > 0) || (next >= 2 && vesselDiagram?.confirmed)) setStage(next);
+      if (next === 0 || ((next === 1 || next === 2) && report.sections.length > 0) || (next >= 3 && vesselDiagram?.confirmed)) setStage(next);
     }} />
     <section className="app-main">
       <header className="topbar"><div><p className="eyebrow">UNDERWATER SERVICE REPORT</p><h1>{scopeMeta?.vesselName ?? vessel?.name ?? 'New report'}</h1></div><div className="top-meta"><span>{serviceSummary}</span><span>{report.sections.length} SECTIONS</span><span>{report.photos.length} PHOTOS</span></div></header>
@@ -566,19 +567,21 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         onPhotos={() => setStage(1)}
       />}
 
-      {stage === 1 && <div className="workspace diagram-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 02</p><h2>선박 위치도 설정</h2><p>선체 기준과 작업 구역을 확인한 뒤 다음 단계로 이동하세요.</p></div><span className="privacy-chip">LOCAL ONLY</span></div><VesselDiagramEditor
+      {stage === 1 && <ReportInformation value={reportInfo} onChange={setReportInfo} onBack={() => setStage(0)} onNext={() => setStage(2)} />}
+
+      {stage === 2 && <div className="workspace diagram-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 03</p><h2>선박 위치도 설정</h2><p>선체 기준과 작업 구역을 확인한 뒤 다음 단계로 이동하세요.</p></div><span className="privacy-chip">LOCAL ONLY</span></div><VesselDiagramEditor
         sections={report.sections} value={vesselDiagram} onChange={setVesselDiagram}
-        onBack={() => setStage(0)} onNext={() => setStage(2)}
+        onBack={() => setStage(1)} onNext={() => setStage(3)}
       /></div>}
 
-      {stage === 2 && <PhotoSource
+      {stage === 3 && <PhotoSource
         photoCount={report.photos.length} matchedCount={report.photos.length - unmatched.length} unmatchedCount={unmatched.length}
         status={status} hasFolder={Boolean(folder)} structureCreated={folderStructureCreated} importComplete={photoImportComplete} standardPathsDetected={standardPathsDetected} folderName={folder?.name ?? null} sections={report.sections}
         onSelect={selectPhotoFolder} onCreate={createFolders} onLoad={reloadFolder}
-        onDemo={loadDemo} onBack={() => setStage(1)} onNext={openReportInput}
+        onDemo={loadDemo} onBack={() => setStage(2)} onNext={openReportInput}
       />}
 
-      {stage === 3 && activeSection && <ReportInput
+      {stage === 4 && activeSection && <ReportInput
         report={report} activeSection={activeSection} activePhotos={activePhotos}
         unmatched={unmatched} unmatchedOpen={unmatchedOpen}
         pages={pages} issues={issues}
@@ -587,21 +590,21 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         onChooseImported={(target) => { setActivePhotoPhase(target.phase); setUnmatchedOpen(true); }}
         onSelectPhotoTarget={(target) => setActivePhotoPhase(target.phase)} onAssignUnmatched={assignUnmatchedToActivePhase}
         onSection={focusReportSection}
-        dispatch={dispatch} onOpen={selectPhotoFolder} onAddPhotos={addPhotosToPhase} onBack={() => setStage(2)} onNext={() => setStage(4)}
+        dispatch={dispatch} onOpen={selectPhotoFolder} onAddPhotos={addPhotosToPhase} onBack={() => setStage(3)} onNext={() => setStage(5)}
       />}
 
-      {stage === 4 && activeSection && vesselDiagram?.confirmed && <CheckPreview
+      {stage === 5 && activeSection && vesselDiagram?.confirmed && <CheckPreview
         report={report} activeSection={activeSection} issues={issues}
         vesselDiagram={vesselDiagram}
         vesselName={scopeMeta?.vesselName ?? 'UNDERWATER REPORT'}
         onIssue={focusIssue} onSection={focusReportSection}
-        onNext={() => setStage(5)}
+        onNext={() => setStage(6)}
       />}
 
-      {stage === 5 && activeSection && <ExportScreen
+      {stage === 6 && activeSection && <ExportScreen
         vesselName={scopeMeta?.vesselName ?? 'UNDERWATER REPORT'} report={report} status={diagramExportError ?? status}
-        onDiagramSetup={diagramExportError ? () => { setDiagramExportError(null); setStage(1); } : undefined}
-        onBack={() => setStage(4)} onExport={runExport} busy={isExporting}
+        onDiagramSetup={diagramExportError ? () => { setDiagramExportError(null); setStage(2); } : undefined}
+        onBack={() => setStage(5)} onExport={runExport} busy={isExporting}
       />}
     </section>
   </main>;
@@ -703,7 +706,6 @@ function VesselScope(props: VesselScopeProps) {
             <div><dt>JOB NO.</dt><dd><input aria-label="Job No" value={props.reportInfo.vessel.jobNo} placeholder="입력" onChange={(event) => setCardVesselField('jobNo', event.target.value)} /></dd></div>
           </dl>
         </section> : <div className="empty-note">VesselFinder에서 선박명 또는 IMO 번호를 조회합니다.</div>}
-        <ReportInfoPanel reportInfo={props.reportInfo} onChange={props.setReportInfo} />
       </section>
       <section className="panel scope-panel"><div className="panel-title"><span>02</span><div><h3>Service / Scope</h3><p>추가할 작업을 먼저 선택하고 필요한 Section에 배정</p></div></div>
         <div className="service-brush-heading"><b>추가할 작업 선택</b><span>Service를 바꿔도 기존 배정은 유지됩니다.</span></div>
@@ -736,7 +738,7 @@ function VesselScope(props: VesselScopeProps) {
 
         <div className="scope-summary" aria-label="Scope 배정 요약"><div className="scope-summary-main"><b>생성 예정 Scope</b><div>{serviceCounts.map((item) => <span key={item.value} className={item.value.toLowerCase()}>{item.value} {item.count}</span>)}</div></div><strong>총 {totalSections} Sections</strong><em>GENERAL 미배정 {unassignedGeneral}</em></div>
         <button type="button" className="primary full" disabled={!props.vessel || props.draftSections.length === 0} onClick={props.onBuild}>{scopeButtonLabel}</button>
-        {locked && <div className="scope-ready"><b>총 {props.sectionCount} sections</b><em>Condition과 phase가 준비되었습니다.</em><div><button type="button" className="ghost" onClick={props.onPhotos}>선박 위치도 설정</button><button type="button" className="text-button" onClick={props.onReset}>Scope 초기화</button></div></div>}
+        {locked && <div className="scope-ready"><b>총 {props.sectionCount} sections</b><em>Condition과 phase가 준비되었습니다.</em><div><button type="button" className="ghost" onClick={props.onPhotos}>Report Information 입력</button><button type="button" className="text-button" onClick={props.onReset}>Scope 초기화</button></div></div>}
       </section>
     </div>
   </div>;
@@ -772,7 +774,7 @@ function PhotoSource(props: PhotoSourceProps) {
     ? `사진 불러오기 완료 · ${props.photoCount}장 · ${props.standardPathsDetected ? '표준 폴더 경로 감지' : '표준 폴더 경로 없음'} · ${props.matchedCount}장 자동 매칭 · UNMATCHED ${props.unmatchedCount}장`
     : '사진을 아직 불러오지 않음';
 
-  return <div className="workspace wide"><div className="page-heading"><div><p className="step-kicker">STEP 03</p><h2>사진 폴더</h2><p>원본은 로컬 File 참조로만 유지하며 서버로 전송하지 않습니다.</p></div><span className="privacy-chip">{props.photoCount} PHOTOS</span></div>
+  return <div className="workspace wide"><div className="page-heading"><div><p className="step-kicker">STEP 04</p><h2>사진 폴더</h2><p>원본은 로컬 File 참조로만 유지하며 서버로 전송하지 않습니다.</p></div><span className="privacy-chip">{props.photoCount} PHOTOS</span></div>
     <section className="method-card recommended photo-folder-card"><div className="method-top"><span>03</span><em>PHOTO INPUT</em></div><h3>사진 준비</h3><p>사진을 넣기 전 폴더 구조로 분류하거나, 이미 있는 사진을 불러온 뒤 경로로 분류할 수 있습니다.</p>
       <ol className="photo-progress" aria-label="사진 입력 진행 상태"><li className={props.hasFolder ? 'done' : scopeReady ? 'current' : 'pending'}><span>{props.hasFolder ? '✓' : '1'}</span><div><b>사진 폴더 선택</b><small>사진이 저장된 폴더를 선택합니다.</small><strong>{folderResult}</strong><button type="button" className={props.hasFolder ? 'ghost' : 'primary'} disabled={!scopeReady} onClick={props.onSelect}>{props.hasFolder ? '다른 사진 폴더 선택' : '사진 폴더 선택'}</button></div></li><li className={props.structureCreated ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.structureCreated ? '✓' : '2'}</span><div><b>표준 폴더 구조 생성 <i>선분류</i></b><small>선택 폴더 안에 선택된 Scope와 구역의 폴더 구조를 생성합니다.</small><strong>{structureResult}</strong><button type="button" className={props.hasFolder && !props.structureCreated ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onCreate}>{props.structureCreated ? '폴더 구조 다시 생성' : '표준 폴더 구조 생성'}</button></div></li><li className={props.importComplete ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.importComplete ? '✓' : '3'}</span><div><b>사진 불러오기 <i>후분류</i></b><small>기존 폴더도 표준 경로가 있으면 자동 매칭하고, 나머지만 UNMATCHED로 분리합니다.</small><strong>{importResult}</strong><button type="button" className={props.hasFolder && !props.importComplete ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onLoad}>{props.importComplete ? '사진 다시 불러오기' : '사진 불러오기'}</button></div></li></ol>
       <section className="photo-scope-summary" aria-label="현재 작업 범위"><p>현재 작업 범위</p><div className="scope-work-list">{scopeGroups.map((group) => <div key={`${group.service}-${group.label}`}><b>{group.service}</b><span>{group.label} · {group.count}개 구역 · {group.phases.join(' / ')}</span></div>)}</div><small>총 {props.sections.length}개 Section · {phaseFolderCount}개 사진 폴더 · SERVICE 폴더는 같은 위치에 여러 Service가 있을 때만 추가됩니다.</small></section>
@@ -855,26 +857,6 @@ function ReportInput(props: ReportInputProps) {
     {props.unmatchedOpen && props.unmatched.length > 0 && <aside className="unmatched-drawer" id="unmatched" aria-label="UNMATCHED 사진 배정"><div className="unmatched-head"><div><p className="eyebrow">MANUAL ASSIGN</p><h3>UNMATCHED</h3></div><div><span>{props.unmatched.length}</span><button type="button" aria-label="UNMATCHED 닫기" onClick={props.onCloseUnmatched}>×</button></div></div><p className="unmatched-help">확실하지 않은 경로는 추측하지 않습니다. 사진을 클릭하면 현재 선택된 위치에 바로 배정됩니다.</p><div className="unmatched-list">{props.unmatched.map((photo) => <UnmatchedCard key={photo.id} photo={photo} onAssign={() => props.onAssignUnmatched(photo.id)} />)}</div><button type="button" className="ghost full" onClick={props.onOpen}>사진 더 불러오기</button></aside>}
     <div className="input-footer"><button type="button" className="text-button" onClick={props.onBack}>← 사진 입력</button><div><span>Report Check {props.issues.length} issues</span><button type="button" className="primary" onClick={props.onNext}>Check / Preview</button></div></div>
   </div>;
-}
-
-function ReportInfoPanel({ reportInfo, onChange }: { reportInfo: ReportInfo; onChange: React.Dispatch<React.SetStateAction<ReportInfo>> }) {
-  const setVesselField = (field: keyof ReportInfo['vessel'], value: string) => onChange((current) => ({
-    ...current, vessel: { ...current.vessel, [field]: value },
-  }));
-  const setOperationField = (field: keyof ReportInfo['operation'], value: string) => onChange((current) => ({
-    ...current, operation: { ...current.operation, [field]: value },
-  }));
-  return <details className="report-info-panel">
-    <summary>보고서 기본 정보 <small>Section 1–4 Word 양식에 기입</small></summary>
-    <div className="report-info-fields">
-      <label className="field"><span>Call Sign</span><input aria-label="Call Sign" value={reportInfo.vessel.callSign} onChange={(event) => setVesselField('callSign', event.target.value)} /></label>
-      <label className="field"><span>Location</span><input aria-label="Location" value={reportInfo.operation.location} onChange={(event) => setOperationField('location', event.target.value)} /></label>
-      <label className="field"><span>ETA</span><input aria-label="ETA" value={reportInfo.operation.eta} onChange={(event) => setOperationField('eta', event.target.value)} /></label>
-      <label className="field"><span>ETD</span><input aria-label="ETD" value={reportInfo.operation.etd} onChange={(event) => setOperationField('etd', event.target.value)} /></label>
-      <label className="field"><span>Personnel</span><input aria-label="Personnel" value={reportInfo.operation.personnel} onChange={(event) => setOperationField('personnel', event.target.value)} /></label>
-      <label className="field"><span>Toolbox / LOTO Time</span><input aria-label="Toolbox / LOTO Time" value={reportInfo.readiness.toolboxTime} onChange={(event) => onChange((current) => ({ ...current, readiness: { ...current.readiness, toolboxTime: event.target.value } }))} /></label>
-    </div>
-  </details>;
 }
 
 function SectionQaPanel({ section, issues, onFocusPhase }: {

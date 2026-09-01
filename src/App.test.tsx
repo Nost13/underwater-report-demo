@@ -53,7 +53,8 @@ async function buildScope(user: ReturnType<typeof userEvent.setup>) {
 
 async function completeVesselDiagram(user: ReturnType<typeof userEvent.setup>) {
   vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 1200, height: 320, close: vi.fn() })));
-  await user.click(screen.getByRole('button', { name: '선박 위치도 설정' }));
+  await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
+  await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
   await user.upload(screen.getByLabelText('선박 사이드뷰 이미지'),
     new File(['vessel'], 'vessel.png', { type: 'image/png' }));
   await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
@@ -92,12 +93,28 @@ async function selectReportSection(
 }
 
 describe('desktop report workflow', () => {
+  it('places Report Information between Scope and the vessel diagram', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildScope(user);
+
+    const rail = within(screen.getByRole('navigation', { name: 'Report stages' }));
+    expect(rail.getByRole('button', { name: /Report Information$/ })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
+    expect(screen.getByRole('heading', { name: 'Report Information' })).toBeVisible();
+    await user.type(screen.getByLabelText('Work Window'), '24 HOURS');
+    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
+
+    expect(screen.getByRole('heading', { name: '선박 위치도 설정' })).toBeVisible();
+  });
+
   it('gates every downstream rail stage until final diagram save, retaining the draft across remounts', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildScope(user);
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 1200, height: 320, close: vi.fn() })));
-    await user.click(screen.getByRole('button', { name: '선박 위치도 설정' }));
+    await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
+    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
     await user.upload(screen.getByLabelText('선박 사이드뷰 이미지'), new File(['png'], 'vessel.png', { type: 'image/png' }));
     await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
     const rail = within(screen.getByRole('navigation', { name: 'Report stages' }));
@@ -222,10 +239,11 @@ describe('desktop report workflow', () => {
 
     await buildScope(user);
 
-    expect(screen.getByRole('button', { name: '선박 위치도 설정' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Report Information 입력' })).toBeVisible();
     expect(screen.queryByRole('heading', { name: '사진 폴더' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '선박 위치도 설정' }));
+    await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
+    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
     expect(screen.getByRole('heading', { name: '선박 위치도 설정' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Niche 맞추기로 이동' })).toBeDisabled();
   });
@@ -946,7 +964,8 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Vessel / Scope' }));
     await user.click(screen.getByRole('button', { name: 'Scope 초기화' }));
     await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
-    await user.click(screen.getByRole('button', { name: '선박 위치도 설정' }));
+    await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
+    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
 
     expect(screen.queryByText('vessel.png')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Niche 맞추기로 이동' })).toBeDisabled();
