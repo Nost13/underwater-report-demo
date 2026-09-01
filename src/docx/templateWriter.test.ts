@@ -75,7 +75,9 @@ describe('template Word writer', () => {
 
     const zip = await JSZip.loadAsync(result.blob);
     const xml = await zip.file('word/document.xml')!.async('text');
-    expect(composeDiagram).toHaveBeenCalledWith(config, ['transducer-aft', 'transducer-fwd']);
+    expect(composeDiagram).toHaveBeenCalledWith(config, ['transducer-aft', 'transducer-fwd'], {
+      trimOuterWhitespace: true,
+    });
     expect(xml).not.toContain('descr="zone_');
     expect(xml).toContain('cx="5301000" cy="1260000"');
     expect(xml).toContain('r:embed="rIdVesselDiagram1"');

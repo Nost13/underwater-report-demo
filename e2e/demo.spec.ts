@@ -29,7 +29,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function completeVesselDiagram(page: Page, filePath = 'e2e/fixtures/vessel-side.png') {
-  await page.getByRole('button', { name: '선박 위치도 설정' }).click();
+  await page.getByRole('button', { name: 'Report Information 입력' }).click();
+  await page.getByRole('button', { name: '선박 위치도 설정으로' }).click();
   await page.getByLabel('선박 사이드뷰 이미지').setInputFiles(filePath);
   await page.getByRole('button', { name: 'Niche 맞추기로 이동' }).click();
   await page.getByRole('button', { name: '선박 위치도 설정 완료' }).click();
@@ -297,7 +298,8 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByRole('button', { name: '전체 적용' }).click();
   await page.getByRole('button', { name: /Scope 만들기$/ }).click();
-  await page.getByRole('button', { name: '선박 위치도 설정' }).click();
+  await page.getByRole('button', { name: 'Report Information 입력' }).click();
+  await page.getByRole('button', { name: '선박 위치도 설정으로' }).click();
   await page.getByLabel('선박 사이드뷰 이미지').setInputFiles('e2e/fixtures/vessel-side.png');
 
   const workspace = page.locator('.workspace').filter({ has: page.locator('.vessel-diagram-editor') });
@@ -358,6 +360,9 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   await expect(resizeHandle).toHaveCSS('pointer-events', 'auto');
   const handleBox = await resizeHandle.boundingBox();
   expect(handleBox).not.toBeNull();
+  expect(handleBox!.width).toBeCloseTo(24, 0);
+  expect(handleBox!.height).toBeCloseTo(24, 0);
+  expect(await resizeHandle.evaluate((node) => getComputedStyle(node, '::after').width)).toBe('6px');
   expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className, {
     x: handleBox!.x + handleBox!.width / 2,
     y: handleBox!.y + handleBox!.height / 2,

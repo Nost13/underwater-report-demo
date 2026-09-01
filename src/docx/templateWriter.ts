@@ -6,7 +6,7 @@ import { fillSection14Template } from './section14Writer';
 import type { ReportInfo } from '../app/reportInfo';
 import type { PhotoData, ReportLabelMap, ReportSection, WorkPerformLabelMap } from '../domain/types';
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
-import { composeVesselDiagram } from '../vesselDiagram/composer';
+import { composeVesselDiagram, type ComposeDependencies } from '../vesselDiagram/composer';
 import { resolveMarkerIds } from '../vesselDiagram/markers';
 
 export interface WordExportInput {
@@ -33,7 +33,11 @@ interface WriterDependencies {
   resize?: (file: File, maxEdge?: number) => Promise<Uint8Array>;
   download?: (blob: Blob, fileName: string) => void;
   fetchSection14Template?: () => Promise<ArrayBuffer | Uint8Array>;
-  composeDiagram?: (config: VesselDiagramConfig, markerIds: string[]) => Promise<Uint8Array>;
+  composeDiagram?: (
+    config: VesselDiagramConfig,
+    markerIds: string[],
+    options?: Pick<ComposeDependencies, 'trimOuterWhitespace'>,
+  ) => Promise<Uint8Array>;
 }
 
 interface DocumentParts {
@@ -441,7 +445,7 @@ export async function writeTemplateReport(
       assertDiagramMarkers(input.vesselDiagram, markerIds, page.section);
       let diagram: Uint8Array;
       try {
-        diagram = await composeDiagram(input.vesselDiagram, markerIds);
+        diagram = await composeDiagram(input.vesselDiagram, markerIds, { trimOuterWhitespace: true });
       } catch {
         throw new Error(`VESSEL_DIAGRAM_COMPOSITION_FAILED:${page.section.id}`);
       }

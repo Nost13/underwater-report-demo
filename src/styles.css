@@ -248,13 +248,13 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .vessel-marker.ellipse, .vessel-marker.circle { border-radius: 50%; }
 .vessel-marker.selected { border-color: var(--danger); background: rgba(180, 35, 24, .19); box-shadow: 0 0 0 2px rgba(180, 35, 24, .17); }
 .vessel-marker:active { cursor: grabbing; }
-.marker-handle { position: absolute; z-index: 3; width: 40px; height: 40px; opacity: 0; pointer-events: none; background: transparent; }
+.marker-handle { position: absolute; z-index: 3; width: 24px; height: 24px; opacity: 0; pointer-events: none; background: transparent; }
 .vessel-marker.selected .marker-handle { opacity: 1; pointer-events: auto; }
-.marker-handle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 3px; background: var(--teal-700); }
-.marker-handle.nw { left: -20px; top: -20px; cursor: nwse-resize; }
-.marker-handle.ne { right: -20px; top: -20px; cursor: nesw-resize; }
-.marker-handle.sw { bottom: -20px; left: -20px; cursor: nesw-resize; }
-.marker-handle.se { right: -20px; bottom: -20px; cursor: nwse-resize; }
+.marker-handle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; transform: translate(-50%, -50%); border: 1px solid #fff; border-radius: 2px; background: var(--teal-700); }
+.marker-handle.nw { left: -12px; top: -12px; cursor: nwse-resize; }
+.marker-handle.ne { right: -12px; top: -12px; cursor: nesw-resize; }
+.marker-handle.sw { bottom: -12px; left: -12px; cursor: nesw-resize; }
+.marker-handle.se { right: -12px; bottom: -12px; cursor: nwse-resize; }
 .diagram-alignment-toolbar { padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; border: 1px solid #b8d7d4; border-radius: 11px; background: #f2faf9; }
 .diagram-alignment-status { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 10px; }
 .diagram-alignment-status b { color: var(--teal-700); font-size: var(--font-ui-sm); }

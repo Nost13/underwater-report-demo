@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   composeVesselDiagram,
+  contentBounds,
   fitContain,
   type CanvasContext,
   type ComposeDependencies,
@@ -81,6 +82,21 @@ function fakeComposer(calls: string[]): ComposeDependencies {
 }
 
 describe('vessel diagram composer', () => {
+  it('finds visible content while ignoring a near-white outer margin', () => {
+    const pixels = new Uint8ClampedArray(10 * 10 * 4).fill(255);
+    for (let y = 3; y < 7; y += 1) {
+      for (let x = 2; x < 8; x += 1) {
+        const offset = (y * 10 + x) * 4;
+        pixels[offset] = 20;
+        pixels[offset + 1] = 30;
+        pixels[offset + 2] = 40;
+      }
+    }
+
+    expect(contentBounds(pixels, 10, 10, 248)).toEqual({ x: 2, y: 3, width: 6, height: 4 });
+    expect(contentBounds(new Uint8ClampedArray(10 * 10 * 4).fill(255), 10, 10, 248)).toBeNull();
+  });
+
   it.each([
     { x: .1, y: .2, width: 0, height: .2 },
     { x: .1, y: .2, width: .1, height: 0 },
