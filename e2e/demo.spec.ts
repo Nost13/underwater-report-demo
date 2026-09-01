@@ -314,6 +314,11 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   expect(editorBox!.x + editorBox!.width).toBeLessThanOrEqual(workspaceBox!.x + workspaceBox!.width + 1);
   expect(surfaceBox!.x).toBeGreaterThanOrEqual(workspaceBox!.x);
   expect(surfaceBox!.x + surfaceBox!.width).toBeLessThanOrEqual(workspaceBox!.x + workspaceBox!.width + 1);
+  const editorImageBox = await page.getByLabel('웹 편집 선박 이미지 영역').boundingBox();
+  expect(editorImageBox).not.toBeNull();
+  expect(editorImageBox!.x - surfaceBox!.x).toBeGreaterThan(surfaceBox!.width * .04);
+  expect(surfaceBox!.x + surfaceBox!.width - editorImageBox!.x - editorImageBox!.width)
+    .toBeGreaterThan(surfaceBox!.width * .04);
 
   const sternGuide = page.getByRole('slider', { name: '선미 기준선' });
   const hullTopGuide = page.getByRole('slider', { name: 'Hull 상단선' });
@@ -363,6 +368,11 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   await page.getByRole('button', { name: 'Niche 맞추기로 이동' }).click();
   const callouts = page.locator('.diagram-callout-label');
   await expect(callouts.first()).toBeVisible();
+  const aftServicesCallout = page.getByRole('button', { name: 'Sea Chest / Discharge Pipe 이름표 선택' });
+  await expect(aftServicesCallout).toBeVisible();
+  expect(await aftServicesCallout.evaluate((node) => (
+    node.scrollWidth <= node.clientWidth && node.scrollHeight <= node.clientHeight
+  ))).toBe(true);
   const laneBoxes = await callouts.evaluateAll((nodes) => nodes.map((node) => {
     const box = node.getBoundingClientRect();
     return { left: box.left, right: box.right, top: box.top };

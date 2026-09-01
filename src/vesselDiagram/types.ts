@@ -1,7 +1,7 @@
 export const DIAGRAM_WIDTH = 2048;
 export const DIAGRAM_HEIGHT = 488;
 
-export type MarkerShape = 'RECTANGLE' | 'ELLIPSE';
+export type MarkerShape = 'RECTANGLE' | 'ELLIPSE' | 'CIRCLE';
 
 export interface NormalizedRect { x: number; y: number; width: number; height: number }
 export interface HullCalibration { sternX: number; bowX: number; hullTopY: number; bottomY: number }

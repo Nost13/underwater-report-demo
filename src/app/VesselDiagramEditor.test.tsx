@@ -183,7 +183,10 @@ describe('VesselDiagramEditor', () => {
     await user.click(screen.getByRole('button', { name: '자동 배치 다시 적용' }));
     expect(confirm).toHaveBeenCalledOnce();
     expect(latest().hullMarkers[0].rect.x).toBe(.25);
-    expect(latest().nicheMarkers.find(({ id }) => id === 'transducer-aft')!.rect.x).toBeCloseTo(.376, 10);
+    const transducer = latest().nicheMarkers.find(({ id }) => id === 'transducer-aft')!;
+    expect(transducer.rect.x + transducer.rect.width / 2).toBeCloseTo(.39525, 10);
+    expect(transducer.rect.width * DIAGRAM_WIDTH)
+      .toBeCloseTo(transducer.rect.height * DIAGRAM_HEIGHT, 8);
     const bilge = latest().nicheMarkers.filter(({ id }) => id.startsWith('bilge-keel-'));
     expect((bilge[0].rect.x + bilge[1].rect.x + bilge[1].rect.width) / 2).toBeCloseTo(.6, 10);
     expect(latest().confirmed).toBe(false);
@@ -538,6 +541,40 @@ describe('VesselDiagramEditor', () => {
     expect(screen.getByText('Bilge Keel 01', { selector: '.diagram-callout-label' })).toBeVisible();
     expect(document.querySelectorAll('.diagram-callout-line'))
       .toHaveLength(existingDraft().nicheMarkers.length);
+  });
+
+  it('names the shared aft marker from the scoped components and selects it from its callout', async () => {
+    const user = userEvent.setup();
+    recordDraft(existingDraft(), [
+      nicheSection('SEA CHEST'),
+      nicheSection('DISCHARGE PIPE'),
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+
+    expect(screen.queryByText('Aft services')).not.toBeInTheDocument();
+    const callout = screen.getByRole('button', { name: 'Sea Chest / Discharge Pipe 이름표 선택' });
+    await user.click(callout);
+    expect(screen.getByRole('button', { name: 'Sea Chest / Discharge Pipe 표식' }))
+      .toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('keeps a circle marker circular when resized', async () => {
+    const user = userEvent.setup();
+    const latest = recordDraft(existingDraft(), [nicheSection('SEA CHEST')]);
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    const handle = screen.getByLabelText('Sea Chest se 크기 조절');
+
+    fireEvent.pointerDown(handle, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(screen.getByRole('button', { name: 'Sea Chest 표식' }), {
+      clientX: 180,
+      clientY: 120,
+      pointerId: 1,
+    });
+    fireEvent.pointerUp(screen.getByRole('button', { name: 'Sea Chest 표식' }), { pointerId: 1 });
+
+    const marker = latest().nicheMarkers.find(({ id }) => id === 'aft-services')!;
+    expect(marker.rect.width * DIAGRAM_WIDTH)
+      .toBeCloseTo(marker.rect.height * DIAGRAM_HEIGHT, 8);
   });
 
   it('enables alignment for two and distribution for three selections', async () => {

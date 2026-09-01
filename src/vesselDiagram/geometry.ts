@@ -1,4 +1,11 @@
-import { DEFAULT_CALIBRATION, type HullCalibration, type NormalizedRect, type ZoneMarker } from './types';
+import {
+  DEFAULT_CALIBRATION,
+  DIAGRAM_HEIGHT,
+  DIAGRAM_WIDTH,
+  type HullCalibration,
+  type NormalizedRect,
+  type ZoneMarker,
+} from './types';
 
 export { DEFAULT_CALIBRATION };
 
@@ -36,6 +43,18 @@ export function projectTemplateRect(rect: NormalizedRect, calibration: HullCalib
   return clampRect({ x: calibration.sternX + rect.x * length, y: calibration.hullTopY + rect.y * height, width: rect.width * length, height: rect.height * height });
 }
 
+export function inscribeCircle(rect: NormalizedRect): NormalizedRect {
+  const diameter = Math.min(rect.width * DIAGRAM_WIDTH, rect.height * DIAGRAM_HEIGHT);
+  const width = diameter / DIAGRAM_WIDTH;
+  const height = diameter / DIAGRAM_HEIGHT;
+  return clampRect({
+    x: rect.x + (rect.width - width) / 2,
+    y: rect.y + (rect.height - height) / 2,
+    width,
+    height,
+  });
+}
+
 const hullIds = ['hull-aft', 'hull-mid-aft', 'hull-mid', 'hull-fwd-mid', 'hull-fwd'];
 export function createDefaultHullMarkers(calibration: HullCalibration): ZoneMarker[] {
   return hullIds.map((id, i) => ({ id, groupId: 'hull', rect: projectTemplateRect({ x: i / 5, y: 0, width: 1 / 5, height: 1 }, calibration), shape: 'RECTANGLE' }));
@@ -50,7 +69,12 @@ const NICHE_TEMPLATES = {
 } as const;
 
 export function createDefaultNicheMarkers(calibration: HullCalibration, bilgeQuantity: number): ZoneMarker[] {
-  const nicheMarkers = Object.entries(NICHE_TEMPLATES).map(([id, rect]) => ({ id, groupId: id, rect: projectTemplateRect(rect, calibration), shape: 'ELLIPSE' as const }));
+  const nicheMarkers = Object.entries(NICHE_TEMPLATES).map(([id, rect]) => ({
+    id,
+    groupId: id,
+    rect: inscribeCircle(projectTemplateRect(rect, calibration)),
+    shape: 'CIRCLE' as const,
+  }));
   return [...nicheMarkers, ...createBilgeKeelMarkers(calibration, bilgeQuantity)];
 }
 

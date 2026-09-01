@@ -8,6 +8,7 @@ import {
   projectTemplateRect,
   resetMarker,
 } from './geometry';
+import { DIAGRAM_HEIGHT, DIAGRAM_WIDTH } from './types';
 
 describe('vessel diagram geometry', () => {
   it.each([1, 3, 5])('centers asymmetric odd Bilge quantity %i on the calibrated midpoint', (quantity) => {
@@ -61,12 +62,15 @@ describe('vessel diagram geometry', () => {
     expect(createBilgeKeelMarkers({ sternX: 0.08, bowX: 0.92, hullTopY: 0.15, bottomY: 0.86 }, 3).map(({ id, unit }) => [id, unit])).toEqual([['bilge-keel-1', 1], ['bilge-keel-2', 2], ['bilge-keel-3', 3]]);
   });
 
-  it('creates all niche defaults as ellipse markers', () => {
+  it('creates component point markers as true circles while Bilge Keel stays elliptical', () => {
     const markers = createDefaultNicheMarkers({ sternX: 0.1, bowX: 0.9, hullTopY: 0.2, bottomY: 0.8 }, 3);
     expect(markers).toHaveLength(12);
-    expect(markers.every((marker) => marker.shape === 'ELLIPSE')).toBe(true);
-    expect(markers.map((marker) => marker.id)).toContain('propeller-group');
-    expect(markers.map((marker) => marker.id)).toContain('bilge-keel-3');
+    const propeller = markers.find((marker) => marker.id === 'propeller-group')!;
+    const bilge = markers.find((marker) => marker.id === 'bilge-keel-3')!;
+    expect(propeller.shape).toBe('CIRCLE');
+    expect(propeller.rect.width * DIAGRAM_WIDTH)
+      .toBeCloseTo(propeller.rect.height * DIAGRAM_HEIGHT, 8);
+    expect(bilge.shape).toBe('ELLIPSE');
   });
 
   it('normalizes invalid Bilge Keel quantities to one marker', () => {

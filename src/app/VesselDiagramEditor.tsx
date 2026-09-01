@@ -60,7 +60,7 @@ const ACCEPTED_IMAGE = /\.(png|jpe?g)$/i;
 const DISPLAY_NAMES: Record<string, string> = {
   hull: 'Hull',
   'propeller-group': 'Propeller',
-  'aft-services': 'Aft services',
+  'aft-services': 'Sea Chest / Discharge Pipe',
   'rudder-group': 'Rudder',
   'fwd-services': 'Forward services',
   'bulbous-bow': 'Bulbous bow',
@@ -76,12 +76,12 @@ const markerGroup = (marker: ZoneMarker) => {
   return marker.groupId;
 };
 
-const markerName = (marker: ZoneMarker) => {
+const markerName = (marker: ZoneMarker, displayNames = DISPLAY_NAMES) => {
   if (marker.id.startsWith('hull-')) return `${marker.id.slice(5).toUpperCase().replaceAll('-', ' ')} Hull`;
   if (marker.id.startsWith('transducer-')) return `Transducer ${marker.id.endsWith('-aft') ? 'AFT' : 'FWD'}`;
   if (marker.id.startsWith('anode-')) return `Anode ${marker.id.endsWith('-aft') ? 'AFT' : 'FWD'}`;
   if (marker.id.startsWith('bilge-keel-')) return `Bilge Keel ${String(marker.unit ?? 1).padStart(2, '0')}`;
-  return DISPLAY_NAMES[markerGroup(marker)] ?? marker.id;
+  return displayNames[markerGroup(marker)] ?? marker.id;
 };
 
 const sameRect = (a: NormalizedRect, b: NormalizedRect) => (
@@ -164,6 +164,32 @@ function resizeRect(
   return clampRect({ x: left, y: top, width: nextRight - left, height: nextBottom - top });
 }
 
+function resizeCircleRect(
+  rect: NormalizedRect,
+  edge: NonNullable<Interaction['edge']>,
+  delta: { x: number; y: number },
+): NormalizedRect {
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+  const horizontal = edge.includes('w') ? right - rect.x - delta.x : rect.width + delta.x;
+  const vertical = edge.includes('n') ? bottom - rect.y - delta.y : rect.height + delta.y;
+  const maxPixelDiameterX = (edge.includes('w') ? right : 1 - rect.x) * DIAGRAM_WIDTH;
+  const maxPixelDiameterY = (edge.includes('n') ? bottom : 1 - rect.y) * DIAGRAM_HEIGHT;
+  const diameter = Math.min(
+    Math.max(8, horizontal * DIAGRAM_WIDTH, vertical * DIAGRAM_HEIGHT),
+    maxPixelDiameterX,
+    maxPixelDiameterY,
+  );
+  const width = diameter / DIAGRAM_WIDTH;
+  const height = diameter / DIAGRAM_HEIGHT;
+  return clampRect({
+    x: edge.includes('w') ? right - width : rect.x,
+    y: edge.includes('n') ? bottom - height : rect.y,
+    width,
+    height,
+  });
+}
+
 export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext }: VesselDiagramEditorProps) {
   const [step, setStep] = useState<EditorStep>('HULL');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -177,9 +203,21 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   const allMarkers = value ? [...value.hullMarkers, ...value.nicheMarkers] : [];
   const visibleMarkers = value ? (step === 'HULL' ? value.hullMarkers : value.nicheMarkers) : [];
   const visibleSelectedIds = selectedIds.filter((id) => visibleMarkers.some((marker) => marker.id === id));
+  const scopedAftComponents = new Set(sections
+    .filter((section) => section.area === 'NICHE')
+    .map((section) => section.component.trim().toUpperCase()));
+  const aftNames = [
+    scopedAftComponents.has('SEA CHEST') ? 'Sea Chest' : null,
+    scopedAftComponents.has('DISCHARGE PIPE') ? 'Discharge Pipe' : null,
+  ].filter((name): name is string => Boolean(name));
+  const displayNames = {
+    ...DISPLAY_NAMES,
+    'aft-services': aftNames.join(' / ') || DISPLAY_NAMES['aft-services'],
+  };
+  const nameMarker = (marker: ZoneMarker) => markerName(marker, displayNames);
   const callouts = layoutMarkerCallouts(visibleMarkers.map((marker) => ({
     id: marker.id,
-    label: markerName(marker),
+    label: nameMarker(marker),
     rect: marker.rect,
   })));
   const requiredGroups = requiredMarkerGroups(sections);
@@ -295,7 +333,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     if (!value || !confirmNicheReset()) return false;
     replace({
       calibration,
-      hullMarkers: value.hullMarkers.map((marker) => ({ ...marker, rect: reprojectRect(marker.rect, value.calibration, calibration) })),
+        hullMarkers: value.hullMarkers.map((marker) => ({ ...marker, rect: reprojectRect(marker.rect, value.calibration, calibration) })),
       nicheMarkers: createDefaultNicheMarkers(calibration, bilgeQuantity),
     });
     return true;
@@ -354,9 +392,12 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
       }) });
       return;
     }
+    const marker = allMarkers.find((candidate) => candidate.id === interaction.id);
     const nextRect = interaction.kind === 'MOVE'
       ? translateRect(target, delta)
-      : resizeRect(target, interaction.edge!, delta);
+      : marker?.shape === 'CIRCLE'
+        ? resizeCircleRect(target, interaction.edge!, delta)
+        : resizeRect(target, interaction.edge!, delta);
     const collection = interaction.id.startsWith('hull-') ? 'hullMarkers' : 'nicheMarkers';
     replace({ [collection]: value[collection].map((marker) => marker.id === interaction.id ? { ...marker, rect: nextRect } : marker) });
   };
@@ -435,7 +476,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   const renderMarker = (marker: ZoneMarker) => <button
     key={marker.id}
     type="button"
-    aria-label={`${markerName(marker)} 표식`}
+    aria-label={`${nameMarker(marker)} 표식`}
     aria-pressed={selectedIds.includes(marker.id)}
     className={`vessel-marker ${marker.shape.toLowerCase()}${selectedIds.includes(marker.id) ? ' selected' : ''}`}
     style={{ left: `${marker.rect.x * 100}%`, top: `${marker.rect.y * 100}%`, width: `${marker.rect.width * 100}%`, height: `${marker.rect.height * 100}%` }}
@@ -448,7 +489,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
       key={edge}
       role="button"
       tabIndex={-1}
-      aria-label={`${markerName(marker)} ${edge} 크기 조절`}
+      aria-label={`${nameMarker(marker)} ${edge} 크기 조절`}
       className={`marker-handle ${edge}`}
       onPointerDown={(event) => startMarkerInteraction(event, marker, 'RESIZE', edge)}
     />)}
@@ -492,20 +533,30 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
               points={callout.points.map(({ x, y }) => `${x},${y}`).join(' ')}
             />)}
           </svg>
-          {callouts.map((callout) => <span
+          {callouts.map((callout) => <button
             key={callout.id}
+            type="button"
+            aria-label={`${callout.label} 이름표 선택`}
+            aria-pressed={selectedIds.includes(callout.id)}
             className={`diagram-callout-label ${callout.lane.toLowerCase()}${selectedIds.includes(callout.id) ? ' selected' : ''}`}
             style={{
               left: `${callout.labelCenter.x / DIAGRAM_WIDTH * 100}%`,
               top: `${callout.labelCenter.y / CALLOUT_STAGE_HEIGHT * 100}%`,
             }}
-          >{callout.label}</span>)}
+            onClick={(event) => setSelectedIds((current) => {
+              const toggled = event.ctrlKey || event.metaKey;
+              if (!toggled) return [callout.id];
+              return current.includes(callout.id)
+                ? current.filter((id) => id !== callout.id)
+                : [...current, callout.id];
+            })}
+          >{callout.label}</button>)}
           <div ref={surfaceRef} className="vessel-diagram-surface" onPointerMove={moveInteraction} onPointerUp={finishInteraction}>
-            {imageUrl && <>
+            {imageUrl && <div className="diagram-editor-image-area" aria-label="웹 편집 선박 이미지 영역">
               {/* Object URLs reference local files and cannot use Next's remote image optimizer. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={imageUrl} alt="업로드한 선박 사이드뷰" />
-            </>}
+            </div>}
             {step === 'HULL' && <svg viewBox={`0 0 ${DIAGRAM_WIDTH} ${DIAGRAM_HEIGHT}`} aria-label="Hull 기준선">
               {guide('sternX', '선미 기준선', true)}
               {guide('bowX', '선수 기준선', true)}
