@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { ReportSection } from '../domain/types';
-import { translateMarkerSelection } from '../vesselDiagram/alignment';
+import {
+  alignMarkerSelection,
+  distributeMarkerSelection,
+  translateMarkerSelection,
+  type MarkerAlignment,
+  type MarkerDistribution,
+} from '../vesselDiagram/alignment';
+import {
+  CALLOUT_STAGE_HEIGHT,
+  layoutMarkerCallouts,
+} from '../vesselDiagram/callouts';
 import {
   clampRect,
   createDefaultHullMarkers,
@@ -165,6 +175,13 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   const uploadVersionRef = useRef(0);
   const bilgeQuantity = bilgeQuantityFromSections(sections);
   const allMarkers = value ? [...value.hullMarkers, ...value.nicheMarkers] : [];
+  const visibleMarkers = value ? (step === 'HULL' ? value.hullMarkers : value.nicheMarkers) : [];
+  const visibleSelectedIds = selectedIds.filter((id) => visibleMarkers.some((marker) => marker.id === id));
+  const callouts = layoutMarkerCallouts(visibleMarkers.map((marker) => ({
+    id: marker.id,
+    label: markerName(marker),
+    rect: marker.rect,
+  })));
   const requiredGroups = requiredMarkerGroups(sections);
   const canConfirm = Boolean(value && isValidCalibration(value.calibration)
     && allMarkers.every((marker) => isValidRect(marker.rect))
@@ -394,6 +411,22 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     replace({ hullMarkers: createDefaultHullMarkers(value.calibration), nicheMarkers: createDefaultNicheMarkers(value.calibration, bilgeQuantity) });
   };
 
+  const applyAlignment = (mode: MarkerAlignment) => {
+    if (!value || visibleSelectedIds.length < 2) return;
+    const collection = step === 'HULL' ? 'hullMarkers' : 'nicheMarkers';
+    replace({
+      [collection]: alignMarkerSelection(value[collection], visibleSelectedIds, mode),
+    });
+  };
+
+  const applyDistribution = (axis: MarkerDistribution) => {
+    if (!value || visibleSelectedIds.length < 3) return;
+    const collection = step === 'HULL' ? 'hullMarkers' : 'nicheMarkers';
+    replace({
+      [collection]: distributeMarkerSelection(value[collection], visibleSelectedIds, axis),
+    });
+  };
+
   const selectGroup = (groupId: string) => setSelectedIds(allMarkers.filter((marker) => markerGroup(marker) === groupId).map((marker) => marker.id));
   const presentGroups = [...new Set(allMarkers.map(markerGroup))];
   const relevantGroupIds = requiredGroups.map((group) => group.id);
@@ -411,7 +444,6 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     onPointerUp={finishInteraction}
     onKeyDown={(event) => moveByKey(event, marker)}
   >
-    <span className="marker-label">{markerName(marker)}</span>
     {(['nw', 'ne', 'sw', 'se'] as const).map((edge) => <span
       key={edge}
       role="button"
@@ -452,21 +484,51 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     {error && <p role="alert" className="diagram-error">{error}</p>}
     {value && <div className="diagram-editor-grid">
       <div className="diagram-panel">
-        <div ref={surfaceRef} className="vessel-diagram-surface" onPointerMove={moveInteraction} onPointerUp={finishInteraction}>
-          {imageUrl && <>
-            {/* Object URLs reference local files and cannot use Next's remote image optimizer. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl} alt="업로드한 선박 사이드뷰" />
-          </>}
-          {step === 'HULL' && <svg viewBox={`0 0 ${DIAGRAM_WIDTH} ${DIAGRAM_HEIGHT}`} aria-label="Hull 기준선">
-            {guide('sternX', '선미 기준선', true)}
-            {guide('bowX', '선수 기준선', true)}
-            {guide('hullTopY', 'Hull 상단선', false)}
-            {guide('bottomY', 'Bottom 기준선', false)}
-          </svg>}
-          {(step === 'HULL' ? value.hullMarkers : value.nicheMarkers).map(renderMarker)}
+        <div className="diagram-callout-stage">
+          <svg className="diagram-callout-lines" viewBox={`0 0 ${DIAGRAM_WIDTH} ${CALLOUT_STAGE_HEIGHT}`} aria-hidden="true">
+            {callouts.map((callout) => <polyline
+              key={callout.id}
+              className={`diagram-callout-line${selectedIds.includes(callout.id) ? ' selected' : ''}`}
+              points={callout.points.map(({ x, y }) => `${x},${y}`).join(' ')}
+            />)}
+          </svg>
+          {callouts.map((callout) => <span
+            key={callout.id}
+            className={`diagram-callout-label ${callout.lane.toLowerCase()}${selectedIds.includes(callout.id) ? ' selected' : ''}`}
+            style={{
+              left: `${callout.labelCenter.x / DIAGRAM_WIDTH * 100}%`,
+              top: `${callout.labelCenter.y / CALLOUT_STAGE_HEIGHT * 100}%`,
+            }}
+          >{callout.label}</span>)}
+          <div ref={surfaceRef} className="vessel-diagram-surface" onPointerMove={moveInteraction} onPointerUp={finishInteraction}>
+            {imageUrl && <>
+              {/* Object URLs reference local files and cannot use Next's remote image optimizer. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imageUrl} alt="업로드한 선박 사이드뷰" />
+            </>}
+            {step === 'HULL' && <svg viewBox={`0 0 ${DIAGRAM_WIDTH} ${DIAGRAM_HEIGHT}`} aria-label="Hull 기준선">
+              {guide('sternX', '선미 기준선', true)}
+              {guide('bowX', '선수 기준선', true)}
+              {guide('hullTopY', 'Hull 상단선', false)}
+              {guide('bottomY', 'Bottom 기준선', false)}
+            </svg>}
+            {visibleMarkers.map(renderMarker)}
+          </div>
         </div>
       </div>
+      {visibleSelectedIds.length >= 2 && <div className="diagram-alignment-toolbar" role="toolbar" aria-label="표식 정렬">
+        <div className="diagram-alignment-status"><b>{visibleSelectedIds.length}개 선택</b><span>Ctrl을 누른 채 표식을 클릭하면 개별 선택할 수 있습니다.</span></div>
+        <div className="diagram-alignment-actions">
+          <button type="button" className="ghost" aria-label="왼쪽 정렬" onClick={() => applyAlignment('LEFT')}>왼쪽</button>
+          <button type="button" className="ghost" aria-label="가로 중앙 정렬" onClick={() => applyAlignment('CENTER_X')}>가로 중앙</button>
+          <button type="button" className="ghost" aria-label="오른쪽 정렬" onClick={() => applyAlignment('RIGHT')}>오른쪽</button>
+          <button type="button" className="ghost" aria-label="상단 정렬" onClick={() => applyAlignment('TOP')}>상단</button>
+          <button type="button" className="ghost" aria-label="세로 가운데 정렬" onClick={() => applyAlignment('MIDDLE_Y')}>세로 가운데</button>
+          <button type="button" className="ghost" aria-label="하단 정렬" onClick={() => applyAlignment('BOTTOM')}>하단</button>
+          <button type="button" className="ghost" aria-label="가로 균등 배치" disabled={visibleSelectedIds.length < 3} onClick={() => applyDistribution('HORIZONTAL')}>가로 간격</button>
+          <button type="button" className="ghost" aria-label="세로 균등 배치" disabled={visibleSelectedIds.length < 3} onClick={() => applyDistribution('VERTICAL')}>세로 간격</button>
+        </div>
+      </div>}
       <aside className="diagram-controls">
         <div className="diagram-control-actions">
           <button type="button" className="ghost" onClick={resetSelected} disabled={!selectedIds.length}>선택 표식 초기화</button>

@@ -212,8 +212,8 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .full { width: 100%; }
 
 /* Vessel diagram calibration editor */
-.vessel-diagram-editor { max-width: 1260px; margin: 0 auto; padding: 26px 30px 90px; }
-.diagram-workspace { max-width: 1320px; margin: 0 auto; }
+.vessel-diagram-editor { max-width: 1440px; margin: 0 auto; padding: 26px 30px 90px; }
+.diagram-workspace { max-width: 1440px; margin: 0 auto; }
 .diagram-editor-head { margin-bottom: 18px; display: flex; align-items: end; justify-content: space-between; gap: 18px; }
 .diagram-editor-head h2 { margin: 5px 0 0; color: var(--navy-900); font-size: 26px; letter-spacing: -.04em; }
 .diagram-editor-head > p { margin: 0; color: var(--muted); font-size: var(--font-ui-sm); }
@@ -222,9 +222,16 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .diagram-upload input { height: auto; padding: 0; border: 0; background: transparent; }
 .diagram-upload b { min-width: 0; color: var(--navy-900); font-size: var(--font-ui-sm); overflow-wrap: anywhere; }
 .diagram-error { margin: -4px 0 14px; color: var(--danger); font-size: var(--font-ui-sm); font-weight: 750; }
-.diagram-editor-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(250px, .7fr); gap: 18px; align-items: start; }
+.diagram-editor-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
 .diagram-panel, .diagram-controls { border: 1px solid var(--line); border-radius: 13px; background: var(--paper); box-shadow: 0 4px 14px rgba(23,44,54,.025); }
-.diagram-panel { padding: 14px; }
+.diagram-panel { min-width: 0; padding: 14px; }
+.diagram-callout-stage { position: relative; width: 100%; aspect-ratio: 2048 / 688; overflow: hidden; border: 1px solid #c9d8dc; border-radius: 9px; background: #fff; }
+.diagram-callout-stage .vessel-diagram-surface { position: absolute; z-index: 1; left: 0; top: calc(100% * 100 / 688); width: 100%; height: calc(100% * 488 / 688); aspect-ratio: auto; border: 0; border-radius: 0; }
+.diagram-callout-lines { position: absolute; z-index: 3; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.diagram-callout-line { fill: none; stroke: #54747b; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.diagram-callout-line.selected { stroke: var(--danger); stroke-width: 3; }
+.diagram-callout-label { position: absolute; z-index: 4; width: calc(100% * 180 / 2048); min-height: 30px; padding: 5px 7px; display: grid; place-items: center; transform: translate(-50%, -50%); overflow: hidden; border: 1px solid #9fb8bd; border-radius: 6px; background: rgba(255,255,255,.96); color: var(--navy-900); font-size: var(--font-ui-sm); font-weight: 850; line-height: 1.2; text-align: center; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.diagram-callout-label.selected { border-color: var(--danger); background: #fff3f1; color: #8f2c24; }
 .vessel-diagram-surface { position: relative; width: 100%; aspect-ratio: 2048 / 488; overflow: hidden; border: 1px solid #c9d8dc; border-radius: 9px; background: #fff; touch-action: none; }
 .vessel-diagram-surface > img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .vessel-diagram-surface > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -236,23 +243,28 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .vessel-marker.ellipse { border-radius: 50%; }
 .vessel-marker.selected { border-color: var(--danger); background: rgba(180, 35, 24, .19); box-shadow: 0 0 0 2px rgba(180, 35, 24, .17); }
 .vessel-marker:active { cursor: grabbing; }
-.marker-label { position: absolute; left: 50%; top: 50%; width: max-content; max-width: 150px; padding: 2px 4px; transform: translate(-50%, -50%); border-radius: 4px; background: rgba(255,255,255,.84); color: var(--navy-900); font-size: 9px; font-weight: 850; pointer-events: none; }
 .marker-handle { position: absolute; z-index: 3; width: 40px; height: 40px; background: transparent; }
 .marker-handle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 3px; background: var(--teal-700); }
 .marker-handle.nw { left: -20px; top: -20px; cursor: nwse-resize; }
 .marker-handle.ne { right: -20px; top: -20px; cursor: nesw-resize; }
 .marker-handle.sw { bottom: -20px; left: -20px; cursor: nesw-resize; }
 .marker-handle.se { right: -20px; bottom: -20px; cursor: nwse-resize; }
-.diagram-controls { padding: 13px; display: grid; gap: 14px; }
-.diagram-control-actions { display: grid; gap: 7px; }
+.diagram-alignment-toolbar { padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; border: 1px solid #b8d7d4; border-radius: 11px; background: #f2faf9; }
+.diagram-alignment-status { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 10px; }
+.diagram-alignment-status b { color: var(--teal-700); font-size: var(--font-ui-sm); }
+.diagram-alignment-status span { color: var(--muted); font-size: var(--font-ui-sm); }
+.diagram-alignment-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.diagram-alignment-actions .ghost { min-height: 38px; padding: 0 11px; background: #fff; }
+.diagram-controls { padding: 13px; display: grid; grid-template-columns: minmax(250px, .6fr) minmax(0, 1.6fr); gap: 14px; }
+.diagram-control-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
 .diagram-control-actions .ghost { min-height: 40px; padding: 0 10px; text-align: left; }
-.diagram-group-list { display: grid; gap: 7px; }
-.diagram-group-list h3 { margin: 0 0 2px; font-size: var(--font-ui-md); }
+.diagram-group-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.diagram-group-list h3 { grid-column: 1 / -1; margin: 0 0 2px; font-size: var(--font-ui-md); }
 .diagram-marker-group { min-height: 42px; padding: 7px 9px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #d7e4e6; border-radius: 8px; background: #f8fbfb; color: var(--navy-900); text-align: left; }
 .diagram-marker-group:hover, .diagram-marker-group:focus-visible { border-color: #8bbdb9; background: #eef9f7; }
 .diagram-marker-group b { font-size: var(--font-ui-sm); }
 .diagram-marker-group span { color: var(--muted); font-size: var(--font-ui-xs); }
-.diagram-group-list details { border-top: 1px solid var(--line); }
+.diagram-group-list details { grid-column: 1 / -1; border-top: 1px solid var(--line); }
 .diagram-group-list summary { min-height: 40px; display: flex; align-items: center; color: #48646d; font-size: var(--font-ui-sm); font-weight: 800; cursor: pointer; }
 .diagram-group-list details[open] { display: grid; gap: 7px; }
 .diagram-hull-help { display: grid; gap: 5px; padding: 11px; border-radius: 8px; background: #f1f7f7; color: #4d6871; font-size: var(--font-ui-sm); line-height: 1.5; }
@@ -723,5 +735,8 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
   .diagram-control-actions { grid-template-columns: 1fr 1fr; }
   .diagram-control-actions .ghost:last-child { grid-column: 1 / -1; }
   .diagram-hull-help, .diagram-group-list { grid-column: 1 / -1; }
+  .diagram-group-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .diagram-alignment-toolbar { align-items: stretch; }
+  .diagram-alignment-actions { width: 100%; }
   .diagram-upload input { min-height: 40px; }
 }

@@ -525,6 +525,51 @@ describe('VesselDiagramEditor', () => {
       .toBeCloseTo(after[1].rect.y - before[1].rect.y, 8);
   });
 
+  it('renders editor-only callouts with unique labels and lines', async () => {
+    const user = userEvent.setup();
+    recordDraft(existingDraft(), [
+      nicheSection('TRANSDUCER'),
+      nicheSection('BILGE KEEL', 2),
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+
+    expect(screen.getByText('Transducer AFT', { selector: '.diagram-callout-label' })).toBeVisible();
+    expect(screen.getByText('Transducer FWD', { selector: '.diagram-callout-label' })).toBeVisible();
+    expect(screen.getByText('Bilge Keel 01', { selector: '.diagram-callout-label' })).toBeVisible();
+    expect(document.querySelectorAll('.diagram-callout-line'))
+      .toHaveLength(existingDraft().nicheMarkers.length);
+  });
+
+  it('enables alignment for two and distribution for three selections', async () => {
+    const user = userEvent.setup();
+    const latest = recordDraft(existingDraft(), [
+      nicheSection('TRANSDUCER'),
+      nicheSection('ANODE / ICCP'),
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
+    const names = ['Transducer AFT 표식', 'Transducer FWD 표식', 'Anode AFT 표식'];
+    for (const name of names.slice(0, 2)) {
+      const target = screen.getByRole('button', { name });
+      fireEvent.pointerDown(target, { pointerId: 1, ctrlKey: true });
+      fireEvent.pointerUp(target, { pointerId: 1, ctrlKey: true });
+    }
+
+    expect(screen.getByRole('toolbar', { name: '표식 정렬' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '가로 균등 배치' })).toBeDisabled();
+
+    const third = screen.getByRole('button', { name: names[2] });
+    fireEvent.pointerDown(third, { pointerId: 2, ctrlKey: true });
+    fireEvent.pointerUp(third, { pointerId: 2, ctrlKey: true });
+    expect(screen.getByRole('button', { name: '가로 균등 배치' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: '상단 정렬' }));
+    const selected = latest().nicheMarkers.filter(({ id }) => [
+      'transducer-aft',
+      'transducer-fwd',
+      'anode-aft',
+    ].includes(id));
+    expect(selected.every(({ rect }) => rect.y === selected[0].rect.y)).toBe(true);
+  });
+
   it('recreates a presentation URL from an existing draft after remount', async () => {
     const file = new File(['png'], 'vessel.png', { type: 'image/png' });
     const value: VesselDiagramConfig = {
