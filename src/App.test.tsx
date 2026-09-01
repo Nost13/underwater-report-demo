@@ -48,7 +48,7 @@ async function verifyVessel(user: ReturnType<typeof userEvent.setup>) {
 async function buildScope(user: ReturnType<typeof userEvent.setup>) {
   await verifyVessel(user);
   await user.click(screen.getByRole('button', { name: '전체 적용' }));
-  await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+  await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
 }
 
 async function completeVesselDiagram(user: ReturnType<typeof userEvent.setup>) {
@@ -77,7 +77,7 @@ async function addNiche(
   await user.clear(quantityInput);
   await user.type(quantityInput, String(quantity));
   await user.tab();
-  await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+  await user.click(screen.getByRole('button', { name: /Scope 추가$/ }));
 }
 
 async function selectReportSection(
@@ -255,7 +255,7 @@ describe('desktop report workflow', () => {
     render(<App />);
     await verifyVessel(user);
 
-    expect(screen.getByRole('button', { name: 'Scope 만들기' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Scope 만들기$/ })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Cleaning 작업 선택' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -276,7 +276,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('AFT STBD 배정 상태')).toHaveTextContent('CLEANING');
     await user.click(screen.getByRole('button', { name: 'AFT STBD 작업 배정' }));
     await user.click(screen.getByRole('button', { name: 'AFT STBD CLEANING 제거' }));
-    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
 
     expect(screen.getByText('15 SECTIONS')).toBeVisible();
     expect(screen.getByText('CLEANING 14')).toBeVisible();
@@ -302,7 +302,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('FWD PORT 배정 상태')).not.toHaveTextContent('INSPECTION');
 
     await user.click(screen.getByRole('button', { name: 'FWD PORT 작업 배정' }));
-    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
     expect(screen.getByText('16 SECTIONS')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'FWD PORT 작업 추가' })).not.toBeInTheDocument();
   });
@@ -315,7 +315,7 @@ describe('desktop report workflow', () => {
     await user.selectOptions(screen.getByLabelText('Niche component'), 'Propeller Blade');
     await user.clear(screen.getByLabelText('Quantity'));
     await user.type(screen.getByLabelText('Quantity'), '3');
-    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    await user.click(screen.getByRole('button', { name: /Scope 추가$/ }));
 
     expect(screen.getByLabelText('PROPELLER BLADE UNIT 03 배정 상태'))
       .toHaveTextContent('POLISHING');
@@ -328,7 +328,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('PROPELLER BLADE UNIT 03 배정 상태'))
       .toHaveTextContent('INSPECTION');
 
-    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
     expect(screen.getByText('6 SECTIONS')).toBeVisible();
     expect(screen.getByText('POLISHING 4')).toBeVisible();
     expect(screen.getByText('INSPECTION 2')).toBeVisible();
@@ -345,6 +345,36 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('Niche component')).toHaveValue('Propeller Blade');
     expect(screen.getByLabelText('Niche type')).toHaveValue('QUANTITY');
     expect(screen.getByLabelText('Quantity')).toHaveValue(4);
+  });
+
+  it('makes the active addition service and combined Polishing set explicit', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+
+    expect(screen.getByText('추가할 작업 선택')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
+
+    const additionMode = screen.getByLabelText('현재 추가 작업');
+    expect(within(additionMode).getByText('POLISHING')).toBeVisible();
+    expect(additionMode).toHaveTextContent('기존 배정은 유지됩니다');
+    expect(screen.getByText('Polishing은 Propeller Blade · Fin Blade · Boss Cap 전용입니다.'))
+      .toBeVisible();
+
+    const automaticSet = screen.getByLabelText('자동 추가 작업');
+    expect(within(automaticSet).getByText('POLISHING')).toBeVisible();
+    expect(within(automaticSet).getByText('INSPECTION')).toBeVisible();
+    expect(automaticSet).toHaveTextContent('Propeller Blade ×4 · Boss Cap');
+    expect(automaticSet).toHaveTextContent('Rope Guard');
+
+    await user.click(screen.getByRole('button', { name: 'POLISHING Scope 추가' }));
+
+    const summary = screen.getByLabelText('Scope 배정 요약');
+    expect(summary).toHaveTextContent('INSPECTION 1');
+    expect(summary).toHaveTextContent('POLISHING 5');
+    expect(summary).toHaveTextContent('총 6 Sections');
+    expect(screen.getByRole('button', { name: 'Inspection + Polishing Scope 만들기' }))
+      .toBeVisible();
   });
 
   it('limits Polishing assignment to Propeller and Boss Cap while keeping Inspection available elsewhere', async () => {
@@ -371,15 +401,14 @@ describe('desktop report workflow', () => {
     await verifyVessel(user);
     await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
 
-    expect(screen.getByText('자동 세트: Propeller Polishing + Boss Cap Polishing + Rope Guard Inspection'))
-      .toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    expect(screen.getByLabelText('자동 추가 작업')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: /Scope 추가$/ }));
 
     expect(screen.getByLabelText('PROPELLER BLADE UNIT 04 배정 상태'))
       .toHaveTextContent('POLISHING');
     expect(screen.getByLabelText('BOSS CAP 배정 상태')).toHaveTextContent('POLISHING');
     expect(screen.getByLabelText('ROPE GUARD 배정 상태')).toHaveTextContent('INSPECTION');
-    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
     expect(screen.getByText('6 SECTIONS')).toBeVisible();
     expect(screen.getByText('POLISHING 5')).toBeVisible();
     expect(screen.getByText('INSPECTION 1')).toBeVisible();
@@ -390,16 +419,16 @@ describe('desktop report workflow', () => {
     render(<App />);
     await verifyVessel(user);
     await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
-    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    await user.click(screen.getByRole('button', { name: /Scope 추가$/ }));
     await user.click(screen.getByRole('button', { name: 'Inspection 작업 선택' }));
-    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    await user.click(screen.getByRole('button', { name: /Scope 추가$/ }));
 
     expect(screen.getAllByRole('button', { name: 'Propeller Blade 삭제' })).toHaveLength(1);
     expect(screen.getByLabelText('PROPELLER BLADE UNIT 01 배정 상태'))
       .toHaveTextContent('POLISHING');
     expect(screen.getByLabelText('PROPELLER BLADE UNIT 01 배정 상태'))
       .toHaveTextContent('INSPECTION');
-    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
     expect(screen.getByText('10 SECTIONS')).toBeVisible();
     expect(screen.getByText('POLISHING 5')).toBeVisible();
     expect(screen.getByText('INSPECTION 5')).toBeVisible();
@@ -433,7 +462,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
     await user.click(screen.getByRole('checkbox', { name: 'Fin Blade 포함' }));
     await user.click(screen.getByRole('button', { name: '수량 증가' }));
-    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    await user.click(screen.getByRole('button', { name: /Scope 추가$/ }));
 
     expect(screen.getByLabelText('PROPELLER BLADE UNIT 05 배정 상태'))
       .toHaveTextContent('POLISHING');
@@ -465,13 +494,13 @@ describe('desktop report workflow', () => {
     render(<App />);
     await verifyVessel(user);
     await user.selectOptions(screen.getByLabelText('Niche component'), 'Boss Cap');
-    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    await user.click(screen.getByRole('button', { name: /Scope 추가$/ }));
     await user.click(screen.getByRole('button', { name: 'Inspection 작업 선택' }));
-    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
+    await user.click(screen.getByRole('button', { name: /Scope 추가$/ }));
     expect(screen.getAllByRole('button', { name: 'Boss Cap 삭제' })).toHaveLength(1);
     expect(screen.getByLabelText('BOSS CAP 배정 상태')).toHaveTextContent('CLEANING');
     expect(screen.getByLabelText('BOSS CAP 배정 상태')).toHaveTextContent('INSPECTION');
-    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
     expect(screen.getByText('2 SECTIONS')).toBeVisible();
   });
 
@@ -766,8 +795,8 @@ describe('desktop report workflow', () => {
     render(<App />);
     await verifyVessel(user);
     await user.click(screen.getByRole('button', { name: 'Polishing 작업 선택' }));
-    await user.click(screen.getByRole('button', { name: 'Niche 추가' }));
-    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: /Scope 추가$/ }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
     await completeVesselDiagram(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     await user.click(screen.getByRole('button', { name: '다음 Section' }));
@@ -919,7 +948,7 @@ describe('desktop report workflow', () => {
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Vessel / Scope' }));
     await user.click(screen.getByRole('button', { name: 'Scope 초기화' }));
-    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
     await user.click(screen.getByRole('button', { name: '선박 위치도 설정' }));
 
     expect(screen.queryByText('vessel.png')).not.toBeInTheDocument();
@@ -975,7 +1004,7 @@ describe('desktop report workflow', () => {
     await addNiche(user, 'Transducer', 'SINGLE', 1);
     await addNiche(user, 'Anode / ICCP', 'SIDE', 1);
     await addNiche(user, 'Bilge Keel', 'QUANTITY', 2);
-    await user.click(screen.getByRole('button', { name: 'Scope 만들기' }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
     await completeVesselDiagram(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 

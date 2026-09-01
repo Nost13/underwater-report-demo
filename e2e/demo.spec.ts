@@ -44,7 +44,7 @@ async function buildGeneralScope(page: Page) {
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await expect(page.getByText('M.V. PACIFIC AURORA').first()).toBeVisible();
   await page.getByRole('button', { name: '전체 적용' }).click();
-  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await page.getByRole('button', { name: /Scope 만들기$/ }).click();
   await expect(page.locator('.scope-ready')).toContainText('총 15 sections');
   await expect(page.locator('.scope-summary')).toContainText('CLEANING 15');
   await expect(page.getByRole('button', { name: 'Cleaning 작업 선택' })).toBeDisabled();
@@ -65,8 +65,8 @@ test('Polishing prepares Propeller and can add matching Fin Blades at 1440px', a
   await page.getByRole('checkbox', { name: 'Fin Blade 포함' }).check();
   await page.getByRole('button', { name: '수량 증가' }).click();
   await expect(page.getByLabel('Quantity')).toHaveValue('5');
-  await expect(page.getByText('자동 세트: Propeller Polishing + Boss Cap Polishing + Rope Guard Inspection')).toBeVisible();
-  await page.getByRole('button', { name: 'Niche 추가' }).click();
+  await expect(page.getByLabel('자동 추가 작업')).toBeVisible();
+  await page.getByRole('button', { name: /Scope 추가$/ }).click();
   await expect(page.getByLabel('PROPELLER BLADE UNIT 05 배정 상태')).toContainText('POLISHING');
   await expect(page.getByLabel('FIN BLADE UNIT 05 배정 상태')).toContainText('POLISHING');
   await expect(page.getByLabel('BOSS CAP 배정 상태')).toContainText('POLISHING');
@@ -80,8 +80,8 @@ test('group defaults preserve unit overrides across direct Section navigation', 
   await page.getByLabel('Vessel name / IMO number / Call Sign').fill('9876543');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByRole('button', { name: 'Polishing 작업 선택' }).click();
-  await page.getByRole('button', { name: 'Niche 추가' }).click();
-  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await page.getByRole('button', { name: /Scope 추가$/ }).click();
+  await page.getByRole('button', { name: /Scope 만들기$/ }).click();
   await completeVesselDiagram(page);
   await page.getByRole('button', { name: 'Report Input으로' }).click();
 
@@ -247,7 +247,7 @@ test('one physical target can carry Cleaning and Inspection with unambiguous fol
   await page.getByRole('button', { name: 'Inspection 작업 선택' }).click();
   await page.getByRole('button', { name: 'FWD PORT 작업 배정' }).click();
   await page.screenshot({ path: 'e2e/scope-mixed-1440.png', fullPage: true });
-  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await page.getByRole('button', { name: /Scope 만들기$/ }).click();
   await expect(page.locator('.scope-ready')).toContainText('총 16 sections');
   await expect(page.locator('.scope-summary')).toContainText('CLEANING 15');
   await expect(page.locator('.scope-summary')).toContainText('INSPECTION 1');
@@ -273,7 +273,7 @@ test('an Inspection exception uses CURRENT while other Sections keep BEFORE and 
   await page.getByRole('button', { name: '전체 적용' }).click();
   await page.getByRole('button', { name: 'Inspection 작업 선택' }).click();
   await page.getByRole('button', { name: 'AFT STBD 작업 배정', exact: true }).click();
-  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await page.getByRole('button', { name: /Scope 만들기$/ }).click();
   await completeVesselDiagram(page);
   await page.getByRole('button', { name: 'Report Input으로' }).click();
 
@@ -296,7 +296,7 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   await page.getByLabel('Vessel name / IMO number / Call Sign').fill('9876543');
   await page.getByRole('button', { name: 'Vessel 확인' }).click();
   await page.getByRole('button', { name: '전체 적용' }).click();
-  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await page.getByRole('button', { name: /Scope 만들기$/ }).click();
   await page.getByRole('button', { name: '선박 위치도 설정' }).click();
   await page.getByLabel('선박 사이드뷰 이미지').setInputFiles('e2e/fixtures/vessel-side.png');
 
@@ -383,13 +383,13 @@ test('linked and Bilge markers produce preview-identical flattened Word PNGs', a
     await page.getByLabel('Niche component').selectOption(component);
     await page.getByLabel('Niche type').selectOption(type);
     await page.getByLabel('Quantity').fill(String(quantity));
-    await page.getByRole('button', { name: 'Niche 추가' }).click();
+    await page.getByRole('button', { name: /Scope 추가$/ }).click();
   };
   await addNiche('Propeller Blade', 'SINGLE', 1);
   await addNiche('Transducer', 'SINGLE', 1);
   await addNiche('Anode / ICCP', 'SIDE', 1);
   await addNiche('Bilge Keel', 'QUANTITY', 3);
-  await page.getByRole('button', { name: 'Scope 만들기' }).click();
+  await page.getByRole('button', { name: /Scope 만들기$/ }).click();
   await completeVesselDiagram(page);
   await page.getByRole('button', { name: 'Report Input으로' }).click();
   const vesselPhoto = await readFile('e2e/fixtures/vessel-side.png');

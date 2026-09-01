@@ -635,7 +635,7 @@ function TargetCell(props: TargetCellProps) {
         type="button"
         key={service}
         disabled={props.locked}
-        className={`service-chip ${service.toLowerCase()}`}
+        className={`service-chip ${service.toLowerCase()}${service === props.activeService ? ' active-service' : ''}`}
         aria-label={`${label} ${service} 제거`}
         onClick={() => props.onRemove(service)}
       >{service}<span>×</span></button>) : <span>—</span>}
@@ -672,6 +672,13 @@ function VesselScope(props: VesselScopeProps) {
     ...item,
     count: props.draftSections.filter((section) => section.service === item.value).length,
   })).filter((item) => item.count > 0);
+  const activeServiceLabel = SERVICES.find((item) => item.value === props.activeService)?.label
+    ?? props.activeService;
+  const scopeCombinationLabel = serviceCounts.map((item) => item.label).join(' + ');
+  const scopeButtonLabel = scopeCombinationLabel
+    ? `${scopeCombinationLabel} Scope 만들기`
+    : 'Scope 만들기';
+  const totalSections = serviceCounts.reduce((total, item) => total + item.count, 0);
   const unassignedGeneral = props.generalTargets.filter((target) => target.services.length === 0).length;
   const numeric = (value: string, suffix = '') => value ? `${Number(value).toLocaleString('en-US')}${suffix ? ` ${suffix}` : ''}` : '—';
   const setCardVesselField = (field: 'ownerClient' | 'jobNo', value: string) => props.setReportInfo((current) => ({
@@ -697,7 +704,8 @@ function VesselScope(props: VesselScopeProps) {
         </section> : <div className="empty-note">VesselFinder에서 선박명 또는 IMO 번호를 조회합니다.</div>}
         <ReportInfoPanel reportInfo={props.reportInfo} onChange={props.setReportInfo} />
       </section>
-      <section className="panel scope-panel"><div className="panel-title"><span>02</span><div><h3>Service / Scope</h3><p>작업을 선택하고 필요한 Section만 클릭</p></div></div>
+      <section className="panel scope-panel"><div className="panel-title"><span>02</span><div><h3>Service / Scope</h3><p>추가할 작업을 먼저 선택하고 필요한 Section에 배정</p></div></div>
+        <div className="service-brush-heading"><b>추가할 작업 선택</b><span>Service를 바꿔도 기존 배정은 유지됩니다.</span></div>
         <div className="service-brush" aria-label="Service 작업 선택">{SERVICES.map((item) => <button
           type="button"
           key={item.value}
@@ -707,22 +715,26 @@ function VesselScope(props: VesselScopeProps) {
           className={props.activeService === item.value ? `active ${item.value.toLowerCase()}` : ''}
           onClick={() => props.setActiveService(item.value)}
         >{item.label}</button>)}</div>
+        <div className={`service-addition-mode ${props.activeService.toLowerCase()}`} aria-label="현재 추가 작업">
+          <span>현재 추가 작업</span><strong>{props.activeService}</strong>
+          <p>아래 선택과 클릭은 {activeServiceLabel} 작업만 추가·해제합니다. 기존 배정은 유지됩니다.</p>
+        </div>
         <div className="phase-rule"><b>{props.activeService === 'INSPECTION' ? 'CURRENT' : 'BEFORE  →  AFTER'}</b><span>{props.activeService === 'INSPECTION' ? 'Inspection 단일 phase' : 'AFTER 기본값 CLEAN / R0'}</span></div>
 
-        <section className={polishingActive ? 'general-builder restricted' : 'general-builder'}><div className="mini-heading"><b>GENERAL</b><span>{polishingActive ? 'POLISHING 배정 불가' : '15 AVAILABLE · 필요한 곳만 배정'}</span></div>
+        <section className={polishingActive ? 'general-builder restricted' : 'general-builder'}><div className="mini-heading"><b>GENERAL</b><span>{polishingActive ? 'Polishing은 Propeller Blade · Fin Blade · Boss Cap 전용입니다.' : `현재 추가 작업: ${props.activeService}`}</span></div>
           <div className="preset-row"><button type="button" disabled={generalLocked} onClick={() => props.onGeneralPreset()}>전체 적용</button>{GENERAL_SIDES.map((side) => <button type="button" disabled={generalLocked} key={side} onClick={() => props.onGeneralPreset(side)}>{side} 적용</button>)}<button type="button" disabled={generalLocked} onClick={props.onGeneralClear}>모두 해제</button><button type="button" disabled={generalLocked || !props.generalUndo} onClick={props.onGeneralUndo}>실행 취소</button></div>
           <div className="general-matrix"><div className="matrix-corner">ZONE</div>{GENERAL_SIDES.map((side) => <b key={side}>{side}</b>)}{GENERAL_ZONES.map((zone) => <div className="general-matrix-row" key={zone}><strong>{zone}</strong>{GENERAL_SIDES.map((side) => { const target = props.generalTargets.find((item) => item.component === zone && item.side === side)!; return <TargetCell key={target.id} target={target} activeService={props.activeService} locked={generalLocked} compact onToggle={() => props.onGeneralToggle(target.id)} onRemove={(service) => props.onGeneralRemove(target.id, service)} />; })}</div>)}</div>
         </section>
 
-        <section className="niche-builder"><div className="mini-heading"><b>NICHE</b><span>추가 시 현재 Service 전체 적용</span></div><div className="niche-controls">
+        <section className="niche-builder"><div className="mini-heading"><b>NICHE</b><span>현재 추가 작업: {props.activeService}</span></div><div className="niche-controls">
           <select aria-label="Niche component" value={props.nicheDraft.component} disabled={locked} onChange={(event) => { const option = componentOptions.find((item) => item.name === event.target.value)!; props.setIncludeFinBlade(false); props.setNicheDraft({ component: option.name, type: option.defaultType, quantity: option.defaultQuantity }); }}>{componentOptions.map((item) => <option key={item.name}>{item.name}</option>)}</select>
           <select aria-label="Niche type" value={props.nicheDraft.type} disabled={locked} onChange={(event) => props.setNicheDraft({ ...props.nicheDraft, type: event.target.value as NicheType })}>{['SINGLE', 'SIDE', 'QUANTITY', 'SIDE_QUANTITY'].map((type) => <option key={type}>{type}</option>)}</select>
           <div className="quantity-stepper"><button type="button" aria-label="수량 감소" disabled={locked || props.nicheDraft.quantity <= 1} onClick={() => props.setNicheDraft({ ...props.nicheDraft, quantity: Math.max(1, props.nicheDraft.quantity - 1) })}>−</button><input aria-label="Quantity" type="number" min="1" max="12" value={props.nicheDraft.quantity} disabled={locked} onChange={(event) => props.setNicheDraft({ ...props.nicheDraft, quantity: Number(event.target.value) })} onBlur={(event) => props.setNicheDraft({ ...props.nicheDraft, quantity: Math.min(12, Math.max(1, Number(event.target.value) || 1)) })} /><button type="button" aria-label="수량 증가" disabled={locked || props.nicheDraft.quantity >= 12} onClick={() => props.setNicheDraft({ ...props.nicheDraft, quantity: Math.min(12, props.nicheDraft.quantity + 1) })}>＋</button></div>
-          <button type="button" className="icon-button" aria-label="Niche 추가" disabled={locked} onClick={props.addNiche}>＋</button>
-        </div>{polishingActive && props.nicheDraft.component === 'Propeller Blade' && <><div className="polishing-set-note">자동 세트: Propeller Polishing + Boss Cap Polishing + Rope Guard Inspection</div><label className="fin-blade-option"><input type="checkbox" aria-label="Fin Blade 포함" checked={props.includeFinBlade} disabled={locked} onChange={(event) => props.setIncludeFinBlade(event.target.checked)} /><span><b>Fin Blade 포함</b><small>Propeller Blade와 동일 수량으로 함께 추가</small></span></label></>}{props.nicheItems.map((item) => <article className="niche-group" key={item.id}><header><div><b>{item.component}</b><span>{item.type}{item.type.includes('QUANTITY') ? ` ×${item.quantity}` : ''}</span></div><button type="button" disabled={locked} aria-label={`${item.component} 삭제`} onClick={() => props.removeNiche(item.id)}>×</button></header><div className="niche-targets">{item.targets.map((target) => <TargetCell key={target.id} target={target} activeService={props.activeService} locked={locked} onToggle={() => props.onNicheToggle(item.id, target.id)} onRemove={(service) => props.onNicheRemove(item.id, target.id, service)} />)}</div></article>)}<p className="side-note">Side 없음: Discharge Pipe, Transducer, Stern Frame, Rope Guard, Propeller Blade, Fin Blade, Boss Cap</p></section>
+          <button type="button" className={`scope-add-button ${props.activeService.toLowerCase()}`} aria-label={`${props.activeService} Scope 추가`} disabled={locked} onClick={props.addNiche}><span>＋</span>{props.activeService} Scope 추가</button>
+        </div>{polishingActive && props.nicheDraft.component === 'Propeller Blade' && <><div className="polishing-set-note" aria-label="자동 추가 작업"><strong>한 번에 함께 추가</strong><div><span className="service-chip polishing">POLISHING</span><b>Propeller Blade ×{props.nicheDraft.quantity} · {props.includeFinBlade ? `Fin Blade ×${props.nicheDraft.quantity} · ` : ''}Boss Cap</b></div><div><span className="service-chip inspection">INSPECTION</span><b>Rope Guard</b></div></div><label className="fin-blade-option"><input type="checkbox" aria-label="Fin Blade 포함" checked={props.includeFinBlade} disabled={locked} onChange={(event) => props.setIncludeFinBlade(event.target.checked)} /><span><b>Fin Blade 포함</b><small>Propeller Blade와 동일 수량으로 함께 추가</small></span></label></>}{props.nicheItems.map((item) => <article className="niche-group" key={item.id}><header><div><b>{item.component}</b><span>{item.type}{item.type.includes('QUANTITY') ? ` ×${item.quantity}` : ''}</span></div><button type="button" disabled={locked} aria-label={`${item.component} 삭제`} onClick={() => props.removeNiche(item.id)}>×</button></header><div className="niche-targets">{item.targets.map((target) => <TargetCell key={target.id} target={target} activeService={props.activeService} locked={locked} onToggle={() => props.onNicheToggle(item.id, target.id)} onRemove={(service) => props.onNicheRemove(item.id, target.id, service)} />)}</div></article>)}<p className="side-note">Side 없음: Discharge Pipe, Transducer, Stern Frame, Rope Guard, Propeller Blade, Fin Blade, Boss Cap</p></section>
 
-        <div className="scope-summary" aria-label="Scope 배정 요약"><div>{serviceCounts.map((item) => <span key={item.value} className={item.value.toLowerCase()}>{item.value} {item.count}</span>)}</div><em>GENERAL 미배정 {unassignedGeneral}</em></div>
-        <button type="button" className="primary full" disabled={!props.vessel || props.draftSections.length === 0} onClick={props.onBuild}>Scope 만들기</button>
+        <div className="scope-summary" aria-label="Scope 배정 요약"><div className="scope-summary-main"><b>생성 예정 Scope</b><div>{serviceCounts.map((item) => <span key={item.value} className={item.value.toLowerCase()}>{item.value} {item.count}</span>)}</div></div><strong>총 {totalSections} Sections</strong><em>GENERAL 미배정 {unassignedGeneral}</em></div>
+        <button type="button" className="primary full" disabled={!props.vessel || props.draftSections.length === 0} onClick={props.onBuild}>{scopeButtonLabel}</button>
         {locked && <div className="scope-ready"><b>총 {props.sectionCount} sections</b><em>Condition과 phase가 준비되었습니다.</em><div><button type="button" className="ghost" onClick={props.onPhotos}>선박 위치도 설정</button><button type="button" className="text-button" onClick={props.onReset}>Scope 초기화</button></div></div>}
       </section>
     </div>
