@@ -181,4 +181,21 @@ describe('report state', () => {
       photoCaption: 'Propeller Blade',
     });
   });
+
+  it('initializes and edits a separate WORK PERFORM label per Section phase', () => {
+    const seeded = reportReducer(initialReportState, { type: 'SET_SCOPE', sections: [section] });
+
+    expect(seeded.workPerformLabels[`${section.id}::BEFORE`]).toBe('Before');
+    expect(seeded.workPerformLabels[`${section.id}::AFTER`]).toBe('After');
+
+    const next = reportReducer(seeded, {
+      type: 'UPDATE_WORK_PERFORM_LABEL',
+      sectionId: section.id,
+      phase: 'BEFORE',
+      value: 'Arrival',
+    });
+
+    expect(next.workPerformLabels[`${section.id}::BEFORE`]).toBe('Arrival');
+    expect(next.workPerformLabels[`${section.id}::AFTER`]).toBe('After');
+  });
 });

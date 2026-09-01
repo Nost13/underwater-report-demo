@@ -1,6 +1,7 @@
 import { paginateSection, type ReportPage } from '../domain/pagination';
-import type { Condition, Phase, PhotoData, ReportLabelMap, ReportLabels, ReportSection } from '../domain/types';
+import type { Condition, Phase, PhotoData, ReportLabelMap, ReportLabels, ReportSection, WorkPerformLabelMap } from '../domain/types';
 import { initializeReportLabels } from './reportLabels';
+import { initializeWorkPerformLabels, workPerformLabelKey } from './workPerformLabels';
 import {
   cloneCondition,
   conditionGroupKey,
@@ -18,6 +19,7 @@ export interface ReportState {
   conditionDefaults: ConditionDefaults;
   conditionSources: ConditionSources;
   reportLabels: ReportLabelMap;
+  workPerformLabels: WorkPerformLabelMap;
 }
 
 export type ReportAction =
@@ -31,6 +33,7 @@ export type ReportAction =
   | { type: 'APPLY_GROUP_CONDITION'; sectionId: string; phase: Phase; condition: Condition }
   | { type: 'REVERT_CONDITION_TO_GROUP'; sectionId: string; phase: Phase }
   | { type: 'UPDATE_REPORT_LABELS'; groupKey: string; labels: Partial<ReportLabels> }
+  | { type: 'UPDATE_WORK_PERFORM_LABEL'; sectionId: string; phase: Phase; value: string }
   | { type: 'FOCUS_SECTION'; sectionId: string };
 
 export const initialReportState: ReportState = {
@@ -40,6 +43,7 @@ export const initialReportState: ReportState = {
   conditionDefaults: {},
   conditionSources: {},
   reportLabels: {},
+  workPerformLabels: {},
 };
 
 export function reportReducer(state: ReportState, action: ReportAction): ReportState {
@@ -51,6 +55,7 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
         photos: [],
         focusedSectionId: action.sections[0]?.id ?? null,
         reportLabels: initializeReportLabels(action.sections),
+        workPerformLabels: initializeWorkPerformLabels(action.sections),
         ...inheritance,
       };
     }
@@ -154,6 +159,14 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
         },
       };
     }
+    case 'UPDATE_WORK_PERFORM_LABEL':
+      return {
+        ...state,
+        workPerformLabels: {
+          ...state.workPerformLabels,
+          [workPerformLabelKey(action.sectionId, action.phase)]: action.value,
+        },
+      };
     case 'FOCUS_SECTION':
       return { ...state, focusedSectionId: action.sectionId };
   }

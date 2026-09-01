@@ -41,9 +41,10 @@ describe('Word report phase model', () => {
     expect(templateValues(section, 'BEFORE')).toEqual({
       bc: 'NICHE AREAS & COMPONENTS / PROPELLER',
       sideLabel: '',
-      title: 'PROPELLER BLADE 1 (Before)',
+      title: 'PROPELLER BLADE 1',
       photoCaption: 'Propeller Blade',
       work: 'Polishing',
+      workAdditional: 'Before',
       fr: '1',
       ft: 'Micro fouling',
       fc: '70%',
@@ -63,6 +64,7 @@ describe('Word report phase model', () => {
       title: 'ROPE GUARD',
       photoCaption: 'Rope Guard',
       work: 'Inspection',
+      workAdditional: 'Current',
     });
   });
 
@@ -73,8 +75,9 @@ describe('Word report phase model', () => {
       photoCaption: 'Propeller Blade Detail',
     })).toMatchObject({
       bc: 'NICHE AREAS & COMPONENTS / PROPULSION',
-      title: 'BLADE 1 (After)',
+      title: 'BLADE 1',
       photoCaption: 'Propeller Blade Detail',
+      workAdditional: 'After',
     });
   });
 
@@ -143,5 +146,17 @@ describe('Word report phase model', () => {
   ])('uses template capacities for %i Before photos', (count, expected) => {
     const photos = Array.from({ length: count }, (_, index) => photo('P' + (index + 1), 'BEFORE', index + 1));
     expect(buildWordPhasePages([section], photos).map((page) => page.photos.length)).toEqual(expected);
+  });
+
+  it('keeps a Section phase label on every continuation page and permits an explicit blank', () => {
+    const photos = Array.from({ length: 5 }, (_, index) => photo('P' + (index + 1), 'BEFORE', index + 1));
+
+    expect(buildWordPhasePages([section], photos, {}, {
+      [`${section.id}::BEFORE`]: 'Arrival',
+    }).map((page) => page.values.workAdditional)).toEqual(['Arrival', 'Arrival']);
+
+    expect(buildWordPhasePages([section], photos.slice(0, 1), {}, {
+      [`${section.id}::BEFORE`]: '',
+    })[0].values.workAdditional).toBe('');
   });
 });

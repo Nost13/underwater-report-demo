@@ -1,6 +1,7 @@
 import { deriveFoulingCondition, deriveObservedRating } from '../domain/conditions';
 import { defaultReportLabels, reportLabelKey } from '../app/reportLabels';
-import type { Phase, PhotoData, ReportLabelMap, ReportLabels, ReportSection, ServiceKind } from '../domain/types';
+import type { Phase, PhotoData, ReportLabelMap, ReportLabels, ReportSection, ServiceKind, WorkPerformLabelMap } from '../domain/types';
+import { defaultWorkPerformLabel, workPerformLabelKey } from '../app/workPerformLabels';
 
 export interface TemplateValues {
   bc: string;
@@ -8,6 +9,7 @@ export interface TemplateValues {
   title: string;
   photoCaption: string;
   work: string;
+  workAdditional: string;
   fr: string;
   ft: string;
   fc: string;
@@ -50,8 +52,6 @@ const titleCase = (value: string) => value
   .map((word) => word ? word[0].toUpperCase() + word.slice(1) : word)
   .join(' ');
 
-const phaseLabel = (phase: Phase) => phase[0] + phase.slice(1).toLowerCase();
-
 const serviceLabel = (service: ServiceKind) => titleCase(service);
 
 const rank = (values: string[], value?: string) => {
@@ -80,6 +80,7 @@ export function templateValues(
   section: ReportSection,
   phase: Phase,
   labels: ReportLabels = defaultReportLabels(section),
+  workAdditional = defaultWorkPerformLabel(phase),
 ): TemplateValues {
   const condition = section.conditions[phase];
   const fouling = deriveFoulingCondition(
@@ -88,7 +89,6 @@ export function templateValues(
   );
   const observedLevel = condition?.observed.level ?? '';
   const label = labels.detailTitle + (section.unit ? ' ' + section.unit : '');
-  const phaseSuffix = phase === 'CURRENT' ? '' : ` (${phaseLabel(phase)})`;
   return {
     bc: section.area === 'NICHE'
       ? 'NICHE AREAS & COMPONENTS / ' + labels.upperAreaLabel
@@ -96,9 +96,10 @@ export function templateValues(
     sideLabel: section.side === 'PORT' ? 'PORT SIDE'
       : section.side === 'STBD' ? 'STBD SIDE'
         : section.side === 'BOTTOM' ? 'BOTTOM' : '',
-    title: label + phaseSuffix,
+    title: label,
     photoCaption: labels.photoCaption,
     work: serviceLabel(section.service),
+    workAdditional,
     fr: fouling.rating,
     ft: fouling.type,
     fc: condition?.fouling.coverage === null || condition?.fouling.coverage === undefined
@@ -114,6 +115,7 @@ export function buildWordPhasePages(
   sections: ReportSection[],
   photos: PhotoData[],
   reportLabels: ReportLabelMap = {},
+  workPerformLabels: WorkPerformLabelMap = {},
 ): WordPhasePage[] {
   const pages: WordPhasePage[] = [];
   for (const section of orderSections(sections)) {
@@ -134,6 +136,9 @@ export function buildWordPhasePages(
             section,
             phase,
             reportLabels[reportLabelKey(section)] ?? defaultReportLabels(section),
+            Object.hasOwn(workPerformLabels, workPerformLabelKey(section.id, phase))
+              ? workPerformLabels[workPerformLabelKey(section.id, phase)]
+              : defaultWorkPerformLabel(phase),
           ),
         });
         start += capacity;
