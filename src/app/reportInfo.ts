@@ -1,5 +1,6 @@
 import type { ServiceKind } from '../domain/types';
 import type { Vessel } from './demoData';
+import type { DiverQualification } from './diverQualifications';
 
 export interface ReportInfo {
   vessel: {
@@ -34,6 +35,7 @@ export interface ReportInfo {
     visibility: string;
     personnel: string;
   };
+  personnelQualifications: DiverQualification[];
   serviceItems: string[];
   readiness: {
     toolboxTime: string;
@@ -55,6 +57,7 @@ export function emptyReportInfo(): ReportInfo {
   return {
     vessel: { name: '', imo: '', callSign: '', type: '', loa: '', breadth: '', gt: '', dwt: '', yearBuilt: '', ownerClient: '', jobNo: '' },
     operation: { eta: '', etd: '', workWindow: '', location: '', start: '', end: '', workingTime: '', position: '', draughtFwd: '', draughtMid: '', draughtAft: '', berthingSide: '', weather: '', knots: '', current: '', visibility: '', personnel: '' },
+    personnelQualifications: [],
     serviceItems: [],
     readiness: { toolboxTime: '', toolboxNote: '', preparationTime: '', preparationNote: '' },
   };

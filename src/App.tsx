@@ -4,6 +4,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createDemoPhotos, COMPONENT_OPTIONS, DEMO_VESSELS, SERVICES } from './app/demoData';
 import { emptyReportInfo, reportInfoForScopes, reportInfoFromVessel, type ReportInfo } from './app/reportInfo';
 import { ReportInformation } from './app/ReportInformation';
+import { lookupVesselSchedule, type VesselSchedule } from './app/scheduleLookup';
 import { lookupVessel } from './app/vesselLookup';
 import { VesselDiagramEditor } from './app/VesselDiagramEditor';
 import { VesselDiagramPreview } from './app/VesselDiagramPreview';
@@ -28,6 +29,7 @@ import { ThumbnailPool, type ThumbnailLease } from './browser/images';
 import { createCaption, matchPhotoPath, phaseIndexForPhoto, summarizePhotoImport } from './domain/photos';
 import { buildWordPhasePages, type WordPhasePage } from './docx/reportModel';
 import { ratingFill } from './docx/ratingPalette';
+import { buildSummaryModel } from './summary/summaryModel';
 import { checkReport } from './domain/qa';
 import {
   applyServicePreset,
@@ -53,7 +55,7 @@ import type {
 } from './domain/types';
 
 const thumbnails = new ThumbnailPool();
-const stages = ['Vessel / Scope', 'Report Information', 'Vessel Diagram', '사진 폴더', 'Report Input', 'Check / Preview', 'Word'];
+const stages = ['Vessel / Scope', 'Report Information', 'Vessel Diagram', '사진 폴더', 'Report Input', 'Check / Preview', 'Summary', 'Word'];
 
 const newId = () =>
   globalThis.crypto?.randomUUID?.() ?? `photo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -171,11 +173,21 @@ const loadWordExporter: WordExporter = async (input) => {
   });
 };
 
-export default function App({ exporter = loadWordExporter, vesselLookup = lookupVessel }: { exporter?: WordExporter; vesselLookup?: typeof lookupVessel }) {
+export default function App({
+  exporter = loadWordExporter,
+  vesselLookup = lookupVessel,
+  scheduleLookup = lookupVesselSchedule,
+}: {
+  exporter?: WordExporter;
+  vesselLookup?: typeof lookupVessel;
+  scheduleLookup?: typeof lookupVesselSchedule;
+}) {
   const [stage, setStage] = useState(0);
   const [imo, setImo] = useState('');
   const [vessel, setVessel] = useState<(typeof DEMO_VESSELS)[number] | null>(null);
   const [vesselMatches, setVesselMatches] = useState<(typeof DEMO_VESSELS)[number][]>([]);
+  const [vesselSchedules, setVesselSchedules] = useState<VesselSchedule[]>([]);
+  const [vesselSchedule, setVesselSchedule] = useState<VesselSchedule | null>(null);
   const [isVesselLookupPending, setIsVesselLookupPending] = useState(false);
   const [reportInfo, setReportInfo] = useState<ReportInfo>(() => emptyReportInfo());
   const [activeService, setActiveService] = useState<ServiceKind>('CLEANING');
@@ -482,6 +494,33 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
     setStage(4);
   };
 
+  const selectReportVessel = async (found: (typeof DEMO_VESSELS)[number]) => {
+    setVessel(found);
+    const baseInfo = reportInfoFromVessel(found);
+    setReportInfo(baseInfo);
+    setVesselSchedules([]);
+    setVesselSchedule(null);
+    const schedules = await scheduleLookup(found.name);
+    const nextSchedule = schedules[0] ?? null;
+    setVesselSchedules(schedules);
+    setVesselSchedule(nextSchedule);
+    if (nextSchedule) {
+      setReportInfo({
+        ...baseInfo,
+        operation: {
+          ...baseInfo.operation,
+          eta: nextSchedule.eta,
+          etd: nextSchedule.etd,
+          location: [nextSchedule.port, nextSchedule.terminal, nextSchedule.berth].filter(Boolean).join(' / '),
+          berthingSide: nextSchedule.direction,
+        },
+      });
+      setStatus(`${found.name} 선박 제원과 ChainPortal 입출항 일정을 불러왔습니다.`);
+    } else {
+      setStatus(`${found.name} 선박 정보를 불러왔습니다. ChainPortal 예정 일정은 직접 입력할 수 있습니다.`);
+    }
+  };
+
   const lookupReportVessel = async () => {
     if (isVesselLookupPending) return;
     setIsVesselLookupPending(true);
@@ -489,11 +528,13 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
       const matches = await vesselLookup(imo);
       setVesselMatches(matches);
       const found = matches[0] ?? null;
-      setVessel(found);
-      if (found) {
-        setReportInfo(reportInfoFromVessel(found));
-        setStatus(`${found.name} 선박 정보를 VesselFinder에서 불러왔습니다.`);
-      } else setStatus('VesselFinder에서 조회 결과를 찾지 못했습니다. 선박 정보를 직접 입력할 수 있습니다.');
+      if (found) await selectReportVessel(found);
+      else {
+        setVessel(null);
+        setVesselSchedules([]);
+        setVesselSchedule(null);
+        setStatus('VesselFinder에서 조회 결과를 찾지 못했습니다. 선박 정보를 직접 입력할 수 있습니다.');
+      }
     } finally {
       setIsVesselLookupPending(false);
     }
@@ -519,6 +560,9 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         vesselDiagram,
         templateUrl: 'templates/Detail_report_template.docx',
         section14TemplateUrl: 'templates/section1_4_template.docx',
+        summaryTemplateUrl: 'templates/summary_template.docx',
+        section6TemplateUrl: 'templates/section6_template.docx',
+        section8TemplateUrl: 'templates/section8_template.docx',
       });
       setStatus(result.skipped.length
         ? `Word 보고서 완료 · 읽을 수 없어 제외된 사진: ${result.skipped.join(', ')}`
@@ -546,7 +590,15 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
     <input {...{ webkitdirectory: '' }} ref={fallbackInput} className="visually-hidden" type="file" multiple accept="image/*" onChange={(event) => importFallback(event.target.files)} />
     <input ref={manualInput} className="visually-hidden" type="file" multiple accept="image/*" onChange={(event) => { importManualPhotos(event.target.files); event.currentTarget.value = ''; }} />
     <StageRail active={stage} onMove={(next) => {
-      if (next === 0 || ((next === 1 || next === 2) && report.sections.length > 0) || (next >= 3 && vesselDiagram?.confirmed)) setStage(next);
+      const canMove = next === 0
+        || ((next === 1 || next === 2) && report.sections.length > 0)
+        || (next >= 3 && vesselDiagram?.confirmed);
+      if (!canMove) return;
+      if (next === 7 && stage !== 6 && stage !== 7) {
+        setStage(6);
+        return;
+      }
+      setStage(next);
     }} />
     <section className="app-main">
       <header className="topbar"><div><p className="eyebrow">UNDERWATER SERVICE REPORT</p><h1>{scopeMeta?.vesselName ?? vessel?.name ?? 'New report'}</h1></div><div className="top-meta"><span>{serviceSummary}</span><span>{report.sections.length} SECTIONS</span><span>{report.photos.length} PHOTOS</span></div></header>
@@ -564,7 +616,10 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         addNiche={addNiche} removeNiche={(id) => setNicheItems((items) => items.filter((item) => item.id !== id))}
         onNicheToggle={(groupId, targetId) => changeNicheTarget(groupId, targetId, (target) => toggleTargetService(target, activeService))}
         onNicheRemove={(groupId, targetId, service) => changeNicheTarget(groupId, targetId, (target) => removeTargetService(target, service))}
-        reportInfo={reportInfo} setReportInfo={setReportInfo} vesselMatches={vesselMatches} onVesselSelect={(next) => { setVessel(next); setReportInfo(reportInfoFromVessel(next)); }} onLookup={lookupReportVessel} vesselLookupPending={isVesselLookupPending}
+        reportInfo={reportInfo} setReportInfo={setReportInfo} vesselMatches={vesselMatches} vesselSchedules={vesselSchedules} vesselSchedule={vesselSchedule}
+        onVesselSelect={(next) => { if (isVesselLookupPending) return; setIsVesselLookupPending(true); void selectReportVessel(next).finally(() => setIsVesselLookupPending(false)); }}
+        onScheduleSelect={(next) => { setVesselSchedule(next); setReportInfo((current) => ({ ...current, operation: { ...current.operation, eta: next.eta, etd: next.etd, location: [next.port, next.terminal, next.berth].filter(Boolean).join(' / '), berthingSide: next.direction } })); }}
+        onLookup={lookupReportVessel} vesselLookupPending={isVesselLookupPending}
         onBuild={buildScope} onReset={resetScope} sectionCount={report.sections.length} draftSections={draftSections}
         onPhotos={() => setStage(1)}
       />}
@@ -603,10 +658,15 @@ export default function App({ exporter = loadWordExporter, vesselLookup = lookup
         onNext={() => setStage(6)}
       />}
 
-      {stage === 6 && activeSection && <ExportScreen
+      {stage === 6 && activeSection && <SummaryReview
+        vesselName={scopeMeta?.vesselName ?? 'UNDERWATER REPORT'} report={report}
+        onBack={() => setStage(5)} onEditDetail={() => setStage(4)} onNext={() => setStage(7)}
+      />}
+
+      {stage === 7 && activeSection && <ExportScreen
         vesselName={scopeMeta?.vesselName ?? 'UNDERWATER REPORT'} report={report} status={diagramExportError ?? status}
         onDiagramSetup={diagramExportError ? () => { setDiagramExportError(null); setStage(2); } : undefined}
-        onBack={() => setStage(5)} onExport={runExport} busy={isExporting}
+        onBack={() => setStage(6)} onExport={runExport} busy={isExporting}
       />}
     </section>
   </main>;
@@ -652,6 +712,8 @@ function TargetCell(props: TargetCellProps) {
 interface VesselScopeProps {
   imo: string; setImo: (value: string) => void; vessel: (typeof DEMO_VESSELS)[number] | null;
   vesselMatches: (typeof DEMO_VESSELS)[number][]; onVesselSelect: (vessel: (typeof DEMO_VESSELS)[number]) => void;
+  vesselSchedules: VesselSchedule[]; vesselSchedule: VesselSchedule | null;
+  onScheduleSelect: (schedule: VesselSchedule) => void;
   reportInfo: ReportInfo; setReportInfo: React.Dispatch<React.SetStateAction<ReportInfo>>;
   activeService: ServiceKind; setActiveService: (value: ServiceKind) => void;
   generalTargets: ScopeTarget[]; generalUndo: ScopeTarget[] | null;
@@ -687,6 +749,8 @@ function VesselScope(props: VesselScopeProps) {
   const totalSections = serviceCounts.reduce((total, item) => total + item.count, 0);
   const unassignedGeneral = props.generalTargets.filter((target) => target.services.length === 0).length;
   const numeric = (value: string, suffix = '') => value ? `${Number(value).toLocaleString('en-US')}${suffix ? ` ${suffix}` : ''}` : '—';
+  const scheduleLocation = (schedule: VesselSchedule) => [schedule.port, schedule.terminal, schedule.berth].filter(Boolean).join(' / ') || '—';
+  const scheduleTime = (value: string) => value ? value.replace('T', ' ') : '—';
   const setCardVesselField = (field: 'ownerClient' | 'jobNo', value: string) => props.setReportInfo((current) => ({
     ...current,
     vessel: { ...current.vessel, [field]: value },
@@ -707,6 +771,13 @@ function VesselScope(props: VesselScopeProps) {
             <div><dt>OWNER / CLIENT</dt><dd><input aria-label="Owner / Client" value={props.reportInfo.vessel.ownerClient} placeholder="입력" onChange={(event) => setCardVesselField('ownerClient', event.target.value)} /></dd></div>
             <div><dt>JOB NO.</dt><dd><input aria-label="Job No" value={props.reportInfo.vessel.jobNo} placeholder="입력" onChange={(event) => setCardVesselField('jobNo', event.target.value)} /></dd></div>
           </dl>
+          <section className="vessel-schedule" aria-label="ChainPortal 운항 일정">
+            <header><div><span>CHAINPORTAL SCHEDULE</span><strong>{props.vesselSchedule ? '예정 일정 확인' : '예정 일정 없음'}</strong></div><em>{props.vesselSchedule ? '자동 입력됨' : '직접 입력 가능'}</em></header>
+            {props.vesselSchedule ? <>
+              {props.vesselSchedules.length > 1 && <select aria-label="ChainPortal 일정 선택" value={`${props.vesselSchedule.eta}|${props.vesselSchedule.etd}|${props.vesselSchedule.berth}`} onChange={(event) => { const next = props.vesselSchedules.find((item) => `${item.eta}|${item.etd}|${item.berth}` === event.target.value); if (next) props.onScheduleSelect(next); }}>{props.vesselSchedules.map((item) => <option key={`${item.vessel}-${item.eta}-${item.berth}`} value={`${item.eta}|${item.etd}|${item.berth}`}>{scheduleTime(item.eta)} · {scheduleLocation(item)}</option>)}</select>}
+              <dl><div><dt>ETA</dt><dd>{scheduleTime(props.vesselSchedule.eta)}</dd></div><div><dt>ETD</dt><dd>{scheduleTime(props.vesselSchedule.etd)}</dd></div><div><dt>LOCATION</dt><dd>{scheduleLocation(props.vesselSchedule)}</dd></div><div><dt>BERTHING SIDE</dt><dd>{props.vesselSchedule.direction || '—'}</dd></div></dl>
+            </> : <p>ChainPortal에 현재 예정된 입출항 일정이 없습니다.</p>}
+          </section>
         </section> : <div className="empty-note">VesselFinder에서 선박명 또는 IMO 번호를 조회합니다.</div>}
       </section>
       <section className="panel scope-panel"><div className="panel-title"><span>02</span><div><h3>Service / Scope</h3><p>추가할 작업을 먼저 선택하고 필요한 Section에 배정</p></div></div>
@@ -1086,7 +1157,27 @@ function WordTemplatePreviewPage({
   </article>;
 }
 
+function SummaryReview({ vesselName, report, onBack, onEditDetail, onNext }: {
+  vesselName: string;
+  report: ReportState;
+  onBack: () => void;
+  onEditDetail: () => void;
+  onNext: () => void;
+}) {
+  const summary = useMemo(() => buildSummaryModel(report.sections), [report.sections]);
+  const rows = [...summary.mainHullRows, ...summary.nicheRows];
+  return <div className="workspace summary-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 07</p><h2>Summary 확인</h2><p>Detail 입력값에서 자동 작성된 Summary입니다.</p></div><span className="privacy-chip">AUTO SUMMARY</span></div>
+    <section className="summary-result-card" aria-label="Overall Result"><span>5.1 OVERALL RESULT</span><h3>{summary.headline}</h3><p>{summary.narrative}</p></section>
+    <section className="summary-matrix-card"><header><div><span>5.3 OVERALL FINDINGS MATRIX</span><h3>{vesselName}</h3></div><div><b>{summary.mainHullRows.length}</b> MAIN HULL <b>{summary.nicheRows.length}</b> NICHE</div></header>
+      {rows.length ? <div className="summary-table-wrap"><table><thead><tr><th>COMPONENT</th><th>SIDE</th><th>RATING</th><th>TYPE</th><th>COVERAGE</th><th>RATING</th><th>LEVEL</th><th>TYPE</th></tr></thead><tbody>{rows.map((row) => <tr key={row.key}><td>{row.component}</td><td>{row.side ?? '—'}</td><td><i className={templateRatingClass(row.foulingRating)}>{row.foulingRating || '—'}</i></td><td>{row.foulingType || '—'}</td><td>{row.coverage || '—'}</td><td><i className={templateRatingClass(row.observedRating)}>{row.observedRating || '—'}</i></td><td>{row.observedLevel || '—'}</td><td>{row.observedType || '—'}</td></tr>)}</tbody></table></div> : <div className="summary-empty">완료된 Detail Condition이 없습니다.</div>}
+    </section>
+    <div className="summary-note"><b>자동 반영 기준</b><span>두 단계 작업은 AFTER, Inspection은 CURRENT · Fin Blade는 Detail에만 포함 · 페이지 번호는 현재 생략</span></div>
+    <div className="actionbar summary-actions"><button type="button" className="text-button" onClick={onBack}>← Check / Preview</button><div><button type="button" className="ghost" onClick={onEditDetail}>Detail 입력 수정</button><button type="button" className="primary" onClick={onNext}>최종 Word 준비</button></div></div>
+  </div>;
+}
+
 function ExportScreen({ vesselName, report, status, onBack, onExport, onDiagramSetup, busy }: { vesselName: string; report: ReportState; status: string; onBack: () => void; onExport: () => void; onDiagramSetup?: () => void; busy: boolean }) {
   const wordPageCount = buildWordPhasePages(report.sections, report.photos, report.reportLabels, report.workPerformLabels).length;
-  return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 07</p><h2>Word 보고서 다운로드</h2><p>공식 Detail Service Record 템플릿에 Phase별 사진과 Condition을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>Detail Service Record 템플릿 · {wordPageCount} Word pages · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Layout</dt><dd>A4 Portrait · Phase-first</dd></div><div><dt>Page rule</dt><dd>4 + 6 / phase</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p role={onDiagramSetup ? 'alert' : undefined}>{status}</p>{onDiagramSetup && <button type="button" className="ghost" onClick={onDiagramSetup}>선박 위치도 설정으로 돌아가기</button>}</div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Check / Preview</button></div></div>;
+  const summaryPageCount = buildSummaryModel(report.sections).pageCount;
+  return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 08</p><h2>Word 보고서 다운로드</h2><p>Sections 1–8을 공식 양식 순서로 조립하고 Summary와 Detail 값을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>전체 보고서 · Summary {summaryPageCount} pages · Detail {wordPageCount} pages · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Order</dt><dd>1–4 → 5 → 6 → 7 → 8</dd></div><div><dt>Detail rule</dt><dd>Matrix order · Before → After</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p role={onDiagramSetup ? 'alert' : undefined}>{status}</p>{onDiagramSetup && <button type="button" className="ghost" onClick={onDiagramSetup}>선박 위치도 설정으로 돌아가기</button>}</div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Summary 확인</button></div></div>;
 }

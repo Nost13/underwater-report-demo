@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -32,5 +32,26 @@ describe('Report Information', () => {
 
     expect(screen.getByLabelText('Work Window')).toHaveValue('24 HOURS');
     expect(screen.getByLabelText('Position')).toHaveValue('PORT SIDE');
+  });
+
+  it('searches the company-neutral diver database and selects personnel for Section 8', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.type(screen.getByLabelText('Diver search'), 'Kim-Dongu');
+    const result = screen.getByRole('button', { name: '김동우 선택' });
+    expect(result).toHaveTextContent('Kim Dongu');
+    expect(result).toHaveTextContent('22402130572M');
+    expect(screen.queryByText('19961205')).not.toBeInTheDocument();
+    await user.click(result);
+
+    const selected = screen.getByRole('table', { name: '선택한 자격 인원' });
+    expect(within(selected).getByText('Kim Dongu')).toBeVisible();
+    expect(within(selected).getByText('Technician Diver')).toBeVisible();
+    expect(screen.getByLabelText('Personnel Deployed')).toHaveValue('DIVER : 1');
+
+    await user.click(within(selected).getByRole('button', { name: '김동우 제외' }));
+    expect(screen.queryByRole('table', { name: '선택한 자격 인원' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Personnel Deployed')).toHaveValue('');
   });
 });

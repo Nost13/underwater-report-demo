@@ -155,6 +155,8 @@ describe('desktop report workflow', () => {
     render(<App exporter={exporter} />);
     await buildCleaningGeneral(user);
     await user.click(within(screen.getByRole('navigation', { name: 'Report stages' })).getByRole('button', { name: /Word$/ }));
+    expect(screen.getByRole('heading', { name: 'Summary 확인' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: '최종 Word 준비' }));
     await user.click(screen.getByRole('button', { name: 'Word 보고서 다운로드' }));
     const message = await screen.findByRole('alert');
     expect(message).toHaveTextContent('AFT · STBD');
@@ -171,6 +173,8 @@ describe('desktop report workflow', () => {
     render(<App exporter={async () => { throw new Error('DOWNLOAD_FAILED'); }} />);
     await buildCleaningGeneral(user);
     await user.click(within(screen.getByRole('navigation', { name: 'Report stages' })).getByRole('button', { name: /Word$/ }));
+    expect(screen.getByRole('heading', { name: 'Summary 확인' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: '최종 Word 준비' }));
     await user.click(screen.getByRole('button', { name: 'Word 보고서 다운로드' }));
     expect(await screen.findByText('Word 보고서를 만들지 못했습니다. 사진 형식과 브라우저 다운로드 권한을 확인하세요.')).toBeVisible();
     expect(screen.queryByRole('button', { name: '선박 위치도 설정으로 돌아가기' })).not.toBeInTheDocument();
@@ -205,6 +209,71 @@ describe('desktop report workflow', () => {
     await user.type(within(particulars).getByLabelText('Job No'), 'US-HMM-2603001');
     expect(within(particulars).getByLabelText('Owner / Client')).toHaveValue('HMM');
     expect(within(particulars).getByLabelText('Job No')).toHaveValue('US-HMM-2603001');
+  });
+
+  it('shows the next ChainPortal schedule and fills Operational Information', async () => {
+    const user = userEvent.setup();
+    const vesselLookup = vi.fn(async () => [{
+      name: 'STAR KVARVEN', imo: '9396153', callSign: 'LAJK7', type: 'General Cargo Ship',
+      loa: '208.73', breadth: '32.20', gt: '37158', dwt: '49924', yearBuilt: '2010',
+      ownerClient: '', classSociety: '', flag: '',
+    }]);
+    const scheduleLookup = vi.fn(async () => [{
+      vessel: 'STAR KVARVEN', terminal: 'PNIT', berth: '3', carrier: 'MSC',
+      direction: 'PORT', port: 'Busan', eta: '2026-09-04T08:30', etd: '2026-09-05T20:00',
+    }]);
+    render(<App vesselLookup={vesselLookup} scheduleLookup={scheduleLookup} />);
+
+    await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), '9396153');
+    await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
+
+    const schedule = await screen.findByLabelText('ChainPortal 운항 일정');
+    expect(within(schedule).getByText('2026-09-04 08:30')).toBeVisible();
+    expect(within(schedule).getByText('2026-09-05 20:00')).toBeVisible();
+    expect(within(schedule).getByText('Busan / PNIT / 3')).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: '전체 적용' }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
+    await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
+    expect(screen.getByLabelText('ETA')).toHaveValue('2026-09-04T08:30');
+    expect(screen.getByLabelText('ETD')).toHaveValue('2026-09-05T20:00');
+    expect(screen.getByLabelText('Location')).toHaveValue('Busan / PNIT / 3');
+    expect(screen.getByLabelText('Berthing Side')).toHaveValue('PORT');
+  });
+
+  it('refreshes ChainPortal when a different VesselFinder match is selected', async () => {
+    const user = userEvent.setup();
+    const vessels = [
+      { name: 'MSC CHIYO', imo: '9300001', callSign: 'A1', type: 'Container Ship', loa: '', breadth: '', gt: '', dwt: '', yearBuilt: '', ownerClient: '', classSociety: '', flag: '' },
+      { name: 'SYNERGY BUSAN', imo: '9947158', callSign: 'D5SI8', type: 'Container Ship', loa: '', breadth: '', gt: '', dwt: '', yearBuilt: '', ownerClient: '', classSociety: '', flag: '' },
+    ];
+    const scheduleLookup = vi.fn(async (name: string) => name === 'SYNERGY BUSAN' ? [{
+      vessel: name, terminal: 'HJNC', berth: '2', carrier: '', direction: 'STBD',
+      port: 'Busan', eta: '2026-09-08T10:00', etd: '2026-09-09T04:00',
+    }] : []);
+    render(<App vesselLookup={async () => vessels} scheduleLookup={scheduleLookup} />);
+
+    await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), 'MSC');
+    await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
+    await user.selectOptions(screen.getByLabelText('선박 조회 결과'), '9947158');
+
+    expect(await screen.findByText('Busan / HJNC / 2')).toBeVisible();
+  });
+
+  it('lets the user choose another upcoming ChainPortal call', async () => {
+    const user = userEvent.setup();
+    const calls = [
+      { vessel: 'STAR KVARVEN', terminal: 'PNIT', berth: '3', carrier: '', direction: 'PORT', port: 'Busan', eta: '2026-09-04T08:30', etd: '2026-09-05T20:00' },
+      { vessel: 'STAR KVARVEN', terminal: 'BCT', berth: '1', carrier: '', direction: 'STBD', port: 'Busan', eta: '2026-09-12T06:00', etd: '2026-09-13T18:00' },
+    ];
+    render(<App scheduleLookup={async () => calls} />);
+
+    await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), '9876543');
+    await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
+    await user.selectOptions(screen.getByLabelText('ChainPortal 일정 선택'), '2026-09-12T06:00|2026-09-13T18:00|1');
+
+    expect(screen.getByText('Busan / BCT / 1')).toBeVisible();
+    expect(screen.getByText('2026-09-12 06:00')).toBeVisible();
   });
 
   it('shows a disabled progress control while VesselFinder lookup is running', async () => {
@@ -944,12 +1013,18 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
     await user.click(screen.getByRole('button', { name: 'Word 준비' }));
+    expect(screen.getByRole('heading', { name: 'Summary 확인' })).toBeVisible();
+    expect(screen.getByText('Detail 입력값에서 자동 작성된 Summary입니다.')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: '최종 Word 준비' }));
     await user.click(screen.getByRole('button', { name: 'Word 보고서 다운로드' }));
     expect(await screen.findByText('Word 보고서 다운로드가 완료되었습니다.')).toBeVisible();
     expect(exporter).toHaveBeenCalledWith(expect.objectContaining({
       vesselName: 'M.V. PACIFIC AURORA',
       templateUrl: 'templates/Detail_report_template.docx',
       section14TemplateUrl: 'templates/section1_4_template.docx',
+      summaryTemplateUrl: 'templates/summary_template.docx',
+      section6TemplateUrl: 'templates/section6_template.docx',
+      section8TemplateUrl: 'templates/section8_template.docx',
       vesselDiagram: expect.objectContaining({ imageName: 'vessel.png', confirmed: true }),
       reportInfo: expect.objectContaining({
         vessel: expect.objectContaining({ name: 'M.V. PACIFIC AURORA', imo: '9876543' }),

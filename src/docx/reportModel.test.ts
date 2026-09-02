@@ -64,7 +64,7 @@ describe('Word report phase model', () => {
       title: 'ROPE GUARD',
       photoCaption: 'Rope Guard',
       work: 'Inspection',
-      workAdditional: 'Current',
+      workAdditional: '',
     });
   });
 

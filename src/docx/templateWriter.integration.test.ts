@@ -32,9 +32,12 @@ const composeDiagram = async (_config: VesselDiagramConfig, ids: string[]) => ne
 
 describe('bundled Detail report template', () => {
   it('places the populated Section 1–4 pages before detailed service records', async () => {
-    const [detailBytes, section14Bytes] = await Promise.all([
+    const [detailBytes, section14Bytes, summaryBytes, section6Bytes, section8Bytes] = await Promise.all([
       readFile(templatePath),
       readFile('public/templates/section1_4_template.docx'),
+      readFile('public/templates/summary_template.docx'),
+      readFile('public/templates/section6_template.docx'),
+      readFile('public/templates/section8_template.docx'),
     ]);
     const reportInfo = emptyReportInfo();
     reportInfo.vessel = {
@@ -43,6 +46,15 @@ describe('bundled Detail report template', () => {
       imo: '1234567',
       jobNo: 'US-COMBINED-001',
     };
+    reportInfo.personnelQualifications = [{
+      koreanName: '곽동원',
+      englishName: 'Gwak Dongwon',
+      birth: '19970521',
+      role: 'DIVER',
+      qualification: 'Technician Diver',
+      certificateNo: '19641507611A',
+      issuingBody: 'HRDK',
+    }];
     const section = createNicheSections({
       component: 'Rope Guard', type: 'SINGLE', quantity: 1, service: 'INSPECTION',
     })[0];
@@ -59,22 +71,55 @@ describe('bundled Detail report template', () => {
       vesselDiagram: vesselDiagram(),
       reportInfo,
       section14TemplateUrl: 'templates/section1_4_template.docx',
+      summaryTemplateUrl: 'templates/summary_template.docx',
+      section6TemplateUrl: 'templates/section6_template.docx',
+      section8TemplateUrl: 'templates/section8_template.docx',
     }, {
       fetchTemplate: async () => Uint8Array.from(detailBytes),
       fetchSection14Template: async () => Uint8Array.from(section14Bytes),
+      fetchSummaryTemplate: async () => Uint8Array.from(summaryBytes),
+      fetchSection6Template: async () => Uint8Array.from(section6Bytes),
+      fetchSection8Template: async () => Uint8Array.from(section8Bytes),
       resize: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
       composeDiagram,
     });
 
     const output = await JSZip.loadAsync(result.blob);
     const documentXml = await output.file('word/document.xml')?.async('text') ?? '';
-    const documentText = new DOMParser().parseFromString(documentXml, 'application/xml')
-      .documentElement.textContent ?? '';
+    const mergedDocument = new DOMParser().parseFromString(documentXml, 'application/xml');
+    const documentText = mergedDocument.documentElement.textContent ?? '';
     expect(documentText).toContain('1. GENERAL INFORMATION');
     expect(documentText).toContain('M.V. COMBINED TEST');
+    expect(documentText).toContain('5.1 OVERALL RESULT');
+    expect(documentText).toContain('6. ASSESSMENT GUIDELINES');
     expect(documentText).toContain('7. DETAILED SERVICE RECORD');
-    expect(documentText.indexOf('1. GENERAL INFORMATION'))
-      .toBeLessThan(documentText.indexOf('7. DETAILED SERVICE RECORD'));
+    expect(documentText).toContain('8. QUALIFICATION & CERTIFICATION RECORDS');
+    expect(documentText).toContain('Gwak Dongwon');
+    expect(documentText).toContain('19641507611A');
+    expect(documentText).not.toContain('19970521');
+    expect(documentText).not.toContain('Im Jeongtak');
+    expect(documentText.match(/5\.1 OVERALL RESULT/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(documentText.match(/6\. ASSESSMENT GUIDELINES/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(documentText.match(/7\. DETAILED SERVICE RECORD/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(documentText.match(/8\. QUALIFICATION & CERTIFICATION RECORDS/g)).toHaveLength(2);
+    expect(documentText.indexOf('1. GENERAL INFORMATION')).toBeLessThan(documentText.lastIndexOf('5.1 OVERALL RESULT'));
+    expect(documentText.lastIndexOf('5.1 OVERALL RESULT')).toBeLessThan(documentText.lastIndexOf('6. ASSESSMENT GUIDELINES'));
+    expect(documentText.lastIndexOf('6. ASSESSMENT GUIDELINES')).toBeLessThan(documentText.lastIndexOf('7. DETAILED SERVICE RECORD'));
+    expect(documentText.lastIndexOf('7. DETAILED SERVICE RECORD')).toBeLessThan(documentText.lastIndexOf('8. QUALIFICATION & CERTIFICATION RECORDS'));
+    const bookmarkNames = new Set(Array.from(documentXml.matchAll(/<w:bookmarkStart\b[^>]*w:name="([^"]+)"/g), (match) => match[1]));
+    const pageReferenceTargets = Array.from(documentXml.matchAll(/PAGEREF\s+([^\s<]+)/g), (match) => match[1]);
+    expect(pageReferenceTargets.filter((target) => !bookmarkNames.has(target))).toEqual([]);
+    const body = Array.from(mergedDocument.getElementsByTagNameNS('*', 'body'))[0];
+    const bodyChildren = Array.from(body.children);
+    const reversedDetailHeadingIndex = [...bodyChildren].reverse().findIndex((child) => (
+      (child.textContent ?? '').trim().startsWith('7. DETAILED SERVICE RECORD')
+    ));
+    const detailHeadingIndex = bodyChildren.length - reversedDetailHeadingIndex - 1;
+    expect(detailHeadingIndex).toBeGreaterThan(0);
+    const boundary = bodyChildren[detailHeadingIndex - 1];
+    expect(boundary.getElementsByTagNameNS('*', 'pageBreakBefore')).toHaveLength(1);
+    expect((boundary.textContent ?? '').trim()).toBe('');
+    expect(bodyChildren[detailHeadingIndex].getElementsByTagNameNS('*', 'pageBreakBefore')).toHaveLength(0);
     expect(documentXml.match(/<w:sectPr(?:\s|>)/g)).toHaveLength(1);
     expect(documentXml).toContain('rIdDetailedImage1');
     expect(await output.file('word/media/detail-image-1.jpg')?.async('uint8array'))
@@ -152,6 +197,15 @@ describe('bundled Detail report template', () => {
       .map((blip) => Array.from(blip.attributes).find((attribute) => attribute.localName === 'embed')?.value);
     expect(embeddedRelationshipIds.filter((id) => /^rIdDetailedImage\d+$/.test(id ?? ''))).toHaveLength(4);
     expect(embeddedRelationshipIds.filter((id) => /^rIdVesselDiagram\d+$/.test(id ?? ''))).toHaveLength(4);
+    const detailPageStarts = Array.from(document.getElementsByTagNameNS('*', 'p'))
+      .filter((paragraph) => (
+        (paragraph.textContent ?? '').replace(/\s+/g, '').includes('7.DETAILEDSERVICERECORD')
+        && paragraph.getElementsByTagNameNS('*', 'pageBreakBefore').length > 0
+      ));
+    expect(detailPageStarts).toHaveLength(3);
+    for (const pageStart of detailPageStarts) {
+      expect(pageStart.previousElementSibling?.localName).toBe('tbl');
+    }
   });
 
   it('preserves header and footer and renders first plus continuation pages', async () => {

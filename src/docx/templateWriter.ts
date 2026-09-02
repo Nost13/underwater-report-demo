@@ -3,7 +3,9 @@ import { resizeForReport } from '../browser/images';
 import { buildWordPhasePages } from './reportModel';
 import { RATING_FILLS } from './ratingPalette';
 import { fillSection14Template } from './section14Writer';
+import { fillSummaryTemplate } from './summaryWriter';
 import type { ReportInfo } from '../app/reportInfo';
+import type { DiverQualification } from '../app/diverQualifications';
 import type { PhotoData, ReportLabelMap, ReportSection, WorkPerformLabelMap } from '../domain/types';
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
 import { composeVesselDiagram, type ComposeDependencies } from '../vesselDiagram/composer';
@@ -18,6 +20,9 @@ export interface WordExportInput {
   workPerformLabels?: WorkPerformLabelMap;
   reportInfo?: ReportInfo;
   section14TemplateUrl?: string;
+  summaryTemplateUrl?: string;
+  section6TemplateUrl?: string;
+  section8TemplateUrl?: string;
   vesselDiagram: VesselDiagramConfig;
   fileName?: string;
 }
@@ -33,6 +38,9 @@ interface WriterDependencies {
   resize?: (file: File, maxEdge?: number) => Promise<Uint8Array>;
   download?: (blob: Blob, fileName: string) => void;
   fetchSection14Template?: () => Promise<ArrayBuffer | Uint8Array>;
+  fetchSummaryTemplate?: () => Promise<ArrayBuffer | Uint8Array>;
+  fetchSection6Template?: () => Promise<ArrayBuffer | Uint8Array>;
+  fetchSection8Template?: () => Promise<ArrayBuffer | Uint8Array>;
   composeDiagram?: (
     config: VesselDiagramConfig,
     markerIds: string[],
@@ -165,6 +173,19 @@ function serializeFragment(document: Document): string {
   return Array.from(document.documentElement.childNodes)
     .map((node) => serializer.serializeToString(node))
     .join('');
+}
+
+function trimTrailingEmptyParagraphs(document: Document): void {
+  while (true) {
+    const last = document.documentElement.lastElementChild;
+    if (
+      !last
+      || last.localName !== 'p'
+      || paragraphText(last).trim()
+      || last.getElementsByTagNameNS('*', 'drawing').length
+    ) return;
+    last.remove();
+  }
 }
 
 function markPageStart(document: Document): void {
@@ -335,63 +356,181 @@ function relationshipTarget(xml: string, id: string): string | null {
   return match?.[1] ?? null;
 }
 
-async function prependSection14Package(
-  section14Blob: Blob,
-  detailedBlob: Blob,
-): Promise<Blob> {
-  const [section14Zip, detailedZip] = await Promise.all([
-    JSZip.loadAsync(section14Blob),
-    JSZip.loadAsync(detailedBlob),
-  ]);
-  const [section14DocumentEntry, detailedDocumentEntry, section14RelationshipsEntry, detailedRelationshipsEntry, section14ContentTypesEntry] = [
-    section14Zip.file('word/document.xml'),
-    detailedZip.file('word/document.xml'),
-    section14Zip.file('word/_rels/document.xml.rels'),
-    detailedZip.file('word/_rels/document.xml.rels'),
-    section14Zip.file('[Content_Types].xml'),
-  ];
-  if (!section14DocumentEntry || !detailedDocumentEntry || !section14RelationshipsEntry || !detailedRelationshipsEntry || !section14ContentTypesEntry) {
+interface PackagePart {
+  blob: Blob;
+  prefix: string;
+}
+
+function pageStartParagraph(): string {
+  return '<w:p><w:pPr><w:pageBreakBefore/></w:pPr></w:p>';
+}
+
+function ensureSummaryTocBookmarks(xml: string): string {
+  return xml.replace(/PAGEREF\s+_Toc233757655/g, 'PAGEREF _Toc233757656');
+}
+
+function uniqueRelationshipId(xml: string, preferred: string): string {
+  let candidate = preferred;
+  let suffix = 2;
+  while (new RegExp(`\\bId="${candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`).test(xml)) {
+    candidate = `${preferred}_${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
+async function mergeReportPackages(parts: PackagePart[]): Promise<Blob> {
+  const packages = await Promise.all(parts.map(async (part) => ({
+    ...part,
+    zip: await JSZip.loadAsync(part.blob),
+  })));
+  const base = packages[0];
+  const baseDocumentEntry = base.zip.file('word/document.xml');
+  const baseRelationshipsEntry = base.zip.file('word/_rels/document.xml.rels');
+  const baseContentTypesEntry = base.zip.file('[Content_Types].xml');
+  if (!baseDocumentEntry || !baseRelationshipsEntry || !baseContentTypesEntry) {
     throw new Error('REPORT_PACKAGE_INVALID');
   }
-  const [section14DocumentXml, detailedDocumentXml, section14RelationshipsXml, detailedRelationshipsXml, section14ContentTypesXml] = await Promise.all([
-    section14DocumentEntry.async('text'),
-    detailedDocumentEntry.async('text'),
-    section14RelationshipsEntry.async('text'),
-    detailedRelationshipsEntry.async('text'),
-    section14ContentTypesEntry.async('text'),
+  const [baseDocumentXml, baseRelationshipsXml, baseContentTypesXml] = await Promise.all([
+    baseDocumentEntry.async('text'),
+    baseRelationshipsEntry.async('text'),
+    baseContentTypesEntry.async('text'),
   ]);
-  const section14Parts = splitBody(section14DocumentXml);
-  const detailedParts = splitBody(detailedDocumentXml);
-  let mergedRelationshipsXml = section14RelationshipsXml;
-  let detailedBody = detailedParts.body;
-  const embedIds = [...new Set(Array.from(detailedBody.matchAll(/(?:\b[\w.-]+:)?embed="([^"]+)"/g), (match) => match[1]))];
-  let detailedImageIndex = 0;
-  for (let index = 0; index < embedIds.length; index += 1) {
-    const originalId = embedIds[index];
-    const target = relationshipTarget(detailedRelationshipsXml, originalId);
-    if (!target) throw new Error(`REPORT_IMAGE_RELATIONSHIP_NOT_FOUND:${originalId}`);
-    const source = detailedZip.file(`word/${target}`);
-    if (!source) throw new Error(`REPORT_IMAGE_NOT_FOUND:${target}`);
-    const extension = target.match(/\.([^.]+)$/)?.[1] ?? 'jpg';
-    const isVesselDiagram = /^rIdVesselDiagram\d+$/.test(originalId);
-    if (!isVesselDiagram) detailedImageIndex += 1;
-    const copiedName = isVesselDiagram ? target.slice(target.lastIndexOf('/') + 1) : `detail-image-${detailedImageIndex}.${extension}`;
-    const replacementId = isVesselDiagram ? originalId : `rIdDetailedImage${detailedImageIndex}`;
-    section14Zip.file(`word/media/${copiedName}`, await source.async('uint8array'));
-    mergedRelationshipsXml = addRelationship(mergedRelationshipsXml, replacementId, copiedName);
-    const escapedId = originalId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    detailedBody = detailedBody.replace(
-      new RegExp(`((?:\\b[\\w.-]+:)?embed=")${escapedId}(")`, 'g'),
-      `$1${replacementId}$2`,
-    );
+  const baseParts = splitBody(baseDocumentXml);
+  let mergedRelationshipsXml = baseRelationshipsXml;
+  const appendedBodies: string[] = [];
+  for (const part of packages.slice(1)) {
+    const documentEntry = part.zip.file('word/document.xml');
+    const relationshipsEntry = part.zip.file('word/_rels/document.xml.rels');
+    if (!documentEntry || !relationshipsEntry) throw new Error('REPORT_PACKAGE_INVALID');
+    const [documentXml, relationshipsXml] = await Promise.all([
+      documentEntry.async('text'),
+      relationshipsEntry.async('text'),
+    ]);
+    let body = splitBody(documentXml).body;
+    const embedIds = [...new Set(Array.from(body.matchAll(/(?:\b[\w.-]+:)?embed="([^"]+)"/g), (match) => match[1]))];
+    let imageIndex = 0;
+    for (const originalId of embedIds) {
+      const target = relationshipTarget(relationshipsXml, originalId);
+      if (!target) throw new Error(`REPORT_IMAGE_RELATIONSHIP_NOT_FOUND:${originalId}`);
+      const source = part.zip.file(`word/${target}`);
+      if (!source) throw new Error(`REPORT_IMAGE_NOT_FOUND:${target}`);
+      const extension = target.match(/\.([^.]+)$/)?.[1] ?? 'png';
+      const isVesselDiagram = part.prefix === 'detail' && /^rIdVesselDiagram\d+$/.test(originalId);
+      if (!isVesselDiagram) imageIndex += 1;
+      const copiedName = isVesselDiagram
+        ? target.slice(target.lastIndexOf('/') + 1)
+        : `${part.prefix}-image-${imageIndex}.${extension}`;
+      const preferredId = isVesselDiagram
+        ? originalId
+        : part.prefix === 'detail'
+          ? `rIdDetailedImage${imageIndex}`
+          : `rId${part.prefix[0].toUpperCase()}${part.prefix.slice(1)}Image${imageIndex}`;
+      const replacementId = uniqueRelationshipId(mergedRelationshipsXml, preferredId);
+      base.zip.file(`word/media/${copiedName}`, await source.async('uint8array'));
+      mergedRelationshipsXml = addRelationship(mergedRelationshipsXml, replacementId, copiedName);
+      const escapedId = originalId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      body = body.replace(
+        new RegExp(`((?:\\b[\\w.-]+:)?embed=")${escapedId}(")`, 'g'),
+        `$1${replacementId}$2`,
+      );
+    }
+    appendedBodies.push(pageStartParagraph() + body);
   }
-  section14Zip.file(
+  const mergedDocumentXml = baseParts.prefix
+    + baseParts.body
+    + appendedBodies.join('')
+    + baseParts.sectionProperties
+    + baseParts.suffix;
+  base.zip.file(
     'word/document.xml',
-    section14Parts.prefix + section14Parts.body + detailedBody + section14Parts.sectionProperties + section14Parts.suffix,
+    packages.some((part) => part.prefix === 'summary')
+      ? ensureSummaryTocBookmarks(mergedDocumentXml)
+      : mergedDocumentXml,
   );
-  section14Zip.file('word/_rels/document.xml.rels', mergedRelationshipsXml);
-  section14Zip.file('[Content_Types].xml', ensurePngContentType(ensureJpegContentType(section14ContentTypesXml)));
-  return section14Zip.generateAsync({
+  base.zip.file('word/_rels/document.xml.rels', mergedRelationshipsXml);
+  base.zip.file('[Content_Types].xml', ensurePngContentType(ensureJpegContentType(baseContentTypesXml)));
+  return base.zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  });
+}
+
+function setElementText(element: Element, value: string): void {
+  const textNodes = Array.from(element.getElementsByTagNameNS('*', 't'));
+  if (!textNodes.length) return;
+  textNodes[0].textContent = value;
+  textNodes.slice(1).forEach((node) => { node.textContent = ''; });
+}
+
+async function prepareSection8Template(
+  bytes: ArrayBuffer | Uint8Array,
+  personnel: readonly DiverQualification[] = [],
+): Promise<Blob> {
+  const zip = await JSZip.loadAsync(bytes);
+  const documentEntry = zip.file('word/document.xml');
+  if (!documentEntry) throw new Error('SECTION8_TEMPLATE_INVALID');
+  const document = new DOMParser().parseFromString(await documentEntry.async('text'), 'application/xml');
+  if (document.querySelector('parsererror')) throw new Error('SECTION8_TEMPLATE_XML_INVALID');
+  const tables = Array.from(document.getElementsByTagNameNS('*', 'tbl'))
+    .filter((table) => !closestElement(table.parentElement as Element, 'tbl'));
+  const qualificationTables = tables.filter((table) => {
+    const row = directChildren(table, 'tr')[0];
+    const heading = row ? paragraphText(row) : '';
+    return heading.includes('NAME') && heading.includes('QUALIFICATION') && heading.includes('CERTIFICATE NO.');
+  });
+  for (const [tableIndex, table] of qualificationTables.entries()) {
+    const rows = directChildren(table, 'tr');
+    const templateRow = rows[1];
+    rows.slice(1).forEach((row) => row.remove());
+    if (!templateRow) continue;
+    const records = tableIndex === 0 && personnel.length ? personnel : [null];
+    for (const [personIndex, person] of records.entries()) {
+      const recordRow = templateRow.cloneNode(true) as Element;
+      const cells = directChildren(recordRow, 'tc');
+      const values = person ? [
+        String(personIndex + 1),
+        person.englishName,
+        person.role,
+        person.qualification,
+        person.certificateNo,
+        person.issuingBody,
+      ] : ['', '', '', '', '', ''];
+      cells.forEach((cell, cellIndex) => setElementText(cell, values[cellIndex] ?? ''));
+      table.appendChild(recordRow);
+    }
+  }
+  const body = Array.from(document.getElementsByTagNameNS('*', 'body'))[0];
+  const sectionProperties = body ? directChildren(body, 'sectPr')[0] : undefined;
+  if (!body) throw new Error('SECTION8_TEMPLATE_BODY_INVALID');
+  const contentChildren = Array.from(body.children).filter((child) => child !== sectionProperties);
+  const repeatedHeading = contentChildren.filter((child) => (
+    paragraphText(child).includes('8. QUALIFICATION & CERTIFICATION RECORDS')
+  ))[1];
+  if (repeatedHeading) {
+    let removeRemainder = false;
+    for (const child of Array.from(body.children)) {
+      if (child === repeatedHeading) removeRemainder = true;
+      if (removeRemainder && child !== sectionProperties) child.remove();
+    }
+  }
+  let passedFirstPage = false;
+  for (const child of Array.from(body.children)) {
+    if (child === sectionProperties) continue;
+    if (passedFirstPage) {
+      child.remove();
+      continue;
+    }
+    const hasBreak = Array.from(child.getElementsByTagNameNS('*', 'br'))
+      .some((node) => node.getAttributeNS(WORD_NAMESPACE, 'type') === 'page');
+    if (hasBreak) {
+      passedFirstPage = true;
+      if (!paragraphText(child)) child.remove();
+    }
+    Array.from(child.getElementsByTagNameNS('*', 'lastRenderedPageBreak')).forEach((node) => node.remove());
+  }
+  zip.file('word/document.xml', new XMLSerializer().serializeToString(document));
+  return zip.generateAsync({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
@@ -483,6 +622,7 @@ export async function writeTemplateReport(
     for (let slot = 1; slot <= 10; slot += 1) {
       if (!usedSlots.has(slot)) replaceText(pageDocument, { ['{{P' + slot + '}}']: 'N/A' });
     }
+    trimTrailingEmptyParagraphs(pageDocument);
     renderedBodies.push(serializeFragment(pageDocument));
   }
   const documentXml = documentParts.prefix + renderedBodies.join('') + documentParts.sectionProperties + documentParts.suffix;
@@ -500,7 +640,32 @@ export async function writeTemplateReport(
     }, {
       fetchTemplate: dependencies.fetchSection14Template,
     });
-    blob = await prependSection14Package(section14Blob, blob);
+    const finalParts: PackagePart[] = [{ blob: section14Blob, prefix: 'section14' }];
+    if (input.summaryTemplateUrl) {
+      finalParts.push({
+        blob: await fillSummaryTemplate({ sections: input.sections, templateUrl: input.summaryTemplateUrl }, {
+          fetchTemplate: dependencies.fetchSummaryTemplate,
+        }),
+        prefix: 'summary',
+      });
+    }
+    if (input.section6TemplateUrl) {
+      const bytes = dependencies.fetchSection6Template
+        ? await dependencies.fetchSection6Template()
+        : await (await fetch(input.section6TemplateUrl)).arrayBuffer();
+      finalParts.push({ blob: new Blob([bytes as BlobPart]), prefix: 'section6' });
+    }
+    finalParts.push({ blob, prefix: 'detail' });
+    if (input.section8TemplateUrl) {
+      const bytes = dependencies.fetchSection8Template
+        ? await dependencies.fetchSection8Template()
+        : await (await fetch(input.section8TemplateUrl)).arrayBuffer();
+      finalParts.push({
+        blob: await prepareSection8Template(bytes, input.reportInfo.personnelQualifications),
+        prefix: 'section8',
+      });
+    }
+    blob = await mergeReportPackages(finalParts);
   }
   const fileName = input.fileName ?? input.vesselName.replace(/[^a-z0-9]+/gi, '_') + '_UNDERWATER_SERVICE_REPORT.docx';
   dependencies.download?.(blob, fileName);

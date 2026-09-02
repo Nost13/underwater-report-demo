@@ -2,6 +2,7 @@ import { deriveFoulingCondition, deriveObservedRating } from '../domain/conditio
 import { defaultReportLabels, reportLabelKey } from '../app/reportLabels';
 import type { Phase, PhotoData, ReportLabelMap, ReportLabels, ReportSection, ServiceKind, WorkPerformLabelMap } from '../domain/types';
 import { defaultWorkPerformLabel, workPerformLabelKey } from '../app/workPerformLabels';
+import { MAIN_HULL_ORDER, SIDE_ORDER, SUMMARY_NICHE_ORDER } from '../summary/summaryModel';
 
 export interface TemplateValues {
   bc: string;
@@ -27,23 +28,10 @@ export interface WordPhasePage {
 }
 
 const phaseOrder: Phase[] = ['BEFORE', 'AFTER', 'CURRENT'];
-const generalOrder = ['FWD', 'FWD-MID', 'MID', 'MID-AFT', 'AFT'];
-const sideOrder = ['PORT', 'STBD', 'BOTTOM'];
 const nicheOrder = [
-  'BULBOUS BOW',
-  'BOW THRUSTER',
-  'THRUSTER GRATING',
-  'BILGE KEEL',
-  'SEA CHEST',
-  'DISCHARGE PIPE',
-  'ANODE / ICCP',
-  'TRANSDUCER',
-  'STERN FRAME',
-  'ROPE GUARD',
-  'PROPELLER BLADE',
+  ...SUMMARY_NICHE_ORDER.slice(0, 10),
   'FIN BLADE',
-  'BOSS CAP',
-  'RUDDER',
+  ...SUMMARY_NICHE_ORDER.slice(10),
 ];
 
 const titleCase = (value: string) => value
@@ -59,16 +47,16 @@ const rank = (values: string[], value?: string) => {
   return index < 0 ? values.length : index;
 };
 
-function orderSections(sections: ReportSection[]): ReportSection[] {
+export function orderSections(sections: ReportSection[]): ReportSection[] {
   return sections
     .map((section, sourceIndex) => ({ section, sourceIndex }))
     .sort((left, right) => {
       if (left.section.area !== right.section.area) return left.section.area === 'GENERAL' ? -1 : 1;
       const componentDifference = left.section.area === 'GENERAL'
-        ? rank(generalOrder, left.section.component) - rank(generalOrder, right.section.component)
+        ? rank([...MAIN_HULL_ORDER], left.section.component) - rank([...MAIN_HULL_ORDER], right.section.component)
         : rank(nicheOrder, left.section.component) - rank(nicheOrder, right.section.component);
       if (componentDifference) return componentDifference;
-      const sideDifference = rank(sideOrder, left.section.side) - rank(sideOrder, right.section.side);
+      const sideDifference = rank([...SIDE_ORDER], left.section.side) - rank([...SIDE_ORDER], right.section.side);
       if (sideDifference) return sideDifference;
       const unitDifference = (left.section.unit ?? 0) - (right.section.unit ?? 0);
       return unitDifference || left.sourceIndex - right.sourceIndex;

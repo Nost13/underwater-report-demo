@@ -16,11 +16,13 @@ ZIP에 실행 런타임이 포함되어 있어 별도 Node.js 설치나 서버 �
 1. **Vessel / Scope** — IMO `9876543`으로 Vessel 확인 후 작업 브러시로 GENERAL/NICHE 작업을 배정하고 Scope를 만듭니다.
    - `전체/PORT/STBD/BOTTOM 적용`으로 빠르게 채우고, 예외 위치만 클릭해 변경합니다.
    - 한 위치에 여러 작업이 있으면 작은 `+` 버튼으로 작업을 추가합니다.
-2. **Vessel Diagram** — 로컬 선박 사이드뷰 PNG/JPG를 넣고 **Hull 맞추기**에서 선미·선수·상단·Bottom 기준선을 먼저 맞춘 뒤 **Niche 맞추기**로 이동합니다. Hull을 확정하기 전에는 Niche 위치를 확정할 수 없습니다.
-3. **사진 폴더** — 새 작업이면 `표준 폴더 구조 생성`, 기존 폴더면 `사진 불러오기`를 선택합니다.
-4. **Report Input** — BEFORE/AFTER 또는 CURRENT Condition과 Report Use를 확인합니다. 사진을 넣을 Phase의 `이곳에 배정` 버튼을 먼저 누른 뒤 UNMATCHED 사진을 배정하고, 잘못 배정한 사진은 `이동`하거나 완전히 `삭제`할 수 있습니다.
-5. **Check / Preview** — 누락 패널과 자동 페이지를 확인합니다.
-6. **Word** — Word 준비 → Word 보고서 다운로드를 선택합니다.
+2. **Report Information** — 선박·운항·작업·준비 정보를 입력하고, 회사 구분 없이 통합된 자격 인원 DB에서 투입 다이버를 검색·선택합니다.
+3. **Vessel Diagram** — 로컬 선박 사이드뷰 PNG/JPG를 넣고 **Hull 맞추기**에서 선미·선수·상단·Bottom 기준선을 먼저 맞춘 뒤 **Niche 맞추기**로 이동합니다. Hull을 확정하기 전에는 Niche 위치를 확정할 수 없습니다.
+4. **사진 폴더** — 새 작업이면 `표준 폴더 구조 생성`, 기존 폴더면 `사진 불러오기`를 선택합니다.
+5. **Report Input** — BEFORE/AFTER 또는 CURRENT Condition과 Report Use를 확인합니다. 사진을 넣을 Phase의 `이곳에 배정` 버튼을 먼저 누른 뒤 UNMATCHED 사진을 배정하고, 잘못 배정한 사진은 `이동`하거나 완전히 `삭제`할 수 있습니다.
+6. **Check / Preview** — 누락 패널과 자동 Detail 페이지를 확인합니다.
+7. **Summary** — Detail의 최종 Condition에서 자동 계산된 Overall Result와 Findings Matrix를 확인합니다. 수정이 필요하면 `Detail 입력 수정`으로 돌아갑니다.
+8. **Word** — 최종 Word 준비 → Word 보고서 다운로드를 선택합니다.
 
 ## 선박 위치도
 
@@ -42,6 +44,7 @@ Scope를 만든 뒤에는 선박과 작업 배정이 고정됩니다. 바꾸려�
 ## 데이터와 성능
 
 - Vessel DB는 데모 선박 확인에만 사용합니다.
+- 다이버 자격 DB는 원본 Excel의 57개 행을 자격증 번호로 중복 제거한 49명으로 구성됩니다. 생년월일은 내부 데이터에만 유지하고 화면과 Word에는 표시하지 않습니다.
 - 보고서와 사진은 서버로 전송하거나 저장하지 않습니다.
 - 새로고침하면 현재 작성 내용이 초기화됩니다.
 - 원본 사진은 File 참조로 유지하며, 썸네일은 제한된 작업 큐에서 생성하고 사용 후 object URL을 정리합니다.
@@ -50,7 +53,10 @@ Scope를 만든 뒤에는 선박과 작업 배정이 고정됩니다. 바꾸려�
 
 ## Word 보고서
 
-- 앱에 포함된 `section1_4_template.docx`에 선박·작업 정보를 먼저 기입하고, 이어서 `Detail_report_template.docx`의 상세 사진 페이지를 붙여 하나의 `.docx` 파일을 브라우저 안에서 생성합니다.
+- 최종 문서는 `section1_4_template.docx` → `summary_template.docx` → `section6_template.docx` → `Detail_report_template.docx` → `section8_template.docx` 순서로 브라우저 안에서 조립합니다.
+- Report Information에서 선택한 다이버는 Section 8 자격 명단에 선택 순서대로 자동 입력됩니다.
+- Summary는 Detail의 AFTER(두 단계 작업) 또는 CURRENT(Inspection) Condition을 사용합니다. Fin Blade는 Detail에만 포함하고 Summary에서는 제외합니다.
+- Detail 페이지는 Main Hull `FWD → FWD-MID → MID → MID-AFT → AFT`, 각 구역 `PORT → STBD → BOTTOM`, 이어서 승인된 Niche 매트릭스 순서로 생성합니다.
 - 템플릿의 머리글과 바닥글은 변경하지 않습니다.
 - Cleaning/Polishing/Repair/Removal은 각 Section에서 BEFORE 페이지를 먼저, AFTER 페이지를 뒤에 만듭니다. Inspection은 CURRENT 페이지만 만듭니다.
 - 첫 Phase 페이지에는 사진 4장, 이어지는 페이지에는 6장씩 순서대로 배치합니다.
