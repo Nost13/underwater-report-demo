@@ -29,7 +29,7 @@ describe('ChainPortal vessel schedule lookup', () => {
       etd: '2026-09-05T20:00',
     }]);
     expect(fetcher).toHaveBeenCalledWith(
-      '/api/chainportal?vessel=STAR%20KVARVEN',
+      'https://marine-ops-dashboard.vercel.app/api/chainportal?vessel=STAR%20KVARVEN',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });

@@ -13,6 +13,8 @@ interface ChainPortalResponse {
   matches?: Partial<VesselSchedule>[];
 }
 
+const CHAINPORTAL_API = 'https://marine-ops-dashboard.vercel.app/api/chainportal';
+
 const text = (value: unknown) => typeof value === 'string' ? value : '';
 
 function mapSchedule(value: Partial<VesselSchedule>): VesselSchedule {
@@ -36,7 +38,7 @@ export async function lookupVesselSchedule(
   if (normalized.length < 2) return [];
 
   try {
-    const response = await fetcher(`/api/chainportal?vessel=${encodeURIComponent(normalized)}`, {
+    const response = await fetcher(`${CHAINPORTAL_API}?vessel=${encodeURIComponent(normalized)}`, {
       signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) return [];
