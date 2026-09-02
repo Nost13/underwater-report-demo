@@ -63,6 +63,58 @@ export function emptyReportInfo(): ReportInfo {
   };
 }
 
+function elapsedTimeLabel(startValue: string, endValue: string): string {
+  const startTime = /^(\d{1,2}):(\d{2})$/.exec(startValue.trim());
+  const endTime = /^(\d{1,2}):(\d{2})$/.exec(endValue.trim());
+  let elapsed: number;
+  if (startTime && endTime) {
+    const startMinutes = Number(startTime[1]) * 60 + Number(startTime[2]);
+    const endMinutes = Number(endTime[1]) * 60 + Number(endTime[2]);
+    if (startMinutes >= 24 * 60 || endMinutes >= 24 * 60) return '';
+    elapsed = endMinutes - startMinutes;
+    if (elapsed < 0) elapsed += 24 * 60;
+  } else {
+    const start = Date.parse(startValue);
+    const end = Date.parse(endValue);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '';
+    elapsed = Math.round((end - start) / 60_000);
+  }
+  const totalMinutes = elapsed;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (!totalMinutes) return '0 HOURS';
+  return minutes ? `${hours} HOURS ${minutes} MINUTES` : `${hours} HOURS`;
+}
+
+function positionFromBerthingSide(side: string): string {
+  const normalized = side.trim().toUpperCase();
+  if (normalized === 'P' || normalized === 'PORT' || normalized === 'PORT SIDE') return 'PORT SIDE';
+  if (normalized === 'S' || normalized === 'STBD' || normalized === 'STARBOARD' || normalized === 'STBD SIDE' || normalized === 'STARBOARD SIDE') return 'STBD SIDE';
+  return side.trim();
+}
+
+export function deriveOperationValues(
+  operation: ReportInfo['operation'],
+  changedField?: keyof ReportInfo['operation'],
+): ReportInfo['operation'] {
+  const next = { ...operation };
+  if (!changedField || changedField === 'eta' || changedField === 'etd') {
+    const workWindow = elapsedTimeLabel(next.eta, next.etd);
+    if (workWindow) next.workWindow = workWindow;
+  }
+  if (!changedField || changedField === 'start' || changedField === 'end') {
+    const workingTime = elapsedTimeLabel(next.start, next.end);
+    if (workingTime) next.workingTime = workingTime;
+  }
+  if (!changedField || changedField === 'location' || changedField === 'berthingSide') {
+    const isAnchorage = /ANCHOR(?:AGE)?|묘박|정박지/i.test(next.location);
+    const position = positionFromBerthingSide(next.berthingSide);
+    if (isAnchorage && position === next.position) next.position = '';
+    else if (!isAnchorage && position) next.position = position;
+  }
+  return next;
+}
+
 export function reportInfoFromVessel(vessel: Vessel | null): ReportInfo {
   const info = emptyReportInfo();
   if (!vessel) return info;

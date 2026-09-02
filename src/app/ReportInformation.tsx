@@ -1,6 +1,6 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { DIVER_QUALIFICATIONS, searchDiverQualifications, type DiverQualification } from './diverQualifications';
-import type { ReportInfo } from './reportInfo';
+import { deriveOperationValues, type ReportInfo } from './reportInfo';
 
 interface ReportInformationProps {
   value: ReportInfo;
@@ -50,7 +50,7 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
   }, [diverSearch, value.personnelQualifications]);
   const setOperation = (field: OperationField, next: string) => onChange((current) => ({
     ...current,
-    operation: { ...current.operation, [field]: next },
+    operation: deriveOperationValues({ ...current.operation, [field]: next }, field),
   }));
   const setReadiness = (field: ReadinessField, next: string) => onChange((current) => ({
     ...current,

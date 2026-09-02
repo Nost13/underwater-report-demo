@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createDemoPhotos, COMPONENT_OPTIONS, DEMO_VESSELS, SERVICES } from './app/demoData';
-import { emptyReportInfo, reportInfoForScopes, reportInfoFromVessel, type ReportInfo } from './app/reportInfo';
+import { deriveOperationValues, emptyReportInfo, reportInfoForScopes, reportInfoFromVessel, type ReportInfo } from './app/reportInfo';
 import { ReportInformation } from './app/ReportInformation';
 import { lookupVesselSchedule, type VesselSchedule } from './app/scheduleLookup';
 import { lookupVessel } from './app/vesselLookup';
@@ -507,13 +507,13 @@ export default function App({
     if (nextSchedule) {
       setReportInfo({
         ...baseInfo,
-        operation: {
+        operation: deriveOperationValues({
           ...baseInfo.operation,
           eta: nextSchedule.eta,
           etd: nextSchedule.etd,
           location: [nextSchedule.port, nextSchedule.terminal, nextSchedule.berth].filter(Boolean).join(' / '),
           berthingSide: nextSchedule.direction,
-        },
+        }),
       });
       setStatus(`${found.name} 선박 제원과 ChainPortal 입출항 일정을 불러왔습니다.`);
     } else {
@@ -618,7 +618,7 @@ export default function App({
         onNicheRemove={(groupId, targetId, service) => changeNicheTarget(groupId, targetId, (target) => removeTargetService(target, service))}
         reportInfo={reportInfo} setReportInfo={setReportInfo} vesselMatches={vesselMatches} vesselSchedules={vesselSchedules} vesselSchedule={vesselSchedule}
         onVesselSelect={(next) => { if (isVesselLookupPending) return; setIsVesselLookupPending(true); void selectReportVessel(next).finally(() => setIsVesselLookupPending(false)); }}
-        onScheduleSelect={(next) => { setVesselSchedule(next); setReportInfo((current) => ({ ...current, operation: { ...current.operation, eta: next.eta, etd: next.etd, location: [next.port, next.terminal, next.berth].filter(Boolean).join(' / '), berthingSide: next.direction } })); }}
+        onScheduleSelect={(next) => { setVesselSchedule(next); setReportInfo((current) => ({ ...current, operation: deriveOperationValues({ ...current.operation, eta: next.eta, etd: next.etd, location: [next.port, next.terminal, next.berth].filter(Boolean).join(' / '), berthingSide: next.direction }) })); }}
         onLookup={lookupReportVessel} vesselLookupPending={isVesselLookupPending}
         onBuild={buildScope} onReset={resetScope} sectionCount={report.sections.length} draftSections={draftSections}
         onPhotos={() => setStage(1)}

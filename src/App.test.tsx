@@ -239,6 +239,8 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('ETD')).toHaveValue('2026-09-05T20:00');
     expect(screen.getByLabelText('Location')).toHaveValue('Busan / PNIT / 3');
     expect(screen.getByLabelText('Berthing Side')).toHaveValue('PORT');
+    expect(screen.getByLabelText('Work Window')).toHaveValue('35 HOURS 30 MINUTES');
+    expect(screen.getByLabelText('Position')).toHaveValue('PORT SIDE');
   });
 
   it('refreshes ChainPortal when a different VesselFinder match is selected', async () => {

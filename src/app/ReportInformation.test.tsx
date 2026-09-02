@@ -34,6 +34,23 @@ describe('Report Information', () => {
     expect(screen.getByLabelText('Position')).toHaveValue('PORT SIDE');
   });
 
+  it('recalculates derived operation values while keeping them editable', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.type(screen.getByLabelText('ETA'), '2026-09-01T01:36');
+    await user.type(screen.getByLabelText('ETD'), '2026-09-01T18:00');
+    expect(screen.getByLabelText('Work Window')).toHaveValue('16 HOURS 24 MINUTES');
+
+    await user.clear(screen.getByLabelText('Work Window'));
+    await user.type(screen.getByLabelText('Work Window'), 'CUSTOM WINDOW');
+    expect(screen.getByLabelText('Work Window')).toHaveValue('CUSTOM WINDOW');
+
+    await user.type(screen.getByLabelText('Start'), '2026-09-01T03:00');
+    await user.type(screen.getByLabelText('End'), '2026-09-01T07:30');
+    expect(screen.getByLabelText('Working Time')).toHaveValue('4 HOURS 30 MINUTES');
+  });
+
   it('searches the company-neutral diver database and selects personnel for Section 8', async () => {
     const user = userEvent.setup();
     render(<Harness />);
