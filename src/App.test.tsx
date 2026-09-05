@@ -1172,8 +1172,10 @@ describe('desktop report workflow', () => {
 
   it('collapses Report Check by default and shows all preview pages in one view', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    const { container } = render(<App />);
     await buildCleaningGeneral(user);
+    const fallbackInput = container.querySelector('input[type="file"][webkitdirectory]') as HTMLInputElement;
+    await user.upload(fallbackInput, new File(['unmatched'], 'unmatched.jpg', { type: 'image/jpeg' }));
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
 
@@ -1182,6 +1184,8 @@ describe('desktop report workflow', () => {
     expect(screen.queryByText('MISSING PHASE PHOTO')).not.toBeInTheDocument();
     await user.click(reportCheck);
     expect(screen.getAllByText('MISSING PHASE PHOTO').length).toBeGreaterThan(0);
+    expect(screen.getByText('미배정 사진', { selector: '.qa-list b' })).toBeVisible();
+    expect(screen.queryByText('UNMATCHED')).not.toBeInTheDocument();
     expect(screen.getByLabelText('전체 Report Preview')).toBeVisible();
   });
 
