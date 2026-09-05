@@ -23,6 +23,7 @@ describe('report check issues', () => {
       reportUse: true,
       order: number,
       relativePath: `${number}.jpg`,
+      captionText: '',
     }));
     photos.push({
       id: 'PX',
@@ -32,6 +33,7 @@ describe('report check issues', () => {
       reportUse: true,
       order: 5,
       relativePath: 'misc/unknown.jpg',
+      captionText: '',
     });
 
     expect(checkReport([section], photos).map((issue) => issue.kind)).toEqual(
@@ -107,6 +109,7 @@ describe('report check issues', () => {
       reportUse: true,
       order: number,
       relativePath: `${number}.jpg`,
+      captionText: '',
     }));
 
     const imbalance = checkReport([section], photos)

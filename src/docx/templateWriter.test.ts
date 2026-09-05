@@ -21,6 +21,7 @@ const vesselDiagram = (): VesselDiagramConfig => ({
 const reportPhoto = (sectionId: string): PhotoData => ({
   id: 'VESSEL-PHOTO', sectionId, phase: 'BEFORE', reportUse: true, order: 1,
   relativePath: 'vessel-photo.jpg', file: new File(['image'], 'vessel-photo.jpg', { type: 'image/jpeg' }),
+  captionText: '',
 });
 
 async function fixtureTemplate(): Promise<ArrayBuffer> {
@@ -128,6 +129,7 @@ describe('template Word writer', () => {
     const photo: PhotoData = {
       id: 'P1', sectionId: section.id, phase: 'BEFORE', reportUse: true, order: 1,
       relativePath: 'P1.jpg', file: new File(['image'], 'P1.jpg', { type: 'image/jpeg' }),
+      captionText: '',
     };
     const result = await writeTemplateReport({
       vesselName: 'M.V. TEST',
@@ -178,6 +180,7 @@ describe('template Word writer', () => {
     const photos: PhotoData[] = ['BEFORE', 'AFTER'].map((phase, index) => ({
       id: phase, sectionId: section.id, phase: phase as 'BEFORE' | 'AFTER', reportUse: true, order: index + 1,
       relativePath: phase + '.jpg', file: new File(['image'], phase + '.jpg', { type: 'image/jpeg' }),
+      captionText: '',
     }));
     const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos, templateUrl: '/template.docx', vesselDiagram: vesselDiagram(), workPerformLabels: {
       [`${section.id}::BEFORE`]: 'Arrival',
@@ -201,6 +204,7 @@ describe('template Word writer', () => {
     const failed: PhotoData = {
       id: 'FAILED', sectionId: section.id, phase: 'BEFORE', reportUse: true, order: 1,
       relativePath: 'failed.jpg', file: new File(['bad'], 'failed.jpg', { type: 'image/jpeg' }),
+      captionText: '',
     };
     const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos: [failed], templateUrl: '/template.docx', vesselDiagram: vesselDiagram() }, {
       fetchTemplate: fixtureTemplate,
@@ -222,6 +226,7 @@ describe('template Word writer', () => {
     const photos: PhotoData[] = Array.from({ length: 5 }, (_, index) => ({
       id: 'B' + (index + 1), sectionId: section.id, phase: 'BEFORE', reportUse: true, order: index + 1,
       relativePath: 'B' + (index + 1) + '.jpg', file: new File(['image'], 'B' + (index + 1) + '.jpg', { type: 'image/jpeg' }),
+      captionText: '',
     }));
     const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos, templateUrl: '/template.docx', vesselDiagram: vesselDiagram() }, {
       fetchTemplate: fixtureTemplate, resize: async () => new Uint8Array([1, 2, 3]), download: () => undefined,

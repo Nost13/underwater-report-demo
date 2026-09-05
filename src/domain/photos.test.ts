@@ -4,7 +4,14 @@ import {
   createNicheSections,
   createReportSections,
 } from './structure';
-import { createCaption, matchPhotoPath, phaseIndexForPhoto, summarizePhotoImport } from './photos';
+import {
+  composePhotoCaption,
+  createCaption,
+  matchPhotoPath,
+  phaseIndexForPhoto,
+  photoFolderContext,
+  summarizePhotoImport,
+} from './photos';
 import type { PhotoData } from './types';
 
 describe('photo matching and captions', () => {
@@ -47,6 +54,25 @@ describe('photo matching and captions', () => {
     expect(matchPhotoPath('misc/a.jpg', sections)).toBeNull();
   });
 
+  it('shows the final two parent folders as imported-photo context', () => {
+    expect(photoFolderContext('1/2/3/image.jpg')).toBe('2 > 3');
+    expect(photoFolderContext('one/image.jpg')).toBe('one');
+    expect(photoFolderContext('image.jpg')).toBe('선택한 폴더 바로 아래');
+  });
+
+  it('composes base and title-case phase caption parts without blank supplemental text', () => {
+    expect(composePhotoCaption('Sea Chest', 'BEFORE', '')).toEqual(['Sea Chest', 'Before']);
+    expect(composePhotoCaption('Sea Chest', 'CURRENT', '   ')).toEqual(['Sea Chest', 'Current']);
+  });
+
+  it('appends trimmed supplemental caption text', () => {
+    expect(composePhotoCaption('Sea Chest', 'AFTER', '  Port inlet  ')).toEqual([
+      'Sea Chest',
+      'After',
+      'Port inlet',
+    ]);
+  });
+
   it('creates a deterministic phase-aware caption', () => {
     const section = sections[0];
     const photo: PhotoData = {
@@ -57,6 +83,7 @@ describe('photo matching and captions', () => {
       reportUse: true,
       order: 2,
       relativePath: 'a.jpg',
+      captionText: '',
     };
     expect(createCaption(photo, section, 2)).toBe('SEA CHEST · PORT · UNIT 01 · BEFORE · 02');
   });
@@ -73,6 +100,7 @@ describe('photo matching and captions', () => {
       file: new File(['x'], `${value.id}.jpg`, { type: 'image/jpeg' }),
       reportUse: true,
       relativePath: `${value.id}.jpg`,
+      captionText: '',
     })) as PhotoData[];
     expect(phaseIndexForPhoto(values[0], values)).toBe(1);
     expect(phaseIndexForPhoto(values[2], values)).toBe(2);
@@ -87,6 +115,7 @@ describe('photo matching and captions', () => {
       reportUse: true,
       order: 1,
       relativePath: 'NICHE/SEA CHEST/PORT/01/BEFORE/exact.jpg',
+      captionText: '',
     } as PhotoData;
     const unmatched = {
       ...exact,

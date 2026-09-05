@@ -87,5 +87,6 @@ export async function createDemoPhotos(section: ReportSection): Promise<PhotoDat
     reportUse: true,
     order: index + 1,
     relativePath: `DEMO/${file.name}`,
+    captionText: '',
   }));
 }

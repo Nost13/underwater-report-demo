@@ -18,6 +18,7 @@ const photo = (number: number): PhotoData => ({
   reportUse: true,
   order: number,
   relativePath: `${number}.jpg`,
+  captionText: '',
 });
 
 describe('report state', () => {
@@ -53,24 +54,97 @@ describe('report state', () => {
   });
 
   it('moves a manually assigned photo out of UNMATCHED without copying its File', () => {
-    const unmatched = { ...photo(1), sectionId: null, phase: null };
-    const seeded = { ...initialReportState, sections: [section], photos: [unmatched] };
+    const unmatched = { ...photo(1), sectionId: null, phase: null, order: 99 };
+    const existing = { ...photo(2), order: 7 };
+    const seeded = { ...initialReportState, sections: [section], photos: [unmatched, existing] };
     const next = reportReducer(seeded, {
       type: 'ASSIGN_PHOTO',
       photoId: unmatched.id,
       sectionId: section.id,
       phase: 'BEFORE',
     });
-    expect(next.photos[0]).toMatchObject({ sectionId: section.id, phase: 'BEFORE' });
+    expect(next.photos[0]).toMatchObject({ sectionId: section.id, phase: 'BEFORE', order: 8 });
     expect(next.photos[0].file).toBe(unmatched.file);
   });
 
-  it('returns an assigned photo to UNMATCHED for reassignment', () => {
-    const assigned = photo(1);
+  it('returns an assigned photo to UNMATCHED without losing imported or editing data', () => {
+    const assigned = { ...photo(1), captionText: 'Port inlet', reportUse: false };
     const seeded = { ...initialReportState, sections: [section], photos: [assigned] };
     const next = reportReducer(seeded, { type: 'UNASSIGN_PHOTO', photoId: assigned.id });
-    expect(next.photos[0]).toMatchObject({ sectionId: null, phase: null });
+    expect(next.photos[0]).toMatchObject({
+      sectionId: null,
+      phase: null,
+      relativePath: assigned.relativePath,
+      captionText: 'Port inlet',
+      reportUse: false,
+      order: assigned.order,
+    });
     expect(next.photos[0].file).toBe(assigned.file);
+  });
+
+  it('updates one photo caption immutably', () => {
+    const first = photo(1);
+    const second = photo(2);
+    const seeded = { ...initialReportState, sections: [section], photos: [first, second] };
+
+    const next = reportReducer(seeded, {
+      type: 'UPDATE_PHOTO_CAPTION',
+      photoId: first.id,
+      value: 'Port inlet',
+    });
+
+    expect(next).not.toBe(seeded);
+    expect(next.photos[0]).not.toBe(first);
+    expect(next.photos[0].captionText).toBe('Port inlet');
+    expect(next.photos[1]).toBe(second);
+  });
+
+  it('reorders only inside one section and phase and normalizes that group order', () => {
+    const sameGroup = (item: PhotoData) => item.sectionId === section.id && item.phase === 'BEFORE';
+    const byOrder = (left: PhotoData, right: PhotoData) => left.order - right.order;
+    const first = { ...photo(1), id: 'p1', order: 10 };
+    const second = { ...photo(2), id: 'p2', order: 30 };
+    const third = { ...photo(3), id: 'p3', order: 20 };
+    const after = { ...photo(4), id: 'after', order: 50 };
+    const seeded = { ...initialReportState, sections: [section], photos: [first, second, third, after] };
+
+    const next = reportReducer(seeded, {
+      type: 'REORDER_PHOTO',
+      photoId: 'p3',
+      beforePhotoId: 'p1',
+    });
+
+    expect(next.photos.filter(sameGroup).sort(byOrder).map((item) => item.id)).toEqual(['p3', 'p1', 'p2']);
+    expect(next.photos.filter(sameGroup).sort(byOrder).map((item) => item.order)).toEqual([0, 1, 2]);
+    expect(next.photos.find((item) => item.id === 'after')).toBe(after);
+  });
+
+  it('appends a reordered photo within its group when there is no drop target', () => {
+    const first = { ...photo(1), id: 'p1', order: 10 };
+    const second = { ...photo(2), id: 'p2', order: 30 };
+    const third = { ...photo(3), id: 'p3', order: 20 };
+    const seeded = { ...initialReportState, sections: [section], photos: [first, second, third] };
+
+    const next = reportReducer(seeded, {
+      type: 'REORDER_PHOTO',
+      photoId: 'p1',
+      beforePhotoId: null,
+    });
+
+    expect([...next.photos].sort((left, right) => left.order - right.order).map((item) => item.id))
+      .toEqual(['p3', 'p2', 'p1']);
+  });
+
+  it('rejects a reorder drop target in another phase', () => {
+    const before = { ...photo(1), id: 'before' };
+    const after = { ...photo(4), id: 'after' };
+    const seeded = { ...initialReportState, sections: [section], photos: [before, after] };
+
+    expect(reportReducer(seeded, {
+      type: 'REORDER_PHOTO',
+      photoId: 'before',
+      beforePhotoId: 'after',
+    })).toBe(seeded);
   });
 
   it('removes a deleted photo from the current report without changing other photos', () => {

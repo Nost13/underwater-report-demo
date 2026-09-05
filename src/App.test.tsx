@@ -932,14 +932,18 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('checkbox', { name: 'manual.jpg Report Use' }))
       .toHaveClass('switch-input');
     const move = screen.getAllByRole('button', { name: /이동$/ })[0];
-    const remove = screen.getAllByRole('button', { name: /삭제$/ })[0];
+    const remove = screen.getByRole('button', { name: 'manual.jpg 미배정으로 이동' });
     expect(move).toHaveClass('photo-action-button', 'move');
     expect(remove).toHaveClass('photo-action-button', 'danger');
     await user.click(move);
     expect(screen.getByRole('button', { name: '이동 완료' })).toHaveClass('move-confirm');
-    expect(screen.getByRole('button', { name: '이동 취소' })).toHaveClass('move-cancel');
-    expect(screen.getByText('삭제는 보고서 참조만 제거하며 원본 파일은 유지됩니다.'))
+    const cancel = screen.getByRole('button', { name: '이동 취소' });
+    expect(cancel).toHaveClass('move-cancel');
+    expect(screen.getByText('미배정으로 이동해도 불러온 사진과 편집 내용은 유지됩니다.'))
       .toBeVisible();
+    await user.click(cancel);
+    await user.click(screen.getByRole('button', { name: 'manual.jpg 미배정으로 이동' }));
+    expect(screen.getByRole('button', { name: 'UNMATCHED 1' })).toBeEnabled();
   });
 
   it('resets a cancelled photo move to the current Section and Phase', async () => {

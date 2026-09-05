@@ -57,6 +57,7 @@ export interface PhotoData {
   reportUse: boolean;
   order: number;
   relativePath: string;
+  captionText: string;
 }
 
 export interface NicheInput {

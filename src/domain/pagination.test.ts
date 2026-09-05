@@ -10,6 +10,7 @@ const makePhoto = (id: string, phase: Phase, reportUse = true): PhotoData => ({
   reportUse,
   order: Number(id.slice(1)),
   relativePath: `${id}.jpg`,
+  captionText: '',
 });
 
 describe('automatic pagination', () => {

@@ -19,6 +19,7 @@ const photo = (id: string, phase: 'BEFORE' | 'AFTER', order: number): PhotoData 
   reportUse: true,
   order,
   relativePath: id + '.jpg',
+  captionText: '',
 });
 
 const sectionPhoto = (reportSection: ReportSection, order: number): PhotoData => ({
@@ -29,6 +30,7 @@ const sectionPhoto = (reportSection: ReportSection, order: number): PhotoData =>
   reportUse: true,
   order,
   relativePath: reportSection.id + '.jpg',
+  captionText: '',
 });
 
 describe('Word report phase model', () => {

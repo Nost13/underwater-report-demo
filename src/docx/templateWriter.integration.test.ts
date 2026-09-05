@@ -61,6 +61,7 @@ describe('bundled Detail report template', () => {
     const photo: PhotoData = {
       id: 'COMBINED-1', sectionId: section.id, phase: 'CURRENT', reportUse: true, order: 1,
       relativePath: 'combined.jpg', file: new File(['image'], 'combined.jpg', { type: 'image/jpeg' }),
+      captionText: '',
     };
 
     const result = await writeTemplateReport({
@@ -156,6 +157,7 @@ describe('bundled Detail report template', () => {
     const photos: PhotoData[] = sections.map((section, index) => ({
       id: `DIAGRAM-${index}`, sectionId: section.id, phase: 'BEFORE', reportUse: true, order: 1,
       relativePath: `diagram-${index}.jpg`, file: new File(['image'], `diagram-${index}.jpg`, { type: 'image/jpeg' }),
+      captionText: '',
     }));
     const reportInfo = emptyReportInfo();
     reportInfo.vessel.name = 'M.V. DIAGRAM TEST';
@@ -239,6 +241,7 @@ describe('bundled Detail report template', () => {
       reportUse: true,
       order: index + 1,
       relativePath: `P${index + 1}.jpg`,
+      captionText: '',
       file: new File(['image'], `P${index + 1}.jpg`, { type: 'image/jpeg' }),
     }));
 
@@ -306,6 +309,7 @@ describe('bundled Detail report template', () => {
       reportUse: true,
       order: 1,
       relativePath: 'RG1.jpg',
+      captionText: '',
       file: new File(['image'], 'RG1.jpg', { type: 'image/jpeg' }),
     };
 
@@ -374,6 +378,7 @@ describe('bundled Detail report template', () => {
       reportUse: true,
       order: 1,
       relativePath: 'RATING.jpg',
+      captionText: '',
       file: new File(['image'], 'RATING.jpg', { type: 'image/jpeg' }),
     };
     const result = await writeTemplateReport({

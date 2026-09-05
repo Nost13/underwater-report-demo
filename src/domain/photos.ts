@@ -9,6 +9,26 @@ const SERVICE_TOKENS: ServiceKind[] = [
   'REMOVAL',
 ];
 
+export function photoFolderContext(relativePath: string): string {
+  const segments = relativePath.split(/[\\/]+/).filter(Boolean);
+  const parentFolders = segments.slice(0, -1).slice(-2);
+  return parentFolders.length > 0
+    ? parentFolders.join(' > ')
+    : '선택한 폴더 바로 아래';
+}
+
+export function composePhotoCaption(
+  base: string,
+  phase: Phase,
+  supplemental: string,
+): string[] {
+  const phaseLabel = phase[0] + phase.slice(1).toLowerCase();
+  const supplementalText = supplemental.trim();
+  return supplementalText
+    ? [base, phaseLabel, supplementalText]
+    : [base, phaseLabel];
+}
+
 export function sectionDirectorySegments(section: ReportSection): string[] {
   return [
     section.area,

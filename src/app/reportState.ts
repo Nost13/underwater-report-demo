@@ -27,6 +27,8 @@ export type ReportAction =
   | { type: 'IMPORT_PHOTOS'; photos: PhotoData[] }
   | { type: 'ASSIGN_PHOTO'; photoId: string; sectionId: string; phase: Phase }
   | { type: 'UNASSIGN_PHOTO'; photoId: string }
+  | { type: 'UPDATE_PHOTO_CAPTION'; photoId: string; value: string }
+  | { type: 'REORDER_PHOTO'; photoId: string; beforePhotoId: string | null }
   | { type: 'TOGGLE_REPORT_USE'; photoId: string }
   | { type: 'DELETE_PHOTO'; photoId: string }
   | { type: 'UPDATE_CONDITION'; sectionId: string; phase: Phase; patch: ConditionPatch }
@@ -64,10 +66,66 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
       const incoming = action.photos.filter((photo) => !existing.has(`${photo.relativePath}|${photo.file.size}|${photo.file.lastModified}`));
       return { ...state, photos: [...state.photos, ...incoming] };
     }
-    case 'ASSIGN_PHOTO':
-      return { ...state, photos: state.photos.map((photo) => photo.id === action.photoId ? { ...photo, sectionId: action.sectionId, phase: action.phase } : photo) };
+    case 'ASSIGN_PHOTO': {
+      const target = state.photos.find((photo) => photo.id === action.photoId);
+      if (!target) return state;
+      const destinationOrders = state.photos
+        .filter((photo) => (
+          photo.id !== action.photoId
+          && photo.sectionId === action.sectionId
+          && photo.phase === action.phase
+        ))
+        .map((photo) => photo.order);
+      const nextOrder = destinationOrders.length > 0 ? Math.max(...destinationOrders) + 1 : 0;
+      return {
+        ...state,
+        photos: state.photos.map((photo) => photo.id === action.photoId ? {
+          ...photo,
+          sectionId: action.sectionId,
+          phase: action.phase,
+          order: nextOrder,
+        } : photo),
+      };
+    }
     case 'UNASSIGN_PHOTO':
       return { ...state, photos: state.photos.map((photo) => photo.id === action.photoId ? { ...photo, sectionId: null, phase: null } : photo) };
+    case 'UPDATE_PHOTO_CAPTION': {
+      const target = state.photos.find((photo) => photo.id === action.photoId);
+      if (!target) return state;
+      return {
+        ...state,
+        photos: state.photos.map((photo) => photo.id === action.photoId
+          ? { ...photo, captionText: action.value }
+          : photo),
+      };
+    }
+    case 'REORDER_PHOTO': {
+      const dragged = state.photos.find((photo) => photo.id === action.photoId);
+      if (!dragged?.sectionId || !dragged.phase) return state;
+      const before = action.beforePhotoId === null
+        ? null
+        : state.photos.find((photo) => photo.id === action.beforePhotoId);
+      if (
+        action.beforePhotoId !== null
+        && (!before || before.id === dragged.id
+          || before.sectionId !== dragged.sectionId
+          || before.phase !== dragged.phase)
+      ) return state;
+
+      const group = state.photos
+        .filter((photo) => photo.sectionId === dragged.sectionId && photo.phase === dragged.phase)
+        .sort((left, right) => left.order - right.order)
+        .filter((photo) => photo.id !== dragged.id);
+      const insertAt = before ? group.findIndex((photo) => photo.id === before.id) : group.length;
+      group.splice(insertAt, 0, dragged);
+      const normalizedOrders = new Map(group.map((photo, order) => [photo.id, order]));
+      return {
+        ...state,
+        photos: state.photos.map((photo) => normalizedOrders.has(photo.id)
+          ? { ...photo, order: normalizedOrders.get(photo.id)! }
+          : photo),
+      };
+    }
     case 'TOGGLE_REPORT_USE':
       return { ...state, photos: state.photos.map((photo) => photo.id === action.photoId ? { ...photo, reportUse: !photo.reportUse } : photo) };
     case 'DELETE_PHOTO':
