@@ -53,7 +53,7 @@ export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onN
   };
   const stopDrag = () => { dragging.current = null; };
   return <section className="workspace cover-workspace">
-    <header className="page-heading"><div><p className="step-kicker">COVER</p><h2>Cover</h2><p>표지 사진과 작업 내용을 확인하세요.</p></div></header>
+    <header className="page-heading"><div><p className="step-kicker">STEP 03</p><h2>Cover</h2><p>표지 사진과 작업 내용을 확인하세요.</p></div></header>
     <div className="cover-editor-grid">
       <div className="panel cover-controls">
         <h3>표지 편집</h3>

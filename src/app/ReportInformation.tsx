@@ -200,6 +200,6 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
         {renderReadinessPhotos('Preparation', 'preparationPhotos')}
       </div>
     </section>
-    <div className="page-actions"><button type="button" className="ghost" onClick={onBack}>Vessel / Scope으로</button><button type="button" className="primary" onClick={onNext}>선박 위치도 설정으로</button></div>
+    <div className="page-actions"><button type="button" className="ghost" onClick={onBack}>Vessel / Scope으로</button><button type="button" className="primary" onClick={onNext}>커버 설정으로</button></div>
   </div>;
 }

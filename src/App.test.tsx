@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import type { WordExportInput } from './docx/templateWriter';
 
+const NativeURL = globalThis.URL;
+
 const { composeVesselDiagram } = vi.hoisted(() => ({
   composeVesselDiagram: vi.fn(async () => new Uint8Array([137, 80, 78, 71])),
 }));
@@ -54,7 +56,7 @@ async function buildScope(user: ReturnType<typeof userEvent.setup>) {
 async function completeVesselDiagram(user: ReturnType<typeof userEvent.setup>) {
   vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 1200, height: 320, close: vi.fn() })));
   await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
-  await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
+  await user.click(screen.getByRole('button', { name: '커버 설정으로' }));
   await user.click(screen.getByRole('button', { name: '다음' }));
   await user.upload(screen.getByLabelText('선박 사이드뷰 이미지'),
     new File(['vessel'], 'vessel.png', { type: 'image/png' }));
@@ -100,6 +102,40 @@ function stageLabels() {
 }
 
 describe('desktop report workflow', () => {
+  it('stores regenerated automatic scope in App before the Cover editor reads it', async () => {
+    vi.stubGlobal('URL', class extends NativeURL {
+      static createObjectURL = vi.fn(() => 'blob:preview');
+      static revokeObjectURL = vi.fn();
+    });
+    vi.resetModules();
+    vi.doMock('./app/CoverEditor', () => ({
+      CoverEditor: ({ value, onBack, onNext }: {
+        value: { scopeTitle: string };
+        onBack: () => void;
+        onNext: () => void;
+      }) => <section><p>STEP 03</p><output aria-label="App cover scope">{value.scopeTitle}</output><button onClick={onBack}>이전</button><button onClick={onNext}>다음</button></section>,
+    }));
+    const { default: AppWithRawCover } = await import('./App');
+    const user = userEvent.setup();
+    render(<AppWithRawCover />);
+
+    await buildScope(user);
+    await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
+    await user.click(screen.getByRole('button', { name: '커버 설정으로' }));
+    expect(screen.getByLabelText('App cover scope')).toHaveTextContent('Cleaning of FWD & FWD-MID & MID & MID-AFT & AFT');
+
+    await user.click(screen.getByRole('button', { name: 'Vessel / Scope' }));
+    await user.click(screen.getByRole('button', { name: 'Scope 초기화' }));
+    await user.click(screen.getByRole('button', { name: 'Inspection 작업 선택' }));
+    await user.click(screen.getByRole('button', { name: '모두 해제' }));
+    await user.click(screen.getByRole('button', { name: '전체 적용' }));
+    await user.click(screen.getByRole('button', { name: /Inspection Scope 만들기$/ }));
+    await user.click(within(screen.getByRole('navigation', { name: 'Report stages' })).getByRole('button', { name: /Cover$/ }));
+    expect(screen.getByLabelText('App cover scope')).toHaveTextContent('Inspection of FWD & FWD-MID & MID & MID-AFT & AFT');
+
+    vi.doUnmock('./app/CoverEditor');
+  });
+
   it('keeps Cover between Report Information and Vessel Diagram while preserving automatic and manual scope text', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -111,13 +147,13 @@ describe('desktop report workflow', () => {
     ]);
 
     await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
-    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
+    await user.click(screen.getByRole('button', { name: '커버 설정으로' }));
     expect(screen.getByRole('heading', { name: 'Cover' })).toBeVisible();
     expect(screen.getByLabelText('Scope of Work title')).toHaveValue('Cleaning of FWD & FWD-MID & MID & MID-AFT & AFT');
 
     await user.click(screen.getByRole('button', { name: '이전' }));
     expect(screen.getByRole('heading', { name: 'Report Information' })).toBeVisible();
-    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
+    await user.click(screen.getByRole('button', { name: '커버 설정으로' }));
     await user.click(screen.getByRole('button', { name: '다음' }));
     expect(screen.getByRole('heading', { name: '선박 위치도 설정' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: '이전' }));
@@ -154,7 +190,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
     expect(screen.getByRole('heading', { name: 'Report Information' })).toBeVisible();
     await user.type(screen.getByLabelText('Work Window'), '24 HOURS');
-    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
+    await user.click(screen.getByRole('button', { name: '커버 설정으로' }));
 
     expect(screen.getByRole('heading', { name: 'Cover' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: '다음' }));
@@ -168,12 +204,12 @@ describe('desktop report workflow', () => {
     await buildScope(user);
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 1200, height: 320, close: vi.fn() })));
     await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
-    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
+    await user.click(screen.getByRole('button', { name: '커버 설정으로' }));
     await user.click(screen.getByRole('button', { name: '다음' }));
     await user.upload(screen.getByLabelText('선박 사이드뷰 이미지'), new File(['png'], 'vessel.png', { type: 'image/png' }));
     await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
     const rail = within(screen.getByRole('navigation', { name: 'Report stages' }));
-    for (const name of [/사진 폴더$/, /Report Input$/, /Check \/ Preview$/, /Word$/]) {
+    for (const name of [/사진 폴더$/, /Report Input$/, /Check \/ Preview$/, /Summary$/, /Word$/]) {
       await user.click(rail.getByRole('button', { name }));
       expect(screen.getByRole('heading', { name: 'Niche 맞추기' })).toBeVisible();
     }
@@ -192,7 +228,7 @@ describe('desktop report workflow', () => {
     const rail = within(screen.getByRole('navigation', { name: 'Report stages' }));
     await user.click(rail.getByRole('button', { name: /Vessel Diagram$/ }));
     fireEvent.keyDown(screen.getByLabelText('AFT Hull 표식'), { key: 'ArrowRight' });
-    for (const name of [/사진 폴더$/, /Report Input$/, /Check \/ Preview$/, /Word$/]) {
+    for (const name of [/사진 폴더$/, /Report Input$/, /Check \/ Preview$/, /Summary$/, /Word$/]) {
       await user.click(rail.getByRole('button', { name }));
       expect(screen.getByRole('heading', { name: 'Hull 맞추기' })).toBeVisible();
     }
@@ -369,7 +405,7 @@ describe('desktop report workflow', () => {
     expect(screen.queryByRole('heading', { name: '사진 폴더' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
-    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
+    await user.click(screen.getByRole('button', { name: '커버 설정으로' }));
     await user.click(screen.getByRole('button', { name: '다음' }));
     expect(screen.getByRole('heading', { name: '선박 위치도 설정' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Niche 맞추기로 이동' })).toBeDisabled();
@@ -1220,7 +1256,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Scope 초기화' }));
     await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
     await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
-    await user.click(screen.getByRole('button', { name: '선박 위치도 설정으로' }));
+    await user.click(screen.getByRole('button', { name: '커버 설정으로' }));
     await user.click(screen.getByRole('button', { name: '다음' }));
 
     expect(screen.queryByText('vessel.png')).not.toBeInTheDocument();

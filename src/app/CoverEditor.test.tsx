@@ -27,6 +27,12 @@ beforeEach(() => {
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 describe('Cover editor', () => {
+  it('identifies Cover as the exact third workflow step', () => {
+    render(<Harness />);
+
+    expect(screen.getByText('STEP 03', { selector: '.step-kicker' })).toBeVisible();
+  });
+
   it('selects, replaces and clears its own photo with no leaked URLs under StrictMode', () => {
     const view = render(<StrictMode><Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'first.jpg') }} /></StrictMode>);
     expect(active.size).toBe(1);
