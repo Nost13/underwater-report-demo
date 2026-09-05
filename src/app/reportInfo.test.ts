@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEMO_VESSELS } from './demoData';
-import { deriveOperationValues, emptyReportInfo, reportInfoForScopes, reportInfoFromVessel } from './reportInfo';
+import { deriveOperationValues, emptyReportInfo, formatWorkingTime, formatWorkWindow, reportInfoForScopes, reportInfoFromVessel } from './reportInfo';
 
 describe('report information', () => {
   it('prefills Word fields from the selected IMO record', () => {
@@ -24,8 +24,8 @@ describe('report information', () => {
       start: '2026-09-04T22:15',
       end: '2026-09-05T01:45',
     })).toMatchObject({
-      workWindow: '35 HOURS 30 MINUTES',
-      workingTime: '3 HOURS 30 MINUTES',
+      workWindow: '35 Hours + 1 Hrs',
+      workingTime: '3 Hrs 30 Min',
     });
   });
 
@@ -57,6 +57,25 @@ describe('report information', () => {
       ...emptyReportInfo().operation,
       start: '23:00',
       end: '01:30',
-    }).workingTime).toBe('2 HOURS 30 MINUTES');
+    }).workingTime).toBe('2 Hrs 30 Min');
+  });
+
+  it('adds the fixed one-hour allowance to the whole-hour work window', () => {
+    expect(formatWorkWindow('2026-09-01T01:36', '2026-09-01T18:00'))
+      .toBe('16 Hours + 1 Hrs');
+  });
+
+  it('formats working time with exact hours and minutes', () => {
+    expect(formatWorkingTime('2026-09-01T15:35', '2026-09-01T16:24'))
+      .toBe('0 Hrs 49 Min');
+  });
+
+  it('creates exact readiness defaults and two empty slots per record', () => {
+    expect(emptyReportInfo().readiness).toMatchObject({
+      toolboxNote: 'No safety concerns noted before operation .',
+      preparationNote: 'No abnormal conditions observed at site.',
+      toolboxPhotos: [null, null],
+      preparationPhotos: [null, null],
+    });
   });
 });

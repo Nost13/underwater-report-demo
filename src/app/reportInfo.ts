@@ -2,6 +2,17 @@ import type { ServiceKind } from '../domain/types';
 import type { Vessel } from './demoData';
 import type { DiverQualification } from './diverQualifications';
 
+export type ReadinessPhotoSlots = [File | null, File | null];
+
+export interface ReadinessInfo {
+  toolboxTime: string;
+  toolboxNote: string;
+  preparationTime: string;
+  preparationNote: string;
+  toolboxPhotos: ReadinessPhotoSlots;
+  preparationPhotos: ReadinessPhotoSlots;
+}
+
 export interface ReportInfo {
   vessel: {
     name: string;
@@ -37,12 +48,7 @@ export interface ReportInfo {
   };
   personnelQualifications: DiverQualification[];
   serviceItems: string[];
-  readiness: {
-    toolboxTime: string;
-    toolboxNote: string;
-    preparationTime: string;
-    preparationNote: string;
-  };
+  readiness: ReadinessInfo;
 }
 
 export const SERVICE_REPORT_LABELS: Record<ServiceKind, string> = {
@@ -59,31 +65,44 @@ export function emptyReportInfo(): ReportInfo {
     operation: { eta: '', etd: '', workWindow: '', location: '', start: '', end: '', workingTime: '', position: '', draughtFwd: '', draughtMid: '', draughtAft: '', berthingSide: '', weather: '', knots: '', current: '', visibility: '', personnel: '' },
     personnelQualifications: [],
     serviceItems: [],
-    readiness: { toolboxTime: '', toolboxNote: '', preparationTime: '', preparationNote: '' },
+    readiness: {
+      toolboxTime: '',
+      toolboxNote: 'No safety concerns noted before operation .',
+      preparationTime: '',
+      preparationNote: 'No abnormal conditions observed at site.',
+      toolboxPhotos: [null, null],
+      preparationPhotos: [null, null],
+    },
   };
 }
 
-function elapsedTimeLabel(startValue: string, endValue: string): string {
+function elapsedMinutes(startValue: string, endValue: string): number | null {
   const startTime = /^(\d{1,2}):(\d{2})$/.exec(startValue.trim());
   const endTime = /^(\d{1,2}):(\d{2})$/.exec(endValue.trim());
   let elapsed: number;
   if (startTime && endTime) {
     const startMinutes = Number(startTime[1]) * 60 + Number(startTime[2]);
     const endMinutes = Number(endTime[1]) * 60 + Number(endTime[2]);
-    if (startMinutes >= 24 * 60 || endMinutes >= 24 * 60) return '';
+    if (Number(startTime[2]) >= 60 || Number(endTime[2]) >= 60 || startMinutes >= 24 * 60 || endMinutes >= 24 * 60) return null;
     elapsed = endMinutes - startMinutes;
     if (elapsed < 0) elapsed += 24 * 60;
   } else {
     const start = Date.parse(startValue);
     const end = Date.parse(endValue);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '';
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
     elapsed = Math.round((end - start) / 60_000);
   }
-  const totalMinutes = elapsed;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (!totalMinutes) return '0 HOURS';
-  return minutes ? `${hours} HOURS ${minutes} MINUTES` : `${hours} HOURS`;
+  return elapsed;
+}
+
+export function formatWorkWindow(start: string, end: string): string {
+  const minutes = elapsedMinutes(start, end);
+  return minutes === null ? '' : `${Math.floor(minutes / 60)} Hours + 1 Hrs`;
+}
+
+export function formatWorkingTime(start: string, end: string): string {
+  const minutes = elapsedMinutes(start, end);
+  return minutes === null ? '' : `${Math.floor(minutes / 60)} Hrs ${minutes % 60} Min`;
 }
 
 function positionFromBerthingSide(side: string): string {
@@ -99,11 +118,11 @@ export function deriveOperationValues(
 ): ReportInfo['operation'] {
   const next = { ...operation };
   if (!changedField || changedField === 'eta' || changedField === 'etd') {
-    const workWindow = elapsedTimeLabel(next.eta, next.etd);
+    const workWindow = formatWorkWindow(next.eta, next.etd);
     if (workWindow) next.workWindow = workWindow;
   }
   if (!changedField || changedField === 'start' || changedField === 'end') {
-    const workingTime = elapsedTimeLabel(next.start, next.end);
+    const workingTime = formatWorkingTime(next.start, next.end);
     if (workingTime) next.workingTime = workingTime;
   }
   if (!changedField || changedField === 'location' || changedField === 'berthingSide') {
