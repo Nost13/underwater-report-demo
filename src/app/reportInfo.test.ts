@@ -78,4 +78,25 @@ describe('report information', () => {
       preparationPhotos: [null, null],
     });
   });
+
+  it('preserves manually entered derived values when either time pair is invalid', () => {
+    const operation = {
+      ...emptyReportInfo().operation,
+      eta: 'not-a-date',
+      etd: '2026-09-01T18:00',
+      workWindow: 'CUSTOM WINDOW',
+      start: '2026-09-01T15:35',
+      end: 'not-a-date',
+      workingTime: 'CUSTOM TIME',
+    };
+
+    expect(deriveOperationValues(operation, 'eta')).toMatchObject({
+      workWindow: 'CUSTOM WINDOW',
+      workingTime: 'CUSTOM TIME',
+    });
+    expect(deriveOperationValues(operation, 'end')).toMatchObject({
+      workWindow: 'CUSTOM WINDOW',
+      workingTime: 'CUSTOM TIME',
+    });
+  });
 });

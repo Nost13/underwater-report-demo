@@ -10,7 +10,7 @@ interface ReportInformationProps {
 }
 
 type OperationField = keyof ReportInfo['operation'];
-type ReadinessField = keyof ReportInfo['readiness'];
+type ReadinessField = 'toolboxTime' | 'toolboxNote' | 'preparationTime' | 'preparationNote';
 
 const operationFields: Array<[OperationField, string, string]> = [
   ['eta', 'ETA', '예: 02 Sep 2026 09:00'],

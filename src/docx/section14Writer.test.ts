@@ -16,7 +16,7 @@ describe('Section 1–4 template writer', () => {
     reportInfo.vessel = { ...reportInfo.vessel, name: 'M.V. TEST', imo: '1234567', callSign: 'TEST1', type: 'Bulk Carrier', loa: '200', breadth: '32', gt: '40,000', dwt: '70,000', yearBuilt: '2020', ownerClient: 'Test Client', jobNo: 'us-test-001' };
     reportInfo.operation = { ...reportInfo.operation, eta: '01 Jan 2027', etd: '02 Jan 2027', workWindow: '24 Hours', location: 'Ulsan', start: '01 Jan 2027, 09:00', end: '01 Jan 2027, 12:00', workingTime: '3 Hrs', position: 'PORT SIDE', draughtFwd: '10.1', draughtMid: '10.2', draughtAft: '10.3', berthingSide: 'PORT', weather: 'Clear', knots: '0.1', current: '0.2', visibility: '1.0', personnel: 'DIVER : 4' };
     reportInfo.serviceItems = ['Inspection', 'Polishing'];
-    reportInfo.readiness = { toolboxTime: '06:00 ~ 06:30 Hrs', toolboxNote: 'Toolbox complete.', preparationTime: '07:00 ~ 07:30 Hrs', preparationNote: 'Preparation complete.' };
+    reportInfo.readiness = { toolboxTime: '06:00 ~ 06:30 Hrs', toolboxNote: 'Toolbox complete.', toolboxPhotos: [null, null], preparationTime: '07:00 ~ 07:30 Hrs', preparationNote: 'Preparation complete.', preparationPhotos: [null, null] };
 
     const blob = await fillSection14Template({ reportInfo, templateUrl: 'section1_4_template.docx' }, {
       fetchTemplate: async () => Uint8Array.from(bytes),
