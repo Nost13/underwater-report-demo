@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { ReportSection } from '../domain/types';
+import { VesselDiagramPreview } from './VesselDiagramPreview';
 import {
   alignMarkerSelection,
+  canMatchCircleSize,
   distributeMarkerSelection,
   matchCircleSelectionSize,
   translateMarkerSelection,
@@ -204,7 +206,8 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   const allMarkers = value ? [...value.hullMarkers, ...value.nicheMarkers] : [];
   const visibleMarkers = value ? (step === 'HULL' ? value.hullMarkers : value.nicheMarkers) : [];
   const visibleSelectedIds = selectedIds.filter((id) => visibleMarkers.some((marker) => marker.id === id));
-  const visibleSelectedCircleIds = visibleSelectedIds.filter((id) => visibleMarkers.some((marker) => marker.id === id && marker.shape === 'CIRCLE'));
+  const sizeMatchMarkers = visibleMarkers.filter((marker) => visibleSelectedIds.includes(marker.id) && canMatchCircleSize(marker));
+  const canMatchSelectedSizes = sizeMatchMarkers.length >= 2 && sizeMatchMarkers.some((marker) => marker.shape === 'CIRCLE');
   const scopedAftComponents = new Set(sections
     .filter((section) => section.area === 'NICHE')
     .map((section) => section.component.trim().toUpperCase()));
@@ -471,7 +474,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
   };
 
   const matchSelectedCircleSizes = () => {
-    if (!value || visibleSelectedCircleIds.length < 2) return;
+    if (!value || !canMatchSelectedSizes) return;
     const collection = step === 'HULL' ? 'hullMarkers' : 'nicheMarkers';
     replace({
       [collection]: matchCircleSelectionSize(value[collection], visibleSelectedIds),
@@ -500,7 +503,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
       role="button"
       tabIndex={-1}
       aria-label={`${nameMarker(marker)} ${edge} 크기 조절`}
-      className={`marker-handle ${edge}`}
+      className={`marker-handle marker-handle-compact ${edge}`}
       onPointerDown={(event) => startMarkerInteraction(event, marker, 'RESIZE', edge)}
     />)}
   </button>;
@@ -588,7 +591,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
           <button type="button" className="ghost" aria-label="하단 정렬" onClick={() => applyAlignment('BOTTOM')}>하단</button>
           <button type="button" className="ghost" aria-label="가로 균등 배치" disabled={visibleSelectedIds.length < 3} onClick={() => applyDistribution('HORIZONTAL')}>가로 간격</button>
           <button type="button" className="ghost" aria-label="세로 균등 배치" disabled={visibleSelectedIds.length < 3} onClick={() => applyDistribution('VERTICAL')}>세로 간격</button>
-          <button type="button" className="ghost" aria-label="원형 동일 크기" disabled={visibleSelectedCircleIds.length < 2} onClick={matchSelectedCircleSizes}>원형 동일 크기</button>
+          <button type="button" className="ghost" aria-label="동일 크기" disabled={!canMatchSelectedSizes} onClick={matchSelectedCircleSizes}>동일 크기</button>
         </div>
       </div>}
       <aside className="diagram-controls">
@@ -604,6 +607,11 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
         </div>}
         {step === 'HULL' && <div className="diagram-hull-help"><b>Hull 기준선</b><span>선미·선수·상단·Bottom 기준선을 드래그해 선체 범위를 맞추세요.</span></div>}
       </aside>
+      <section className="diagram-word-preview" aria-label="Word 배치 미리보기">
+        <h3>Word 배치 미리보기</h3>
+        <p>선체와 선택한 표식이 Word에 들어갈 비율로 표시됩니다.</p>
+        <VesselDiagramPreview config={value} markerIds={visibleSelectedIds} />
+      </section>
     </div>}
     <footer className="diagram-editor-footer">
       <button type="button" className="ghost" onClick={onBack}>이전</button>

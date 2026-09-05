@@ -326,6 +326,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .marker-handle { position: absolute; z-index: 3; width: 24px; height: 24px; opacity: 0; pointer-events: none; background: transparent; }
 .vessel-marker.selected .marker-handle { opacity: 1; pointer-events: auto; }
 .marker-handle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; transform: translate(-50%, -50%); border: 1px solid #fff; border-radius: 2px; background: var(--teal-700); }
+.marker-handle-compact::after { width: 4px; height: 4px; border-radius: 1px; }
 .marker-handle.nw { left: -12px; top: -12px; cursor: nwse-resize; }
 .marker-handle.ne { right: -12px; top: -12px; cursor: nesw-resize; }
 .marker-handle.sw { bottom: -12px; left: -12px; cursor: nesw-resize; }
@@ -352,6 +353,10 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .diagram-hull-help b { color: var(--teal-700); }
 .diagram-editor-footer { margin-top: 18px; display: flex; justify-content: space-between; gap: 8px; }
 .diagram-editor-footer .primary, .diagram-editor-footer .ghost { min-height: 42px; }
+.diagram-word-preview { padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--paper); }
+.diagram-word-preview h3 { margin: 0; font-size: var(--font-ui-md); }
+.diagram-word-preview p { margin: 6px 0 12px; color: var(--muted); font-size: var(--font-ui-sm); }
+.diagram-word-preview .template-location-diagram-loading, .diagram-word-preview .template-location-diagram-error { font-size: var(--font-ui-sm); }
 .actionbar { position: fixed; z-index: 15; left: 202px; right: 30px; bottom: 16px; min-height: 58px; padding: 9px 11px 9px 18px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #d5dfe3; border-radius: 12px; background: rgba(255,255,255,.96); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
 .actionbar > span { color: var(--muted); font-size: 10px; }
 .actionbar > div { display: flex; gap: 7px; }
@@ -722,7 +727,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .template-work-row small { font-size: 7px; font-weight: 800; }
 .template-work-row strong { font-size: 8px; }
 .template-work-row em { color: #4c5a60; font-size: 8px; font-style: normal; font-weight: 800; }
-.template-location-diagram { height: 81px; flex: 0 0 81px; display: grid; place-items: center; border: 1px solid #737373; overflow: hidden; }
+.template-location-diagram { width: 100%; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #737373; overflow: hidden; }
 .template-location-diagram svg { width: 93%; height: 90%; fill: none; stroke: #697278; stroke-width: 1.35; }
 .template-location-diagram circle { fill: rgba(209,65,60,.28); stroke: #c5413c; }
 .template-location-diagram > img { width: 100%; height: 100%; display: block; object-fit: contain; }

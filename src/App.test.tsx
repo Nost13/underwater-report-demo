@@ -10,7 +10,10 @@ const { composeVesselDiagram } = vi.hoisted(() => ({
   composeVesselDiagram: vi.fn(async () => new Uint8Array([137, 80, 78, 71])),
 }));
 
-vi.mock('./vesselDiagram/composer', () => ({ composeVesselDiagram }));
+vi.mock('./vesselDiagram/composer', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./vesselDiagram/composer')>(),
+  composeVesselDiagram,
+}));
 
 vi.mock('./browser/images', () => ({
   ThumbnailPool: class {

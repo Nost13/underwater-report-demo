@@ -107,6 +107,10 @@ export function distributeMarkerSelection(
   });
 }
 
+export function canMatchCircleSize(marker: ZoneMarker): boolean {
+  return marker.shape !== 'RECTANGLE' && marker.groupId !== 'bilge-keel' && !marker.id.startsWith('bilge-keel-');
+}
+
 export function matchCircleSelectionSize(
   markers: ZoneMarker[],
   selectedIds: readonly string[],
@@ -114,16 +118,17 @@ export function matchCircleSelectionSize(
   const ids = new Set(selectedIds);
   const reference = selectedIds
     .map((id) => markers.find((marker) => marker.id === id))
-    .find((marker) => marker?.shape === 'CIRCLE');
-  const selectedCircleCount = markers.filter((marker) => ids.has(marker.id) && marker.shape === 'CIRCLE').length;
-  if (!reference || selectedCircleCount < 2) return markers;
+    .find((marker) => marker?.shape === 'CIRCLE' && canMatchCircleSize(marker));
+  const selectedCount = markers.filter((marker) => ids.has(marker.id) && canMatchCircleSize(marker)).length;
+  if (!reference || selectedCount < 2) return markers;
 
   return markers.map((marker) => {
-    if (!ids.has(marker.id) || marker.shape !== 'CIRCLE' || marker.id === reference.id) return marker;
+    if (!ids.has(marker.id) || !canMatchCircleSize(marker) || marker.id === reference.id) return marker;
     const centerX = marker.rect.x + marker.rect.width / 2;
     const centerY = marker.rect.y + marker.rect.height / 2;
     return {
       ...marker,
+      shape: 'CIRCLE',
       rect: {
         x: clampOrigin(centerX - reference.rect.width / 2, reference.rect.width),
         y: clampOrigin(centerY - reference.rect.height / 2, reference.rect.height),

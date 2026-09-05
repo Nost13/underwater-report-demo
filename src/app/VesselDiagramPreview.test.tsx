@@ -30,6 +30,17 @@ afterEach(() => {
 });
 
 describe('VesselDiagramPreview', () => {
+  it('uses the exact Word image ratio and can preview an editor marker selection', async () => {
+    const compose = vi.fn(async () => new Uint8Array([137, 80, 78, 71]));
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:word'), revokeObjectURL: vi.fn() });
+    render(<VesselDiagramPreview config={config} section={section('Transducer')} markerIds={['transducer-fwd']} compose={compose} />);
+    const image = await screen.findByRole('img', { name: '선박 위치도 미리보기' });
+    expect(image).toHaveAttribute('width', '1600');
+    expect(image).toHaveAttribute('height', '381');
+    expect(image.parentElement).toHaveStyle({ aspectRatio: '1600 / 381' });
+    expect(compose).toHaveBeenCalledWith(config, ['transducer-fwd']);
+  });
+
   it('composes the active section markers and revokes replaced PNG URLs', async () => {
     const compose = vi.fn(async () => new Uint8Array([137, 80, 78, 71]));
     const createObjectURL = vi.fn(() => 'blob:preview');

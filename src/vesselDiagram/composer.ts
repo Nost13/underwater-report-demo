@@ -6,6 +6,10 @@ import {
 } from './types';
 import { isValidRect } from './geometry';
 
+// Word output dimensions are independent of the editor's saved coordinate space.
+export const WORD_DIAGRAM_WIDTH = 1600;
+export const WORD_DIAGRAM_HEIGHT = 381;
+
 export interface PixelRect {
   x: number;
   y: number;
@@ -48,6 +52,8 @@ export interface ComposeDependencies {
   createObjectURL?: (file: File) => string;
   revokeObjectURL?: (url: string) => void;
   loadImage?: (url: string) => Promise<ImageSource>;
+  outputWidth?: number;
+  outputHeight?: number;
   trimOuterWhitespace?: boolean;
 }
 
@@ -157,41 +163,26 @@ async function encodePng(canvas: CanvasLike): Promise<Uint8Array> {
   }
 }
 
-function trimmedCanvas(canvas: CanvasLike, context: CanvasContext, dependencies: ComposeDependencies): CanvasLike {
-  if (!dependencies.trimOuterWhitespace || !context.getImageData) return canvas;
+function vesselBounds(context: CanvasContext, fallback: PixelRect, dependencies: ComposeDependencies): PixelRect {
+  if (dependencies.trimOuterWhitespace === false || !context.getImageData) return fallback;
   try {
-    const bounds = contentBounds(context.getImageData(0, 0, DIAGRAM_WIDTH, DIAGRAM_HEIGHT).data, DIAGRAM_WIDTH, DIAGRAM_HEIGHT);
-    if (!bounds) return canvas;
-    const padding = Math.max(8, Math.round(Math.max(bounds.width, bounds.height) * 0.025));
-    const source = {
-      x: Math.max(0, bounds.x - padding),
-      y: Math.max(0, bounds.y - padding),
-      width: Math.min(DIAGRAM_WIDTH, bounds.x + bounds.width + padding) - Math.max(0, bounds.x - padding),
-      height: Math.min(DIAGRAM_HEIGHT, bounds.y + bounds.height + padding) - Math.max(0, bounds.y - padding),
-    };
-    const output = createCanvas(dependencies);
-    const outputContext = output?.getContext('2d');
-    if (!output || !outputContext) return canvas;
-    outputContext.fillStyle = '#ffffff';
-    outputContext.fillRect(0, 0, DIAGRAM_WIDTH, DIAGRAM_HEIGHT);
-    const target = fitContain(source.width, source.height, DIAGRAM_WIDTH, DIAGRAM_HEIGHT);
-    outputContext.drawImage(
-      canvas as unknown as CanvasImageSource,
-      source.x, source.y, source.width, source.height,
-      target.x, target.y, target.width, target.height,
-    );
-    return output;
+    return contentBounds(context.getImageData(0, 0, DIAGRAM_WIDTH, DIAGRAM_HEIGHT).data, DIAGRAM_WIDTH, DIAGRAM_HEIGHT) ?? fallback;
   } catch {
-    return canvas;
+    return fallback;
   }
 }
 
-function drawMarker(context: CanvasContext, marker: ZoneMarker): void {
+function markerPixels(marker: ZoneMarker): PixelRect {
   const { x, y, width, height } = marker.rect;
-  const pixelX = x * DIAGRAM_WIDTH;
-  const pixelY = y * DIAGRAM_HEIGHT;
-  const pixelWidth = width * DIAGRAM_WIDTH;
-  const pixelHeight = height * DIAGRAM_HEIGHT;
+  return { x: x * DIAGRAM_WIDTH, y: y * DIAGRAM_HEIGHT, width: width * DIAGRAM_WIDTH, height: height * DIAGRAM_HEIGHT };
+}
+
+function drawMarker(context: CanvasContext, marker: ZoneMarker, source: PixelRect, target: PixelRect, scale: number): void {
+  const rect = markerPixels(marker);
+  const pixelX = target.x + (rect.x - source.x) * scale;
+  const pixelY = target.y + (rect.y - source.y) * scale;
+  const pixelWidth = rect.width * scale;
+  const pixelHeight = rect.height * scale;
 
   if (marker.shape === 'RECTANGLE') {
     context.fillRect(pixelX, pixelY, pixelWidth, pixelHeight);
@@ -203,8 +194,8 @@ function drawMarker(context: CanvasContext, marker: ZoneMarker): void {
   context.ellipse(
     pixelX + pixelWidth / 2,
     pixelY + pixelHeight / 2,
-    pixelWidth / 2,
-    pixelHeight / 2,
+    (marker.shape === 'CIRCLE' ? Math.min(pixelWidth, pixelHeight) : pixelWidth) / 2,
+    (marker.shape === 'CIRCLE' ? Math.min(pixelWidth, pixelHeight) : pixelHeight) / 2,
     0,
     0,
     Math.PI * 2,
@@ -241,18 +232,45 @@ export async function composeVesselDiagram(
     const markers = new Map(
       [...config.hullMarkers, ...config.nicheMarkers].map((marker) => [marker.id, marker]),
     );
-    context.fillStyle = 'rgba(230, 64, 64, 0.32)';
-    context.strokeStyle = '#d83b3b';
-    context.lineWidth = 4;
+    const selected: ZoneMarker[] = [];
     for (const id of markerIds) {
       const marker = markers.get(id);
       if (marker) {
         if (!isValidRect(marker.rect)) return fail(`VESSEL_MARKER_INVALID:${id}`);
-        drawMarker(context, marker);
+        selected.push(marker);
       }
     }
 
-    return encodePng(trimmedCanvas(canvas, context, dependencies));
+    const bounds = [vesselBounds(context, rect, dependencies), ...selected.map(markerPixels)];
+    const left = Math.min(...bounds.map((bound) => bound.x));
+    const top = Math.min(...bounds.map((bound) => bound.y));
+    const right = Math.max(...bounds.map((bound) => bound.x + bound.width));
+    const bottom = Math.max(...bounds.map((bound) => bound.y + bound.height));
+    const padding = Math.max(8, Math.max(right - left, bottom - top) * .005);
+    // Keep padding outside the original raster too: edge-marker strokes must not be clipped.
+    const source = { x: left - padding, y: top - padding, width: right - left + padding * 2, height: bottom - top + padding * 2 };
+    const outputWidth = dependencies.outputWidth ?? WORD_DIAGRAM_WIDTH;
+    const outputHeight = dependencies.outputHeight ?? WORD_DIAGRAM_HEIGHT;
+    const output = createCanvas(dependencies, outputWidth, outputHeight);
+    const outputContext = output?.getContext('2d');
+    if (!output || !outputContext) return fail('VESSEL_CANVAS_UNAVAILABLE');
+    outputContext.fillStyle = '#ffffff';
+    outputContext.fillRect(0, 0, outputWidth, outputHeight);
+    const target = fitContain(source.width, source.height, outputWidth, outputHeight);
+    const scale = target.width / source.width;
+    const cropX = Math.max(0, source.x);
+    const cropY = Math.max(0, source.y);
+    const cropWidth = Math.min(DIAGRAM_WIDTH, source.x + source.width) - cropX;
+    const cropHeight = Math.min(DIAGRAM_HEIGHT, source.y + source.height) - cropY;
+    outputContext.drawImage(canvas as unknown as CanvasImageSource,
+      cropX, cropY, cropWidth, cropHeight,
+      target.x + (cropX - source.x) * scale, target.y + (cropY - source.y) * scale,
+      cropWidth * scale, cropHeight * scale);
+    outputContext.fillStyle = 'rgba(230, 64, 64, 0.32)';
+    outputContext.strokeStyle = '#d83b3b';
+    outputContext.lineWidth = 4 * scale;
+    for (const marker of selected) drawMarker(outputContext, marker, source, target, scale);
+    return encodePng(output);
   } finally {
     image.close?.();
   }

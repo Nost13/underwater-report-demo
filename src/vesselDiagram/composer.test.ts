@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   composeVesselDiagram,
   contentBounds,
@@ -82,6 +82,63 @@ function fakeComposer(calls: string[]): ComposeDependencies {
 }
 
 describe('vessel diagram composer', () => {
+  it('crops vessel whitespace and uniformly contains edge markers in the exact Word PNG', async () => {
+    const config = configWithAllMarkers();
+    config.nicheMarkers = [
+      { id: 'aft', groupId: 'point', shape: 'CIRCLE', rect: { x: 0, y: .4, width: 80 / 2048, height: 80 / 488 } },
+      { id: 'fwd', groupId: 'point', shape: 'CIRCLE', rect: { x: 1 - 80 / 2048, y: .4, width: 80 / 2048, height: 80 / 488 } },
+      { id: 'unselected', groupId: 'point', shape: 'CIRCLE', rect: { x: .5, y: 0, width: 80 / 2048, height: 80 / 488 } },
+    ];
+    const original = structuredClone({ calibration: config.calibration, nicheMarkers: config.nicheMarkers });
+    const contexts: (CanvasContext & { drawImage: ReturnType<typeof vi.fn>; ellipse: ReturnType<typeof vi.fn> })[] = [];
+    const encoded: number[][] = [];
+    await composeVesselDiagram(config, ['aft', 'fwd'], {
+      decodeImage: async () => ({ width: 2048, height: 488 }),
+      createCanvas: (width, height) => {
+        const context = {
+          fillStyle: '', strokeStyle: '', lineWidth: 0,
+          fillRect: vi.fn(), drawImage: vi.fn(), beginPath: vi.fn(), ellipse: vi.fn(),
+          fill: vi.fn(), stroke: vi.fn(), strokeRect: vi.fn(),
+          getImageData: () => {
+            const data = new Uint8ClampedArray(width * height * 4).fill(255);
+            for (let y = 200; y < 280; y++) for (let x = 300; x < 1748; x++) data[(y * width + x) * 4] = 0;
+            return { data };
+          },
+        };
+        contexts.push(context);
+        return { getContext: () => context, toBlob: (callback) => {
+          encoded.push([width, height]);
+          callback(new Blob([new Uint8Array([137, 80, 78, 71])]));
+        } };
+      },
+    });
+    expect(encoded).toEqual([[1600, 381]]);
+    const output = contexts.at(-1)!;
+    const image = output.drawImage.mock.calls[0];
+    // The crop removes the large source top/bottom whitespace; axes share one scale.
+    expect(image).toHaveLength(9);
+    expect(image[2]).toBeGreaterThan(0);
+    expect(image[4]).toBeLessThan(200);
+    expect(image[1]).toBeLessThanOrEqual(300);
+    expect(image[1] + image[3]).toBeGreaterThanOrEqual(1748);
+    expect(image[2]).toBeLessThanOrEqual(200);
+    expect(image[2] + image[4]).toBeGreaterThanOrEqual(280);
+    expect(image[7] / image[3]).toBeCloseTo(image[8] / image[4], 10);
+    expect(output.drawImage).toHaveBeenCalledTimes(1);
+    expect(output.fillRect).toHaveBeenCalledTimes(1); // White background only; no label/handle boxes.
+    expect(output.strokeRect).not.toHaveBeenCalled();
+    expect(output.ellipse.mock.calls).toHaveLength(2);
+    for (const [x, y, rx, ry] of output.ellipse.mock.calls) {
+      expect(rx).toBeCloseTo(ry, 10);
+      expect(x - rx - output.lineWidth / 2).toBeGreaterThan(0);
+      expect(x + rx + output.lineWidth / 2).toBeLessThan(1600);
+      expect(y - ry - output.lineWidth / 2).toBeGreaterThan(0);
+      expect(y + ry + output.lineWidth / 2).toBeLessThan(381);
+    }
+    expect(output.ellipse.mock.calls[0][0]).toBeLessThan(output.ellipse.mock.calls[1][0]);
+    expect({ calibration: config.calibration, nicheMarkers: config.nicheMarkers }).toEqual(original);
+  });
+
   it('finds visible content while ignoring a near-white outer margin', () => {
     const pixels = new Uint8ClampedArray(10 * 10 * 4).fill(255);
     for (let y = 3; y < 7; y += 1) {
@@ -124,12 +181,11 @@ describe('vessel diagram composer', () => {
     expect(calls.slice(0, 4)).toEqual(['canvas:2048x488', 'fillStyle:#ffffff', 'fill:white', 'image']);
     expect(calls).toContain('fillStyle:rgba(230, 64, 64, 0.32)');
     expect(calls).toContain('strokeStyle:#d83b3b');
-    expect(calls).toContain('lineWidth:4');
-    expect(calls).toContain('ellipse:460.8');
-    expect(calls).toContain('ellipse:1484.8');
-    expect(calls.indexOf('ellipse:460.8')).toBeLessThan(calls.indexOf('ellipse:1484.8'));
+    expect(calls).toContain('canvas:1600x381');
+    const centers = calls.filter((call) => call.startsWith('ellipse:')).map((call) => Number(call.split(':')[1]));
+    expect(centers[0]).toBeLessThan(centers[1]);
     expect(calls.filter((call) => call.startsWith('ellipse:'))).toHaveLength(2);
-    expect(calls).not.toContain('ellipse:256');
+    expect(calls).not.toContain('rect-stroke');
     expect(calls).toContain('marker-fill');
     expect(calls).toContain('marker-stroke');
     expect(bytes).toEqual(new Uint8Array([137, 80, 78, 71]));

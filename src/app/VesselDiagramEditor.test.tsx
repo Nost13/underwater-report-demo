@@ -6,6 +6,13 @@ import type { ReportSection } from '../domain/types';
 import { createDefaultHullMarkers, createDefaultNicheMarkers } from '../vesselDiagram/geometry';
 import { DIAGRAM_HEIGHT, DIAGRAM_WIDTH, type VesselDiagramConfig } from '../vesselDiagram/types';
 import { VesselDiagramEditor } from './VesselDiagramEditor';
+import { composeVesselDiagram } from '../vesselDiagram/composer';
+
+// jsdom cannot rasterize a canvas; keep the real preview and replace its PNG boundary.
+vi.mock('../vesselDiagram/composer', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../vesselDiagram/composer')>(),
+  composeVesselDiagram: vi.fn(async () => new Uint8Array([137, 80, 78, 71])),
+}));
 
 const generalSection = (component: string): ReportSection => ({
   id: `general-${component}`,
@@ -77,6 +84,20 @@ function recordDraft(initial: VesselDiagramConfig, sections = [generalSection('A
 }
 
 describe('VesselDiagramEditor', () => {
+  it('keeps file selection, compact handles and a separate Word preview without mutating normalized geometry', async () => {
+    const draft = existingDraft();
+    const latest = recordDraft(draft);
+    expect(screen.getByLabelText('선박 사이드뷰 이미지')).toBeVisible();
+    expect(screen.getByLabelText('AFT Hull se 크기 조절')).toHaveClass('marker-handle-compact');
+    expect(screen.getByRole('region', { name: 'Word 배치 미리보기' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'AFT Hull 이름표 선택' }));
+    expect(screen.getByRole('button', { name: 'AFT Hull 표식' })).toHaveAttribute('aria-pressed', 'true');
+    expect(composeVesselDiagram).toHaveBeenLastCalledWith(draft, ['hull-aft']);
+    fireEvent.click(screen.getByRole('button', { name: 'AFT Hull 이름표 선택' }), { ctrlKey: true });
+    expect(screen.getByRole('button', { name: 'AFT Hull 표식' })).toHaveAttribute('aria-pressed', 'false');
+    expect(latest()).toBe(draft);
+  });
+
   it.each(['individual', 'group'])('preserves %s pointer-moved dimensions and relative geometry at every edge', async (mode) => {
     const user = userEvent.setup();
     const latest = recordDraft(existingDraft());
@@ -612,6 +633,7 @@ describe('VesselDiagramEditor', () => {
     const draft = existingDraft();
     const reference = draft.nicheMarkers.find(({ id }) => id === 'transducer-aft')!;
     const target = draft.nicheMarkers.find(({ id }) => id === 'transducer-fwd')!;
+    target.shape = 'ELLIPSE'; // An older saved draft can still contain an elliptical niche marker.
     target.rect = {
       x: target.rect.x + target.rect.width / 4,
       y: target.rect.y + target.rect.height / 4,
@@ -625,18 +647,21 @@ describe('VesselDiagramEditor', () => {
     const latest = recordDraft(draft, [nicheSection('TRANSDUCER')]);
     await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
 
-    for (const name of ['Transducer AFT 표식', 'Transducer FWD 표식']) {
+    const bilgeBefore = draft.nicheMarkers.filter(({ groupId }) => groupId === 'bilge-keel');
+    for (const name of ['Transducer AFT 표식', 'Transducer FWD 표식', 'Bilge Keel 01 표식']) {
       const marker = screen.getByRole('button', { name });
       fireEvent.pointerDown(marker, { pointerId: 1, ctrlKey: true });
       fireEvent.pointerUp(marker, { pointerId: 1, ctrlKey: true });
     }
-    await user.click(screen.getByRole('button', { name: '원형 동일 크기' }));
+    await user.click(screen.getByRole('button', { name: '동일 크기' }));
 
     const resized = latest().nicheMarkers.find(({ id }) => id === 'transducer-fwd')!;
+    expect(resized.shape).toBe('CIRCLE');
     expect(resized.rect.width).toBe(reference.rect.width);
     expect(resized.rect.height).toBe(reference.rect.height);
     expect(resized.rect.x + resized.rect.width / 2).toBeCloseTo(targetCenter.x, 10);
     expect(resized.rect.y + resized.rect.height / 2).toBeCloseTo(targetCenter.y, 10);
+    expect(latest().nicheMarkers.filter(({ groupId }) => groupId === 'bilge-keel')).toEqual(bilgeBefore);
   });
 
   it('recreates a presentation URL from an existing draft after remount', async () => {

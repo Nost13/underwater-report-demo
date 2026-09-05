@@ -5,6 +5,7 @@ import { createNicheSections } from '../domain/structure';
 import type { PhotoData } from '../domain/types';
 import { emptyReportInfo } from '../app/reportInfo';
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
+import { composeVesselDiagram, type CanvasContext } from '../vesselDiagram/composer';
 import { writeTemplateReport } from './templateWriter';
 
 const templatePath = 'public/templates/Detail_report_template.docx';
@@ -280,6 +281,21 @@ describe('bundled Detail report template', () => {
     }));
     const reportInfo = emptyReportInfo();
     reportInfo.vessel.name = 'M.V. DIAGRAM TEST';
+    // Exercise the real shared composer; jsdom only substitutes Canvas raster/PNG I/O.
+    const composedSelections: string[][] = [];
+    const composeWordDiagram = async (config: VesselDiagramConfig, ids: string[]) => {
+      composedSelections.push(ids);
+      return composeVesselDiagram(config, ids, {
+        decodeImage: async () => ({ width: 2048, height: 488 }),
+        createCanvas: (width, height) => ({
+          getContext: () => ({
+            fillStyle: '', strokeStyle: '', lineWidth: 0,
+            fillRect() {}, drawImage() {}, beginPath() {}, ellipse() {}, fill() {}, stroke() {}, strokeRect() {},
+          } satisfies CanvasContext),
+          toBlob: (callback) => callback(new Blob([`${width}x${height}`])),
+        }),
+      });
+    };
 
     const result = await writeTemplateReport({
       vesselName: 'M.V. DIAGRAM TEST', sections, photos,
@@ -289,7 +305,7 @@ describe('bundled Detail report template', () => {
       fetchTemplate: async () => Uint8Array.from(detailBytes),
       fetchSection14Template: async () => Uint8Array.from(section14Bytes),
       resize: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
-      composeDiagram,
+      composeDiagram: composeWordDiagram,
     });
 
     const output = await JSZip.loadAsync(result.blob);
@@ -300,8 +316,11 @@ describe('bundled Detail report template', () => {
     expect(result.pageCount).toBe(4);
     for (let index = 1; index <= 4; index += 1) {
       expect(relationships).toContain(`Id="rIdVesselDiagram${index}"`);
-      expect(await output.file(`word/media/vessel-diagram-${index}.png`)!.async('text')).not.toBe('');
+      expect(await output.file(`word/media/vessel-diagram-${index}.png`)!.async('text')).toBe('1600x381');
     }
+    expect(composedSelections).toEqual([
+      ['bilge-keel-2'], ['anode-aft', 'anode-fwd'], ['transducer-aft', 'transducer-fwd'], ['propeller-group'],
+    ]);
     expect(xml).not.toMatch(/descr="zone_/);
     const outputExtents = Array.from(document.getElementsByTagNameNS('*', 'docPr'))
       .filter((node) => node.getAttribute('descr') === 'vessel_profile')
