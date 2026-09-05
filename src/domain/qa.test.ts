@@ -44,6 +44,8 @@ describe('report check issues', () => {
         'UNMATCHED',
       ]),
     );
+    expect(checkReport([section], photos).find((issue) => issue.kind === 'UNMATCHED')?.message)
+      .toBe('미배정 사진 1장을 배정하세요.');
   });
 
   it('accepts zero-percent Clean and a numeric Fouling Condition without an Observed Type', () => {

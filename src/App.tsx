@@ -26,7 +26,7 @@ import { workPerformLabelKey } from './app/workPerformLabels';
 import { filterSections, groupSections, sectionWindow } from './app/sectionNavigator';
 import { createSectionTree, folderRelativePath, pickDirectory, scanImages, type DirectoryHandleLike } from './browser/directory';
 import { ThumbnailPool, type ThumbnailLease } from './browser/images';
-import { createCaption, matchPhotoPath, phaseIndexForPhoto, summarizePhotoImport } from './domain/photos';
+import { createCaption, matchPhotoPath, phaseIndexForPhoto, photoFolderContext, summarizePhotoImport } from './domain/photos';
 import { buildWordPhasePages, type WordPhasePage } from './docx/reportModel';
 import { ratingFill } from './docx/ratingPalette';
 import { buildSummaryModel } from './summary/summaryModel';
@@ -401,7 +401,7 @@ export default function App({
     const summary = summarizePhotoImport(photos);
     setPhotoImportComplete(true);
     setStandardPathsDetected(summary.standardPathsDetected);
-    setStatus(`${summary.total}장 불러옴 · ${summary.matched}장 자동 매칭 · ${summary.unmatched}장 UNMATCHED`);
+    setStatus(`${summary.total}장 불러옴 · ${summary.matched}장 자동 매칭 · 미배정 사진 ${summary.unmatched}장`);
   };
 
   const reloadFolder = async () => {
@@ -444,7 +444,7 @@ export default function App({
     const summary = summarizePhotoImport(photos);
     setPhotoImportComplete(true);
     setStandardPathsDetected(summary.standardPathsDetected);
-    setStatus(`${summary.total}장 불러옴 · ${summary.matched}장 자동 매칭 · ${summary.unmatched}장 UNMATCHED`);
+    setStatus(`${summary.total}장 불러옴 · ${summary.matched}장 자동 매칭 · 미배정 사진 ${summary.unmatched}장`);
   };
 
   const addPhotosToPhase = (sectionId: string, phase: Phase) => {
@@ -845,12 +845,12 @@ function PhotoSource(props: PhotoSourceProps) {
     ? `구조 생성 완료 · ${props.sections.length} Sections / ${phaseFolderCount} Phase folders`
     : props.hasFolder ? '폴더 구조를 아직 생성하지 않음' : '폴더 선택 후 생성 가능';
   const importResult = props.importComplete
-    ? `사진 불러오기 완료 · ${props.photoCount}장 · ${props.standardPathsDetected ? '표준 폴더 경로 감지' : '표준 폴더 경로 없음'} · ${props.matchedCount}장 자동 매칭 · UNMATCHED ${props.unmatchedCount}장`
+    ? `사진 불러오기 완료 · ${props.photoCount}장 · ${props.standardPathsDetected ? '표준 폴더 경로 감지' : '표준 폴더 경로 없음'} · ${props.matchedCount}장 자동 매칭 · 미배정 사진 ${props.unmatchedCount}장`
     : '사진을 아직 불러오지 않음';
 
   return <div className="workspace wide"><div className="page-heading"><div><p className="step-kicker">STEP 04</p><h2>사진 폴더</h2><p>원본은 로컬 File 참조로만 유지하며 서버로 전송하지 않습니다.</p></div><span className="privacy-chip">{props.photoCount} PHOTOS</span></div>
     <section className="method-card recommended photo-folder-card"><div className="method-top"><span>03</span><em>PHOTO INPUT</em></div><h3>사진 준비</h3><p>사진을 넣기 전 폴더 구조로 분류하거나, 이미 있는 사진을 불러온 뒤 경로로 분류할 수 있습니다.</p>
-      <ol className="photo-progress" aria-label="사진 입력 진행 상태"><li className={props.hasFolder ? 'done' : scopeReady ? 'current' : 'pending'}><span>{props.hasFolder ? '✓' : '1'}</span><div><b>사진 폴더 선택</b><small>사진이 저장된 폴더를 선택합니다.</small><strong>{folderResult}</strong><button type="button" className={props.hasFolder ? 'ghost' : 'primary'} disabled={!scopeReady} onClick={props.onSelect}>{props.hasFolder ? '다른 사진 폴더 선택' : '사진 폴더 선택'}</button></div></li><li className={props.structureCreated ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.structureCreated ? '✓' : '2'}</span><div><b>표준 폴더 구조 생성 <i>선분류</i></b><small>선택 폴더 안에 선택된 Scope와 구역의 폴더 구조를 생성합니다.</small><strong>{structureResult}</strong><button type="button" className={props.hasFolder && !props.structureCreated ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onCreate}>{props.structureCreated ? '폴더 구조 다시 생성' : '표준 폴더 구조 생성'}</button></div></li><li className={props.importComplete ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.importComplete ? '✓' : '3'}</span><div><b>사진 불러오기 <i>후분류</i></b><small>기존 폴더도 표준 경로가 있으면 자동 매칭하고, 나머지만 UNMATCHED로 분리합니다.</small><strong>{importResult}</strong><button type="button" className={props.hasFolder && !props.importComplete ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onLoad}>{props.importComplete ? '사진 다시 불러오기' : '사진 불러오기'}</button></div></li></ol>
+      <ol className="photo-progress" aria-label="사진 입력 진행 상태"><li className={props.hasFolder ? 'done' : scopeReady ? 'current' : 'pending'}><span>{props.hasFolder ? '✓' : '1'}</span><div><b>사진 폴더 선택</b><small>사진이 저장된 폴더를 선택합니다.</small><strong>{folderResult}</strong><button type="button" className={props.hasFolder ? 'ghost' : 'primary'} disabled={!scopeReady} onClick={props.onSelect}>{props.hasFolder ? '다른 사진 폴더 선택' : '사진 폴더 선택'}</button></div></li><li className={props.structureCreated ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.structureCreated ? '✓' : '2'}</span><div><b>표준 폴더 구조 생성 <i>선분류</i></b><small>선택 폴더 안에 선택된 Scope와 구역의 폴더 구조를 생성합니다.</small><strong>{structureResult}</strong><button type="button" className={props.hasFolder && !props.structureCreated ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onCreate}>{props.structureCreated ? '폴더 구조 다시 생성' : '표준 폴더 구조 생성'}</button></div></li><li className={props.importComplete ? 'done' : props.hasFolder ? 'current' : 'pending'}><span>{props.importComplete ? '✓' : '3'}</span><div><b>사진 불러오기 <i>후분류</i></b><small>기존 폴더도 표준 경로가 있으면 자동 매칭하고, 나머지만 미배정 사진으로 분리합니다.</small><strong>{importResult}</strong><button type="button" className={props.hasFolder && !props.importComplete ? 'primary' : 'ghost'} disabled={!scopeReady || !props.hasFolder} onClick={props.onLoad}>{props.importComplete ? '사진 다시 불러오기' : '사진 불러오기'}</button></div></li></ol>
       <section className="photo-scope-summary" aria-label="현재 작업 범위"><p>현재 작업 범위</p><div className="scope-work-list">{scopeGroups.map((group) => <div key={`${group.service}-${group.label}`}><b>{group.service}</b><span>{group.label} · {group.count}개 구역 · {group.phases.join(' / ')}</span></div>)}</div><small>총 {props.sections.length}개 Section · {phaseFolderCount}개 사진 폴더 · SERVICE 폴더는 같은 위치에 여러 Service가 있을 때만 추가됩니다.</small></section>
       <p className="folder-help"><b>선분류</b>는 사진을 넣기 전 표준 폴더를 만드는 방식이고, <b>후분류</b>는 기존 사진을 불러온 뒤 경로로 자동 분류하는 방식입니다.</p></section>
     <section className={`demo-strip${props.hasFolder || props.importComplete ? ' muted' : ''}`}><div><b>빠른 동작 확인</b><span>선택된 첫 Section에 BEFORE 3장 + AFTER 4장을 생성합니다.</span></div><button type="button" className="ghost" disabled={!scopeReady} onClick={props.onDemo}>샘플 사진 7장 불러오기</button></section>
@@ -913,7 +913,7 @@ function ReportInput(props: ReportInputProps) {
         aria-current={active ? 'page' : undefined}
         onClick={() => selectSection(section.id)}
       ><span className={`service-badge ${section.service.toLowerCase()}`}>{section.service}</span><b>{conciseSectionLabel(section)}</b></button>;
-    })}</div>{sectionPickerOpen && <div className="section-picker" role="dialog" aria-label="전체 Section"><div className="section-picker-head"><b>전체 Section</b><button type="button" aria-label="전체 Section 닫기" onClick={() => setSectionPickerOpen(false)}>×</button></div><input type="search" aria-label="Section 검색" placeholder="Service, 구역, Side, Unit 검색" value={sectionQuery} onChange={(event) => setSectionQuery(event.target.value)} autoFocus /><div className="section-picker-list">{sectionGroups.length ? sectionGroups.map((group) => <section key={group.key}><header><span className={`service-badge ${group.service.toLowerCase()}`}>{group.service}</span><b>{group.component}</b><em>{group.sections.length}</em></header>{group.sections.map((section) => <button type="button" key={section.id} className={section.id === props.activeSection.id ? 'active' : ''} aria-label={`${section.service} ${conciseSectionLabel(section)} Section 열기`} onClick={() => selectSection(section.id)}><span>{conciseSectionLabel(section)}</span><small>{section.id}</small></button>)}</section>) : <p>검색 결과가 없습니다.</p>}</div></div>}</div><button type="button" className="section-arrow" aria-label="다음 Section" disabled={activeIndex === props.report.sections.length - 1} onClick={() => focusSection(activeIndex + 1)}>→</button></nav><div className="input-metrics"><div className="page-badge"><b>{props.pages.length}P</b><span>{props.activePhotos.filter((photo) => photo.reportUse).length} Report Use</span></div><button type="button" className="unmatched-trigger" aria-label={`UNMATCHED ${props.unmatched.length}`} aria-controls="unmatched" aria-expanded={props.unmatchedOpen && props.unmatched.length > 0} disabled={props.unmatched.length === 0} onClick={props.onToggleUnmatched}><span>UNMATCHED</span><b>{props.unmatched.length}</b></button></div></div>
+    })}</div>{sectionPickerOpen && <div className="section-picker" role="dialog" aria-label="전체 Section"><div className="section-picker-head"><b>전체 Section</b><button type="button" aria-label="전체 Section 닫기" onClick={() => setSectionPickerOpen(false)}>×</button></div><input type="search" aria-label="Section 검색" placeholder="Service, 구역, Side, Unit 검색" value={sectionQuery} onChange={(event) => setSectionQuery(event.target.value)} autoFocus /><div className="section-picker-list">{sectionGroups.length ? sectionGroups.map((group) => <section key={group.key}><header><span className={`service-badge ${group.service.toLowerCase()}`}>{group.service}</span><b>{group.component}</b><em>{group.sections.length}</em></header>{group.sections.map((section) => <button type="button" key={section.id} className={section.id === props.activeSection.id ? 'active' : ''} aria-label={`${section.service} ${conciseSectionLabel(section)} Section 열기`} onClick={() => selectSection(section.id)}><span>{conciseSectionLabel(section)}</span><small>{section.id}</small></button>)}</section>) : <p>검색 결과가 없습니다.</p>}</div></div>}</div><button type="button" className="section-arrow" aria-label="다음 Section" disabled={activeIndex === props.report.sections.length - 1} onClick={() => focusSection(activeIndex + 1)}>→</button></nav><div className="input-metrics"><div className="page-badge"><b>{props.pages.length}P</b><span>{props.activePhotos.filter((photo) => photo.reportUse).length} Report Use</span></div><button type="button" className="unmatched-trigger" aria-label={`미배정 사진 ${props.unmatched.length}`} aria-controls="unmatched" aria-expanded={props.unmatchedOpen && props.unmatched.length > 0} disabled={props.unmatched.length === 0} onClick={props.onToggleUnmatched}><span>미배정 사진</span><b>{props.unmatched.length}</b></button></div></div>
       <p className={`assignment-target ${props.activePhotoTarget?.phase.toLowerCase() ?? ''}`} aria-label="현재 사진 배정 위치" aria-live="polite"><b>{props.activePhotoTarget?.phase ?? '—'} 사진 배정 대상</b><span>{conciseSectionLabel(props.activeSection)}</span><small>{props.activePhotoTarget?.sectionId ?? '—'} · {props.activePhotoTarget?.phase ?? '—'}</small></p>
       <div className="report-input-top-grid">
         <GroupConditionPanel report={props.report} section={props.activeSection} dispatch={props.dispatch} />
@@ -926,7 +926,7 @@ function ReportInput(props: ReportInputProps) {
       <div className="phase-stack">{props.activeSection.phases.map((phase) => <PhasePanel key={phase} phase={phase} section={props.activeSection} sections={props.report.sections} photos={props.activePhotos.filter((photo) => photo.phase === phase)} dispatch={props.dispatch} source={props.report.conditionSources[props.activeSection.id]?.[phase] ?? 'GROUP'} workPerformLabel={props.report.workPerformLabels[workPerformLabelKey(props.activeSection.id, phase)] ?? ''} unmatchedCount={props.unmatched.length} onChooseImported={props.onChooseImported} onAddPhotos={props.onAddPhotos} selected={props.activePhotoTarget?.sectionId === props.activeSection.id && props.activePhotoTarget.phase === phase} onSelect={() => props.onSelectPhotoTarget({ sectionId: props.activeSection.id, phase })} />)}</div>
       <p className="photo-delete-note">미배정으로 이동해도 불러온 사진과 편집 내용은 유지됩니다.</p>
     </section>
-    {props.unmatchedOpen && props.unmatched.length > 0 && <aside className="unmatched-drawer" id="unmatched" aria-label="UNMATCHED 사진 배정"><div className="unmatched-head"><div><p className="eyebrow">MANUAL ASSIGN</p><h3>UNMATCHED</h3></div><div><span>{props.unmatched.length}</span><button type="button" aria-label="UNMATCHED 닫기" onClick={props.onCloseUnmatched}>×</button></div></div><p className="unmatched-help">확실하지 않은 경로는 추측하지 않습니다. 사진을 클릭하면 현재 선택된 위치에 바로 배정됩니다.</p><div className="unmatched-list">{props.unmatched.map((photo) => <UnmatchedCard key={photo.id} photo={photo} onAssign={() => props.onAssignUnmatched(photo.id)} />)}</div><button type="button" className="ghost full" onClick={props.onOpen}>사진 더 불러오기</button></aside>}
+    {props.unmatchedOpen && props.unmatched.length > 0 && <aside className="unmatched-drawer" id="unmatched" aria-label="미배정 사진 배정"><div className="unmatched-head"><div><p className="eyebrow">MANUAL ASSIGN</p><h3>미배정 사진</h3></div><div><span>{props.unmatched.length}</span><button type="button" aria-label="미배정 사진 닫기" onClick={props.onCloseUnmatched}>×</button></div></div><p className="unmatched-help">확실하지 않은 경로는 추측하지 않습니다. 사진을 클릭하면 현재 선택된 위치에 바로 배정됩니다.</p><div className="unmatched-list">{props.unmatched.map((photo) => <UnmatchedCard key={photo.id} photo={photo} onAssign={() => props.onAssignUnmatched(photo.id)} />)}</div><button type="button" className="ghost full" onClick={props.onOpen}>사진 더 불러오기</button></aside>}
     <div className="input-footer"><button type="button" className="text-button" onClick={props.onBack}>← 사진 입력</button><div><span>Report Check {props.issues.length} issues</span><button type="button" className="primary" onClick={props.onNext}>Check / Preview</button></div></div>
   </div>;
 }
@@ -1024,7 +1024,10 @@ function GroupConditionDraftEditor({ condition, phase, onApply }: {
 
 function PhasePanel({ phase, section, sections, photos, dispatch, source, workPerformLabel, unmatchedCount, onChooseImported, onAddPhotos, selected, onSelect }: { phase: Phase; section: ReportSection; sections: ReportSection[]; photos: PhotoData[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; source: ConditionSource; workPerformLabel: string; unmatchedCount: number; onChooseImported: (target: { sectionId: string; phase: Phase }) => void; onAddPhotos: (sectionId: string, phase: Phase) => void; selected: boolean; onSelect: () => void }) {
   const condition = section.conditions[phase];
+  const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
+  const [dropTargetPhotoId, setDropTargetPhotoId] = useState<string | null>(null);
   if (!condition) return null;
+  const sortedPhotos = [...photos].sort((left, right) => left.order - right.order);
   const selectFromPanel = (event: React.MouseEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     if (target !== event.currentTarget && target.closest('button, input, select, textarea, label, output, a, [role="button"], [role="switch"], [contenteditable="true"]')) return;
@@ -1039,11 +1042,42 @@ function PhasePanel({ phase, section, sections, photos, dispatch, source, workPe
     <div className="phase-head"><div><span>{phase}</span><b>{photos.filter((photo) => photo.reportUse).length} PHOTOS</b><em className={`condition-source ${source.toLowerCase()}`}>{source === 'OVERRIDE' ? '개별 수정' : '기본값 사용'}</em></div><div>{source === 'OVERRIDE' && <button type="button" className="condition-revert" aria-label={`${phase} 기본값으로 되돌리기`} onClick={() => dispatch({ type: 'REVERT_CONDITION_TO_GROUP', sectionId: section.id, phase })}>기본값으로 되돌리기</button>}<button type="button" className="phase-select" aria-label={`${phase} ${selected ? '현재 사진 배정 위치' : '이곳에 사진 배정'}`} aria-pressed={selected} onClick={onSelect}><span>{selected ? '✓ 현재 사진 배정 위치' : '이곳에 사진 배정'}</span></button>{unmatchedCount > 0 && <button type="button" className="ghost phase-import" aria-label={`${phase} 불러온 사진 선택`} onClick={() => onChooseImported({ sectionId: section.id, phase })}>불러온 사진 선택 ({unmatchedCount})</button>}<button type="button" className="ghost phase-add" aria-label={`${phase} 새 사진 추가`} onClick={() => onAddPhotos(section.id, phase)}>새 사진 추가</button></div></div>
     <div className="work-perform-editor"><span>WORK PERFORM</span><strong>{section.service[0] + section.service.slice(1).toLowerCase()}</strong><label><span>추가 문구</span><input aria-label={`${phase} WORK PERFORM 추가 문구`} value={workPerformLabel} onChange={(event) => dispatch({ type: 'UPDATE_WORK_PERFORM_LABEL', sectionId: section.id, phase, value: event.target.value })} /></label></div>
     <div className="phase-condition"><ConditionEditor ariaPrefix={phase} condition={condition} onPatch={(patch) => dispatch({ type: 'UPDATE_CONDITION', sectionId: section.id, phase, patch })} /></div>
-    <div className="photo-list">{photos.length ? photos.map((photo) => <PhotoRow key={photo.id} photo={photo} phasePhotos={photos} section={section} phase={phase} sections={sections} dispatch={dispatch} />) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>이 Phase에 사진을 추가하거나 폴더에서 불러오세요.</p></div>}</div>
+    <div className="photo-list">{sortedPhotos.length ? sortedPhotos.map((photo) => <PhotoRow
+      key={photo.id}
+      photo={photo}
+      phasePhotos={sortedPhotos}
+      section={section}
+      phase={phase}
+      sections={sections}
+      dispatch={dispatch}
+      dragging={draggedPhotoId === photo.id}
+      dropTarget={dropTargetPhotoId === photo.id}
+      onDragStart={() => {
+        setDraggedPhotoId(photo.id);
+        setDropTargetPhotoId(null);
+      }}
+      onDragOver={(event) => {
+        if (!draggedPhotoId || draggedPhotoId === photo.id) return;
+        event.preventDefault();
+        setDropTargetPhotoId(photo.id);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        if (draggedPhotoId && draggedPhotoId !== photo.id) {
+          dispatch({ type: 'REORDER_PHOTO', photoId: draggedPhotoId, beforePhotoId: photo.id });
+        }
+        setDraggedPhotoId(null);
+        setDropTargetPhotoId(null);
+      }}
+      onDragEnd={() => {
+        setDraggedPhotoId(null);
+        setDropTargetPhotoId(null);
+      }}
+    />) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>이 Phase에 사진을 추가하거나 폴더에서 불러오세요.</p></div>}</div>
   </section>;
 }
 
-function PhotoRow({ photo, phasePhotos, section, phase, sections, dispatch }: { photo: PhotoData; phasePhotos: PhotoData[]; section: ReportSection; phase: Phase; sections: ReportSection[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]> }) {
+function PhotoRow({ photo, phasePhotos, section, phase, sections, dispatch, dragging, dropTarget, onDragStart, onDragOver, onDrop, onDragEnd }: { photo: PhotoData; phasePhotos: PhotoData[]; section: ReportSection; phase: Phase; sections: ReportSection[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; dragging: boolean; dropTarget: boolean; onDragStart: () => void; onDragOver: (event: React.DragEvent<HTMLElement>) => void; onDrop: (event: React.DragEvent<HTMLElement>) => void; onDragEnd: () => void }) {
   const [moving, setMoving] = useState(false);
   const [sectionId, setSectionId] = useState(section.id);
   const targetSection = sections.find((item) => item.id === sectionId) ?? section;
@@ -1070,11 +1104,30 @@ function PhotoRow({ photo, phasePhotos, section, phase, sections, dispatch }: { 
     setMoving(false);
   };
 
-  return <article className={photo.reportUse ? 'photo-row' : 'photo-row excluded'}><div className="thumb"><PhotoThumb file={photo.file} alt={photo.file.name} /><span>{String(index).padStart(2, '0')}</span></div><div className="photo-info"><b>{photo.file.name}</b><span>{createCaption(photo, section, index)}</span></div><div className="photo-actions"><label className="switch"><input type="checkbox" className="switch-input" aria-label={`${photo.file.name} Report Use`} checked={photo.reportUse} onChange={() => dispatch({ type: 'TOGGLE_REPORT_USE', photoId: photo.id })} /><i /><span>REPORT USE</span></label>{moving ? <div className="photo-move"><select aria-label={`${photo.file.name} 이동 Section`} value={sectionId} onChange={(event) => { const next = sections.find((item) => item.id === event.target.value) ?? section; setSectionId(next.id); setTargetPhase(next.phases[0]); }}>{sections.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select><select aria-label={`${photo.file.name} 이동 Phase`} value={targetPhase} onChange={(event) => setTargetPhase(event.target.value as Phase)}>{targetSection.phases.map((item) => <option key={item}>{item}</option>)}</select><button type="button" className="move-confirm" onClick={move}>이동 완료</button><button type="button" className="move-cancel" aria-label="이동 취소" onClick={cancelMove}>취소</button></div> : <div className="photo-action-buttons"><button type="button" className="photo-action-button move" aria-label={`${photo.file.name} 이동`} onClick={startMove}><span aria-hidden="true">↗</span>이동</button><button type="button" className="photo-action-button danger" aria-label={`${photo.file.name} 미배정으로 이동`} onClick={() => dispatch({ type: 'UNASSIGN_PHOTO', photoId: photo.id })}><span aria-hidden="true">×</span>미배정으로 이동</button></div>}</div></article>;
+  const baseCaption = createCaption(photo, section, index);
+  const captionPreview = photo.captionText.trim()
+    ? `${baseCaption} | ${photo.captionText.trim()}`
+    : baseCaption;
+
+  return <article
+    className={`photo-row${photo.reportUse ? '' : ' excluded'}${dragging ? ' dragging' : ''}${dropTarget ? ' drop-target' : ''}`}
+    aria-label={`${photo.file.name} 사진`}
+    aria-grabbed={dragging}
+    draggable
+    onDragStart={onDragStart}
+    onDragOver={onDragOver}
+    onDrop={onDrop}
+    onDragEnd={onDragEnd}
+  >
+    <div className="photo-card-top"><button type="button" className="photo-drag-handle" aria-label={`${photo.file.name} 순서 이동`} title="같은 Phase 안에서 드래그해 순서 변경">⋮⋮</button><div className="thumb"><PhotoThumb file={photo.file} alt={photo.file.name} /><span>{String(index).padStart(2, '0')}</span></div></div>
+    <div className="photo-info"><b>{photo.file.name}</b><span aria-label={`${photo.file.name} 캡션 미리보기`} aria-live="polite">{captionPreview}</span></div>
+    <label className="photo-caption-field"><span>추가 캡션</span><input aria-label={`${photo.file.name} 추가 캡션`} value={photo.captionText} placeholder="선택 입력" onChange={(event) => dispatch({ type: 'UPDATE_PHOTO_CAPTION', photoId: photo.id, value: event.target.value })} /></label>
+    <div className="photo-actions"><label className="switch"><input type="checkbox" className="switch-input" aria-label={`${photo.file.name} Report Use`} checked={photo.reportUse} onChange={() => dispatch({ type: 'TOGGLE_REPORT_USE', photoId: photo.id })} /><i /><span>REPORT USE</span></label>{moving ? <div className="photo-move"><select aria-label={`${photo.file.name} 이동 Section`} value={sectionId} onChange={(event) => { const next = sections.find((item) => item.id === event.target.value) ?? section; setSectionId(next.id); setTargetPhase(next.phases[0]); }}>{sections.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select><select aria-label={`${photo.file.name} 이동 Phase`} value={targetPhase} onChange={(event) => setTargetPhase(event.target.value as Phase)}>{targetSection.phases.map((item) => <option key={item}>{item}</option>)}</select><button type="button" className="move-confirm" onClick={move}>이동 완료</button><button type="button" className="move-cancel" aria-label="이동 취소" onClick={cancelMove}>취소</button></div> : <div className="photo-action-buttons"><button type="button" className="photo-action-button move" aria-label={`${photo.file.name} 이동`} onClick={startMove}><span aria-hidden="true">↗</span>이동</button><button type="button" className="photo-action-button danger" aria-label={`${photo.file.name} 미배정으로 이동`} onClick={() => dispatch({ type: 'UNASSIGN_PHOTO', photoId: photo.id })}><span aria-hidden="true">×</span>미배정으로 이동</button></div>}</div>
+  </article>;
 }
 
 function UnmatchedCard({ photo, onAssign }: { photo: PhotoData; onAssign: () => void }) {
-  return <button type="button" className="unmatched-card" aria-label={`${photo.file.name} 사진 배정`} onClick={onAssign}><div className="unmatched-thumb"><PhotoThumb file={photo.file} alt={photo.file.name} /></div><b>{photo.file.name}</b><span>현재 사진 배정 위치로 넣기 →</span></button>;
+  return <button type="button" className="unmatched-card" aria-label={`${photo.file.name} 사진 배정`} onClick={onAssign}><div className="unmatched-thumb"><PhotoThumb file={photo.file} alt={photo.file.name} /></div><b>{photo.file.name}</b><small>{photoFolderContext(photo.relativePath)}</small><span>현재 사진 배정 위치로 넣기 →</span></button>;
 }
 
 interface CheckPreviewProps {

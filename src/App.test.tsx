@@ -790,23 +790,60 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveClass('selected');
   });
 
-  it('assigns an UNMATCHED photo to the phase clicked in Report Input', async () => {
+  it('shows thumbnail folder context and assigns a 미배정 사진 to the selected phase', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
     await buildCleaningGeneral(user);
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    await user.upload(input, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
+    const photo = new File(['photo'], 'image.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(photo, 'webkitRelativePath', {
+      configurable: true,
+      value: '1/2/3/image.jpg',
+    });
+    await user.upload(input, photo);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
-    expect(screen.queryByLabelText('UNMATCHED 사진 배정')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'UNMATCHED 1' })).toBeEnabled();
+    expect(screen.queryByLabelText('미배정 사진 배정')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '미배정 사진 1' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'AFTER 불러온 사진 선택' }));
-    expect(screen.getByLabelText('UNMATCHED 사진 배정')).toBeVisible();
+    expect(screen.getByLabelText('미배정 사진 배정')).toBeVisible();
     expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFTER');
-    await user.click(screen.getByRole('button', { name: 'manual.jpg 사진 배정' }));
-    expect(screen.queryByLabelText('UNMATCHED 사진 배정')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
-    expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveTextContent('manual.jpg');
+    expect(screen.getByRole('img', { name: 'image.jpg' })).toBeVisible();
+    expect(screen.getByText('2 > 3')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'image.jpg 사진 배정' }));
+    expect(screen.queryByLabelText('미배정 사진 배정')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '미배정 사진 0' })).toBeDisabled();
+    expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveTextContent('image.jpg');
+  });
+
+  it('updates a supplemental caption and reorders photos inside the same phase by drag and drop', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
+    const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
+    await user.upload(manualInput, [
+      new File(['one'], 'p1.jpg', { type: 'image/jpeg' }),
+      new File(['two'], 'p2.jpg', { type: 'image/jpeg' }),
+      new File(['three'], 'p3.jpg', { type: 'image/jpeg' }),
+    ]);
+
+    await user.type(screen.getByLabelText('p1.jpg 추가 캡션'), 'Port inlet');
+    expect(screen.getByLabelText('p1.jpg 캡션 미리보기')).toHaveTextContent('Port inlet');
+
+    const gallery = screen.getByLabelText('BEFORE 사진 갤러리');
+    const p3 = within(gallery).getByRole('article', { name: 'p3.jpg 사진' });
+    const p1 = within(gallery).getByRole('article', { name: 'p1.jpg 사진' });
+    expect(within(p3).getByRole('button', { name: 'p3.jpg 순서 이동' })).toBeVisible();
+    fireEvent.dragStart(p3);
+    expect(p3).toHaveClass('dragging');
+    fireEvent.dragOver(p1);
+    expect(p1).toHaveClass('drop-target');
+    fireEvent.drop(p1);
+
+    expect(within(gallery).getAllByRole('article').map((card) => card.getAttribute('aria-label')))
+      .toEqual(['p3.jpg 사진', 'p1.jpg 사진', 'p2.jpg 사진']);
   });
 
   it('advances folder, structure, and import progress only after each action succeeds', async () => {
@@ -840,7 +877,7 @@ describe('desktop report workflow', () => {
     const fallback = container.querySelector('input[type="file"][webkitdirectory]') as HTMLInputElement;
     await user.upload(fallback, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
     expect(screen.getByLabelText('사진 입력 진행 상태'))
-      .toHaveTextContent('사진 불러오기 완료 · 1장 · 표준 폴더 경로 없음 · 0장 자동 매칭 · UNMATCHED 1장');
+      .toHaveTextContent('사진 불러오기 완료 · 1장 · 표준 폴더 경로 없음 · 0장 자동 매칭 · 미배정 사진 1장');
     vi.unstubAllGlobals();
   });
 
@@ -917,7 +954,7 @@ describe('desktop report workflow', () => {
     await user.upload(input, photo);
 
     expect(screen.getByLabelText('사진 입력 진행 상태'))
-      .toHaveTextContent('표준 폴더 경로 감지 · 1장 자동 매칭 · UNMATCHED 0장');
+      .toHaveTextContent('표준 폴더 경로 감지 · 1장 자동 매칭 · 미배정 사진 0장');
   });
 
   it('styles photo action controls consistently', async () => {
@@ -931,7 +968,7 @@ describe('desktop report workflow', () => {
 
     expect(screen.getByRole('checkbox', { name: 'manual.jpg Report Use' }))
       .toHaveClass('switch-input');
-    const move = screen.getAllByRole('button', { name: /이동$/ })[0];
+    const move = screen.getByRole('button', { name: 'manual.jpg 이동' });
     const remove = screen.getByRole('button', { name: 'manual.jpg 미배정으로 이동' });
     expect(move).toHaveClass('photo-action-button', 'move');
     expect(remove).toHaveClass('photo-action-button', 'danger');
@@ -943,7 +980,7 @@ describe('desktop report workflow', () => {
       .toBeVisible();
     await user.click(cancel);
     await user.click(screen.getByRole('button', { name: 'manual.jpg 미배정으로 이동' }));
-    expect(screen.getByRole('button', { name: 'UNMATCHED 1' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '미배정 사진 1' })).toBeEnabled();
   });
 
   it('resets a cancelled photo move to the current Section and Phase', async () => {

@@ -58,7 +58,7 @@ export function checkReport(sections: ReportSection[], photos: PhotoData[]): QaI
     issues.push({
       id: 'unmatched',
       kind: 'UNMATCHED',
-      message: `UNMATCHED 사진 ${unmatched}장을 배정하세요.`,
+      message: `미배정 사진 ${unmatched}장을 배정하세요.`,
       sectionId: null,
     });
   }
