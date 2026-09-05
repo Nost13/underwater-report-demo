@@ -78,3 +78,29 @@ export async function resizeForReport(file: File, maxEdge = 1800): Promise<Uint8
   const blob = await canvasBlob(file, maxEdge, 0.82);
   return new Uint8Array(await blob.arrayBuffer());
 }
+
+/** Render into a fixed Word photo slot using an aspect-preserving center crop. */
+export async function resizeForReportSlot(file: File, width: number, height: number): Promise<Uint8Array> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('CANVAS_CONTEXT_UNAVAILABLE');
+    const scale = Math.max(width / bitmap.width, height / bitmap.height);
+    const sourceWidth = width / scale;
+    const sourceHeight = height / scale;
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, width, height);
+    context.drawImage(bitmap, (bitmap.width - sourceWidth) / 2, (bitmap.height - sourceHeight) / 2, sourceWidth, sourceHeight, 0, 0, width, height);
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+      (result) => result ? resolve(result) : reject(new Error('IMAGE_RESIZE_FAILED')),
+      'image/jpeg',
+      0.82,
+    ));
+    return new Uint8Array(await blob.arrayBuffer());
+  } finally {
+    bitmap.close();
+  }
+}
