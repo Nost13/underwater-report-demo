@@ -40,7 +40,7 @@ describe('Report Information', () => {
 
     await user.type(screen.getByLabelText('ETA'), '2026-09-01T01:36');
     await user.type(screen.getByLabelText('ETD'), '2026-09-01T18:00');
-    expect(screen.getByLabelText('Work Window')).toHaveValue('16 HOURS 24 MINUTES');
+    expect(screen.getByLabelText('Work Window')).toHaveValue('16 Hours + 1 Hrs');
 
     await user.clear(screen.getByLabelText('Work Window'));
     await user.type(screen.getByLabelText('Work Window'), 'CUSTOM WINDOW');
@@ -48,7 +48,7 @@ describe('Report Information', () => {
 
     await user.type(screen.getByLabelText('Start'), '2026-09-01T03:00');
     await user.type(screen.getByLabelText('End'), '2026-09-01T07:30');
-    expect(screen.getByLabelText('Working Time')).toHaveValue('4 HOURS 30 MINUTES');
+    expect(screen.getByLabelText('Working Time')).toHaveValue('4 Hrs 30 Min');
   });
 
   it('searches the company-neutral diver database and selects personnel for Section 8', async () => {
