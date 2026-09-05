@@ -75,7 +75,9 @@ export type QaIssueKind =
   | 'MISSING_PHASE_PHOTO'
   | 'MISSING_CONDITION'
   | 'PHASE_IMBALANCE'
-  | 'UNMATCHED';
+  | 'UNMATCHED'
+  | 'MISSING_COVER_PHOTO'
+  | 'MISSING_COVER_METADATA';
 
 interface QaIssueBase {
   id: string;
@@ -84,12 +86,12 @@ interface QaIssueBase {
 
 export type QaIssue =
   | (QaIssueBase & {
-    kind: Exclude<QaIssueKind, 'UNMATCHED'>;
+    kind: Exclude<QaIssueKind, 'UNMATCHED' | 'MISSING_COVER_PHOTO' | 'MISSING_COVER_METADATA'>;
     sectionId: string;
     phase: Phase;
   })
   | (QaIssueBase & {
-    kind: 'UNMATCHED';
+    kind: 'UNMATCHED' | 'MISSING_COVER_PHOTO' | 'MISSING_COVER_METADATA';
     sectionId: null;
     phase?: never;
   });

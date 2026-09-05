@@ -28,7 +28,7 @@ import { defaultWorkPerformed, workPerformLabelKey } from './app/workPerformLabe
 import type { WorkPerformLabel } from './domain/types';
 import { filterSections, groupSections, sectionWindow } from './app/sectionNavigator';
 import { createSectionTree, folderRelativePath, pickDirectory, scanImages, type DirectoryHandleLike } from './browser/directory';
-import { ThumbnailPool, type ThumbnailLease } from './browser/images';
+import { ThumbnailPool, resizeForReportSlot, type ThumbnailLease } from './browser/images';
 import { composePhotoCaption, createCaption, matchPhotoPath, phaseIndexForPhoto, photoFolderContext, summarizePhotoImport } from './domain/photos';
 import { buildWordPhasePages, type WordPhasePage } from './docx/reportModel';
 import { ratingFill } from './docx/ratingPalette';
@@ -166,6 +166,7 @@ type WordExporter = (input: WordExportInput) => Promise<WordExportResult>;
 const loadWordExporter: WordExporter = async (input) => {
   const { writeTemplateReport } = await import('./docx/templateWriter');
   return writeTemplateReport(input, {
+    resizeReadinessPhoto: resizeForReportSlot,
     download: (blob, fileName) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -194,7 +195,7 @@ export default function App({
   const [vesselSchedule, setVesselSchedule] = useState<VesselSchedule | null>(null);
   const [isVesselLookupPending, setIsVesselLookupPending] = useState(false);
   const [reportInfo, setReportInfo] = useState<ReportInfo>(() => emptyReportInfo());
-  const [coverInfo, setCoverInfo] = useState<CoverInfo>(() => createCoverInfo());
+  const [coverEdits, setCoverInfo] = useState<CoverInfo>(() => createCoverInfo());
   const [activeService, setActiveService] = useState<ServiceKind>('CLEANING');
   const [generalScope, setGeneralScope] = useState<GeneralScopeState>(() => ({
     targets: createGeneralTargets(),
@@ -227,17 +228,14 @@ export default function App({
   const activePhotos = activeSection ? report.photos.filter((photo) => photo.sectionId === activeSection.id) : [];
   const unmatched = report.photos.filter((photo) => !photo.sectionId || !photo.phase);
   const pages = selectedPages({ ...report, focusedSectionId: activeSection?.id ?? null });
-  const issues = useMemo(() => checkReport(report.sections, report.photos), [report.sections, report.photos]);
+  const coverInfo = useMemo(() => syncGeneratedCoverScope(coverEdits, report.sections), [coverEdits, report.sections]);
+  const issues = useMemo(() => checkReport(report.sections, report.photos, coverInfo, reportInfo), [report.sections, report.photos, coverInfo, reportInfo]);
   const generalTargets = generalScope.targets;
   const draftTargets = [...generalTargets, ...nicheItems.flatMap((item) => item.targets)];
   const draftSections = createReportSections(draftTargets);
   const serviceSummary = [...new Set(
     (report.sections.length ? report.sections : draftSections).map((section) => section.service),
   )].join(' + ') || activeService;
-
-  useEffect(() => {
-    setCoverInfo((current) => syncGeneratedCoverScope(current, report.sections));
-  }, [report.sections]);
 
   const focusReportSection = (sectionId: string) => {
     const nextSection = report.sections.find((section) => section.id === sectionId);
@@ -497,8 +495,10 @@ export default function App({
     setStage(5);
   };
 
-  const focusIssue = (sectionId: string | null) => {
-    if (sectionId) focusReportSection(sectionId);
+  const focusIssue = (issue: QaIssue) => {
+    if (issue.kind === 'MISSING_COVER_PHOTO') { setStage(2); return; }
+    if (issue.kind === 'MISSING_COVER_METADATA') { setStage(1); return; }
+    if (issue.sectionId) focusReportSection(issue.sectionId);
     else setUnmatchedOpen(true);
     setStage(5);
   };
@@ -559,6 +559,7 @@ export default function App({
     setDiagramExportError(null);
     setStatus('사진을 순차 처리하여 Word 보고서를 만드는 중입니다…');
     try {
+      const { buildReportFileName } = await import('./docx/templateWriter');
       const result = await exporter({
         vesselName: scopeMeta?.vesselName ?? 'UNDERWATER REPORT',
         sections: report.sections,
@@ -566,6 +567,9 @@ export default function App({
         reportLabels: report.reportLabels,
         workPerformLabels: report.workPerformLabels,
         reportInfo,
+        coverInfo,
+        coverTemplateUrl: 'templates/cover.docx',
+        fileName: buildReportFileName(reportInfo.vessel.jobNo, reportInfo.vessel.name),
         vesselDiagram,
         templateUrl: 'templates/Detail_report_template.docx',
         section14TemplateUrl: 'templates/section1_4_template.docx',
@@ -1200,7 +1204,7 @@ interface CheckPreviewProps {
   report: ReportState; activeSection: ReportSection; vesselName: string;
   vesselDiagram: VesselDiagramConfig;
   issues: ReturnType<typeof checkReport>;
-  onIssue: (sectionId: string | null) => void; onSection: (sectionId: string) => void; onNext: () => void;
+  onIssue: (issue: QaIssue) => void; onSection: (sectionId: string) => void; onNext: () => void;
 }
 
 function CheckPreview(props: CheckPreviewProps) {
@@ -1212,7 +1216,7 @@ function CheckPreview(props: CheckPreviewProps) {
     props.report.workPerformLabels,
   ), [props.report.sections, props.report.photos, props.report.reportLabels, props.report.workPerformLabels]);
   const wordPages = allWordPages.filter((page) => page.section.id === props.activeSection.id);
-  return <div className="check-layout"><aside className="qa-panel"><div className="qa-title"><p className="step-kicker">STEP 07</p><h2>Report Check</h2><span>{props.issues.length}</span></div><p>누락과 오류만 확인하고, 필요할 때 목록을 펼쳐 해당 Section으로 이동합니다.</p>{props.issues.length ? <><button type="button" className="qa-summary" aria-expanded={issuesOpen} onClick={() => setIssuesOpen((open) => !open)}>Report Check {props.issues.length} issues <span>{issuesOpen ? '접기' : '목록 보기'}</span></button>{issuesOpen && <div className="qa-list">{props.issues.map((issue) => <button type="button" key={issue.id} onClick={() => props.onIssue(issue.sectionId)}><span className={`issue-icon ${issue.kind.toLowerCase()}`}>!</span><span><b>{issue.kind === 'UNMATCHED' ? '미배정 사진' : issue.kind.replaceAll('_', ' ')}</b><em>{issue.message}</em></span><i>→</i></button>)}</div>}</> : <div className="qa-clear"><b>✓</b><span>확인할 오류가 없습니다.</span></div>}</aside>
+  return <div className="check-layout"><aside className="qa-panel"><div className="qa-title"><p className="step-kicker">STEP 07</p><h2>Report Check</h2><span>{props.issues.length}</span></div><p>누락과 오류만 확인하고, 필요할 때 목록을 펼쳐 해당 Section으로 이동합니다.</p>{props.issues.length ? <><button type="button" className="qa-summary" aria-expanded={issuesOpen} onClick={() => setIssuesOpen((open) => !open)}>Report Check {props.issues.length} issues <span>{issuesOpen ? '접기' : '목록 보기'}</span></button>{issuesOpen && <div className="qa-list">{props.issues.map((issue) => <button type="button" key={issue.id} onClick={() => props.onIssue(issue)}><span className={`issue-icon ${issue.kind.toLowerCase()}`}>!</span><span><b>{issue.kind === 'UNMATCHED' ? '미배정 사진' : issue.kind.startsWith('MISSING_COVER') ? '커버 확인' : issue.kind.replaceAll('_', ' ')}</b><em>{issue.message}</em></span><i>→</i></button>)}</div>}</> : <div className="qa-clear"><b>✓</b><span>확인할 오류가 없습니다.</span></div>}</aside>
     <section className="preview-area"><div className="preview-toolbar"><div><p className="eyebrow">WORD TEMPLATE PREVIEW · ALL PAGES</p><h2>{props.activeSection.id}</h2></div><select aria-label="Preview section" value={props.activeSection.id} onChange={(event) => props.onSection(event.target.value)}>{props.report.sections.map((section) => <option key={section.id}>{section.id}</option>)}</select><b className="preview-count">{wordPages.length} PAGES</b></div>
       <div className="preview-stage" aria-label="전체 Report Preview">{wordPages.length ? wordPages.map((page) => {
         const pageNumber = allWordPages.indexOf(page) + 1;
@@ -1299,5 +1303,5 @@ function SummaryReview({ vesselName, report, onBack, onEditDetail, onNext }: {
 function ExportScreen({ vesselName, report, status, onBack, onExport, onDiagramSetup, busy }: { vesselName: string; report: ReportState; status: string; onBack: () => void; onExport: () => void; onDiagramSetup?: () => void; busy: boolean }) {
   const wordPageCount = buildWordPhasePages(report.sections, report.photos, report.reportLabels, report.workPerformLabels).length;
   const summaryPageCount = buildSummaryModel(report.sections).pageCount;
-  return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 09</p><h2>Word 보고서 다운로드</h2><p>Sections 1–8을 공식 양식 순서로 조립하고 Summary와 Detail 값을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>전체 보고서 · Summary {summaryPageCount} pages · Detail {wordPageCount} pages · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Order</dt><dd>1–4 → 5 → 6 → 7 → 8</dd></div><div><dt>Detail rule</dt><dd>Matrix order · Before → After</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p role={onDiagramSetup ? 'alert' : undefined}>{status}</p>{onDiagramSetup && <button type="button" className="ghost" onClick={onDiagramSetup}>선박 위치도 설정으로 돌아가기</button>}</div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Summary 확인</button></div></div>;
+  return <div className="workspace export-workspace"><div className="page-heading"><div><p className="step-kicker">STEP 09</p><h2>Word 보고서 다운로드</h2><p>커버와 Sections 1–8을 공식 양식 순서로 조립하고 Summary와 Detail 값을 채웁니다.</p></div><span className="privacy-chip">LOCAL EXPORT</span></div><div className="export-card"><div className="export-doc"><span>DOCX</span><div><b>{vesselName}</b><p>전체 보고서 · Summary {summaryPageCount} pages · Detail {wordPageCount} pages · {report.photos.filter((photo) => photo.reportUse && photo.sectionId).length} photos</p></div></div><dl><div><dt>Order</dt><dd>COVER → 1–4 → 5 → 6 → 7 → 8</dd></div><div><dt>Detail rule</dt><dd>Matrix order · Before → After</dd></div><div><dt>Processing</dt><dd>Sequential local resize</dd></div></dl><button type="button" className="primary export-button" disabled={busy} onClick={onExport}>{busy ? 'Word 생성 중…' : 'Word 보고서 다운로드'}</button><p role={onDiagramSetup ? 'alert' : undefined}>{status}</p>{onDiagramSetup && <button type="button" className="ghost" onClick={onDiagramSetup}>선박 위치도 설정으로 돌아가기</button>}</div><div className="actionbar"><button type="button" className="text-button" onClick={onBack}>← Summary 확인</button></div></div>;
 }

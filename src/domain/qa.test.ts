@@ -2,8 +2,32 @@ import { describe, expect, it } from 'vitest';
 import { createNicheSections } from './structure';
 import { checkReport } from './qa';
 import type { PhotoData } from './types';
+import { createCoverInfo } from '../app/coverInfo';
+import { emptyReportInfo } from '../app/reportInfo';
 
 describe('report check issues', () => {
+  it('lists missing cover photo and each linked field without inventing a section target', () => {
+    const issues = checkReport([], [], createCoverInfo(), emptyReportInfo());
+    expect(issues.map((issue) => issue.id)).toEqual([
+      'cover:photo', 'cover:reportNo', 'cover:vesselName', 'cover:imoNumber',
+      'cover:callSign', 'cover:ownerClient', 'cover:operationDate', 'cover:location',
+    ]);
+    expect(issues.every((issue) => issue.sectionId === null && /커버/.test(issue.message))).toBe(true);
+    expect(issues[0].message).toContain('사진');
+    expect(issues[1].message).toContain('Job No');
+    expect(checkReport([], [])).toEqual([]);
+  });
+
+  it('clears cover issues for a photo and linked values, including the ETA fallback', () => {
+    const cover = { ...createCoverInfo(), photoFile: new File(['photo'], 'cover.jpg') };
+    const info = emptyReportInfo();
+    Object.assign(info.vessel, { jobNo: 'JOB', name: 'VESSEL', imo: '123', callSign: 'CALL', ownerClient: 'OWNER' });
+    Object.assign(info.operation, { start: '', eta: '2026-09-05T12:00', location: 'BUSAN' });
+    expect(checkReport([], [], cover, info)).toEqual([]);
+    info.operation.eta = 'invalid';
+    info.vessel.jobNo = '  ';
+    expect(checkReport([], [], cover, info).map((issue) => issue.id)).toEqual(['cover:reportNo', 'cover:operationDate']);
+  });
   it('reports missing photos, missing conditions, unmatched files, and a large phase imbalance', () => {
     const [section] = createNicheSections({
       component: 'Rudder',

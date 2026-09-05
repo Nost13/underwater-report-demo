@@ -6,6 +6,8 @@ import { buildWordPhasePages } from './reportModel';
 import { RATING_FILLS } from './ratingPalette';
 import { fillSection14Template, type Section14WriterDependencies } from './section14Writer';
 import { fillSummaryTemplate } from './summaryWriter';
+import { fillCoverTemplate, type CoverWriterDependencies } from './coverWriter';
+import type { CoverInfo } from '../app/coverInfo';
 import type { ReportInfo } from '../app/reportInfo';
 import type { DiverQualification } from '../app/diverQualifications';
 import type { PhotoData, ReportLabelMap, ReportSection, WorkPerformLabelMap } from '../domain/types';
@@ -21,6 +23,8 @@ export interface WordExportInput {
   reportLabels?: ReportLabelMap;
   workPerformLabels?: WorkPerformLabelMap;
   reportInfo?: ReportInfo;
+  coverInfo?: CoverInfo;
+  coverTemplateUrl?: string;
   section14TemplateUrl?: string;
   summaryTemplateUrl?: string;
   section6TemplateUrl?: string;
@@ -40,6 +44,8 @@ interface WriterDependencies {
   resize?: typeof resizeForReportSlot;
   download?: (blob: Blob, fileName: string) => void;
   fetchSection14Template?: () => Promise<ArrayBuffer | Uint8Array>;
+  fetchCoverTemplate?: CoverWriterDependencies['fetchTemplate'];
+  renderCoverPhoto?: CoverWriterDependencies['renderPhoto'];
   resizeReadinessPhoto?: Section14WriterDependencies['resizePhoto'];
   fetchSummaryTemplate?: () => Promise<ArrayBuffer | Uint8Array>;
   fetchSection6Template?: () => Promise<ArrayBuffer | Uint8Array>;
@@ -392,6 +398,123 @@ function relationshipTarget(xml: string, id: string): string | null {
 interface PackagePart {
   blob: Blob;
   prefix: string;
+  placement?: 'base' | 'prepend' | 'append';
+}
+
+export function buildReportFileName(jobNo: string, vesselName: string): string {
+  const clean = (value: string) => Array.from(value).filter((char) => char.charCodeAt(0) >= 32)
+    .join('').replace(/[<>:"/\\|?*]/g, '').trim().replace(/[. ]+$/, '');
+  const job = clean(jobNo);
+  const vessel = clean(vesselName);
+  if (job && vessel) return `${job}_${vessel}_Underwater service report(Detail).docx`;
+  const fallback = vessel.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '');
+  return `${fallback ? `${fallback}_` : ''}UNDERWATER_SERVICE_REPORT.docx`;
+}
+
+const CONTENT_TYPE_NS = 'http://schemas.openxmlformats.org/package/2006/content-types';
+
+function packagePath(owner: string, target: string): string {
+  const segments = (target.startsWith('/') ? target.slice(1) : owner.slice(0, owner.lastIndexOf('/') + 1) + target).split('/');
+  const result: string[] = [];
+  for (const segment of segments) {
+    if (segment === '..') {
+      if (!result.length) throw new Error('REPORT_PART_PATH_INVALID');
+      result.pop();
+    } else if (segment && segment !== '.') result.push(segment);
+  }
+  return result.join('/');
+}
+
+function partRelationshipsPath(part: string): string {
+  const slash = part.lastIndexOf('/');
+  return `${part.slice(0, slash + 1)}_rels/${part.slice(slash + 1)}.rels`;
+}
+
+/** Copy the cover's complete relationship closure. IDs in dependent parts are
+ * local to those parts and stay unchanged; only their targets need remapping. */
+async function importCoverPackage(source: JSZip, base: JSZip, relationshipsXml: string, typesXml: string) {
+  const parse = (xml: string) => {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    if (doc.querySelector('parsererror')) throw new Error('REPORT_PACKAGE_XML_INVALID');
+    return doc;
+  };
+  const read = async (path: string) => {
+    const entry = source.file(path);
+    if (!entry) throw new Error(`REPORT_PART_NOT_FOUND:${path}`);
+    return entry.async('text');
+  };
+  const sourceXml = await read('word/document.xml');
+  const document = parse(sourceXml);
+  const sourceRels = parse(await read('word/_rels/document.xml.rels'));
+  const sourceTypes = parse(await read('[Content_Types].xml'));
+  const mergedRels = parse(relationshipsXml);
+  const mergedTypes = parse(typesXml);
+  const serializer = new XMLSerializer();
+  const relations = Array.from(sourceRels.getElementsByTagNameNS('*', 'Relationship'));
+  const copied = new Map<string, string>();
+  const copyPart = async (path: string): Promise<string> => {
+    const previous = copied.get(path);
+    if (previous) return previous;
+    const sourcePart = source.file(path);
+    if (!sourcePart) throw new Error(`REPORT_PART_NOT_FOUND:${path}`);
+    const slash = path.lastIndexOf('/');
+    const preferred = `${path.slice(0, slash + 1)}cover-${path.slice(slash + 1)}`;
+    let destination = preferred;
+    let suffix = 2;
+    while (base.file(destination)) destination = preferred.replace(/(\.[^.]*)?$/, `-${suffix++}$1`);
+    copied.set(path, destination);
+    base.file(destination, await sourcePart.async('uint8array'), { createFolders: false });
+    const override = Array.from(sourceTypes.getElementsByTagNameNS('*', 'Override')).find((node) => node.getAttribute('PartName') === `/${path}`);
+    const defaultType = Array.from(sourceTypes.getElementsByTagNameNS('*', 'Default')).find((node) => node.getAttribute('Extension') === path.split('.').pop());
+    const contentType = (override ?? defaultType)?.getAttribute('ContentType');
+    if (!contentType) throw new Error(`REPORT_PART_CONTENT_TYPE_MISSING:${path}`);
+    const type = mergedTypes.createElementNS(CONTENT_TYPE_NS, 'Override');
+    type.setAttribute('PartName', `/${destination}`);
+    type.setAttribute('ContentType', contentType);
+    mergedTypes.documentElement.appendChild(type);
+    const sourcePartRels = source.file(partRelationshipsPath(path));
+    if (sourcePartRels) {
+      const relDoc = parse(await sourcePartRels.async('text'));
+      for (const relation of Array.from(relDoc.getElementsByTagNameNS('*', 'Relationship'))) {
+        if (relation.getAttribute('TargetMode') === 'External') continue;
+        relation.setAttribute('Target', `/${await copyPart(packagePath(path, relation.getAttribute('Target')!))}`);
+      }
+      base.file(partRelationshipsPath(destination), serializer.serializeToString(relDoc), { createFolders: false });
+    }
+    return destination;
+  };
+  const bodyElement = document.getElementsByTagNameNS(WORD_NAMESPACE, 'body')[0];
+  if (!bodyElement) throw new Error('REPORT_BODY_INVALID');
+  const idMap = new Map<string, string>();
+  const referenceNames = new Set<string>();
+  for (const element of [bodyElement, ...Array.from(bodyElement.getElementsByTagName('*'))]) {
+    for (const attribute of Array.from(element.attributes)) {
+      if (attribute.namespaceURI !== RELATIONSHIP_NAMESPACE && !(attribute.namespaceURI === 'urn:schemas-microsoft-com:office:office' && attribute.localName === 'relid')) continue;
+      referenceNames.add(attribute.name);
+      const originalId = attribute.value;
+      if (idMap.has(originalId)) continue;
+      const relation = relations.find((r) => r.getAttribute('Id') === originalId);
+      if (!relation) throw new Error(`REPORT_RELATIONSHIP_NOT_FOUND:${originalId}`);
+      const id = uniqueRelationshipId(serializer.serializeToString(mergedRels), `rIdCover_${originalId}`);
+      const imported = mergedRels.importNode(relation, true) as Element;
+      imported.setAttribute('Id', id);
+      if (relation.getAttribute('TargetMode') !== 'External') {
+        const destination = await copyPart(packagePath('word/document.xml', relation.getAttribute('Target')!));
+        imported.setAttribute('Target', `/${destination}`);
+      }
+      mergedRels.documentElement.appendChild(imported);
+      idMap.set(originalId, id);
+    }
+  }
+  // Patch only relationship attribute values; keep grouped shapes and anchors raw.
+  const parts = splitBody(sourceXml);
+  const referencePattern = new RegExp(`\\b(${[...referenceNames].map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})="([^"]+)"`, 'g');
+  const remap = (xml: string) => xml.replace(referencePattern, (match, name: string, id: string) => idMap.has(id) ? `${name}="${idMap.get(id)}"` : match);
+  return {
+    ...parts, body: remap(parts.body), sectionProperties: remap(parts.sectionProperties),
+    relationshipsXml: serializer.serializeToString(mergedRels), typesXml: serializer.serializeToString(mergedTypes),
+    namespaces: Array.from(document.documentElement.attributes).filter((a) => a.name.startsWith('xmlns:')),
+  };
 }
 
 function pageStartParagraph(): string {
@@ -417,7 +540,7 @@ async function mergeReportPackages(parts: PackagePart[]): Promise<Blob> {
     ...part,
     zip: await JSZip.loadAsync(part.blob),
   })));
-  const base = packages[0];
+  const base = packages.find((part) => part.placement === 'base') ?? packages[0];
   const baseDocumentEntry = base.zip.file('word/document.xml');
   const baseRelationshipsEntry = base.zip.file('word/_rels/document.xml.rels');
   const baseContentTypesEntry = base.zip.file('[Content_Types].xml');
@@ -431,8 +554,35 @@ async function mergeReportPackages(parts: PackagePart[]): Promise<Blob> {
   ]);
   const baseParts = splitBody(baseDocumentXml);
   let mergedRelationshipsXml = baseRelationshipsXml;
+  let mergedContentTypesXml = baseContentTypesXml;
+  let documentPrefix = baseParts.prefix;
+  const prependedBodies: string[] = [];
   const appendedBodies: string[] = [];
-  for (const part of packages.slice(1)) {
+  for (const part of packages.filter((part) => part !== base)) {
+    if (part.placement === 'prepend') {
+      const cover = await importCoverPackage(part.zip, base.zip, mergedRelationshipsXml, mergedContentTypesXml);
+      mergedRelationshipsXml = cover.relationshipsXml;
+      mergedContentTypesXml = cover.typesXml;
+      for (const attribute of cover.namespaces) {
+        if (!documentPrefix.includes(`${attribute.name}=`)) documentPrefix = documentPrefix.replace('<w:document ', `<w:document ${attribute.name}="${attribute.value}" `);
+      }
+      // Cover has its own empty header and copyright, despite common A4 geometry.
+      const differentSection = cover.sectionProperties.replace(/\s+w:rsid\w+="[^"]*"/g, '')
+        !== baseParts.sectionProperties.replace(/\s+w:rsid\w+="[^"]*"/g, '');
+      if (differentSection) {
+        const section = cover.sectionProperties.replace(/<w:type\b[^>]*\/>/g, '')
+          .replace(/(<w:pgSz\b)/, '<w:type w:val="nextPage"/>$1');
+        const lastParagraph = cover.body.lastIndexOf('<w:p ');
+        const end = cover.body.lastIndexOf('</w:p>');
+        if (lastParagraph < 0 || end < lastParagraph) throw new Error('COVER_SECTION_BREAK_INVALID');
+        const tail = cover.body.slice(lastParagraph);
+        const withSection = tail.includes('</w:pPr>')
+          ? tail.replace('</w:pPr>', `${section}</w:pPr>`)
+          : tail.replace(/(<w:p\b[^>]*>)/, `$1<w:pPr>${section}</w:pPr>`);
+        prependedBodies.push(cover.body.slice(0, lastParagraph) + withSection);
+      } else prependedBodies.push(cover.body + pageStartParagraph());
+      continue;
+    }
     const documentEntry = part.zip.file('word/document.xml');
     const relationshipsEntry = part.zip.file('word/_rels/document.xml.rels');
     if (!documentEntry || !relationshipsEntry) throw new Error('REPORT_PACKAGE_INVALID');
@@ -470,7 +620,8 @@ async function mergeReportPackages(parts: PackagePart[]): Promise<Blob> {
     }
     appendedBodies.push(pageStartParagraph() + body);
   }
-  const mergedDocumentXml = baseParts.prefix
+  const mergedDocumentXml = documentPrefix
+    + prependedBodies.join('')
     + baseParts.body
     + appendedBodies.join('')
     + baseParts.sectionProperties
@@ -482,7 +633,7 @@ async function mergeReportPackages(parts: PackagePart[]): Promise<Blob> {
       : mergedDocumentXml,
   );
   base.zip.file('word/_rels/document.xml.rels', mergedRelationshipsXml);
-  base.zip.file('[Content_Types].xml', ensurePngContentType(ensureJpegContentType(baseContentTypesXml)));
+  base.zip.file('[Content_Types].xml', ensurePngContentType(ensureJpegContentType(mergedContentTypesXml)));
   return base.zip.generateAsync({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -678,7 +829,19 @@ export async function writeTemplateReport(
         if (!skipped.includes(fileName)) skipped.push(fileName);
       },
     });
-    const finalParts: PackagePart[] = [{ blob: section14Blob, prefix: 'section14' }];
+    const finalParts: PackagePart[] = [{ blob: section14Blob, prefix: 'section14', placement: 'base' }];
+    if (input.coverInfo && input.coverTemplateUrl) {
+      finalParts.unshift({
+        blob: await fillCoverTemplate({
+          coverInfo: input.coverInfo, reportInfo: input.reportInfo, sections: input.sections, templateUrl: input.coverTemplateUrl,
+        }, {
+          fetchTemplate: dependencies.fetchCoverTemplate,
+          renderPhoto: dependencies.renderCoverPhoto,
+          onPhotoSkipped: (fileName) => skipped.push(fileName),
+        }),
+        prefix: 'cover', placement: 'prepend',
+      });
+    }
     if (input.summaryTemplateUrl) {
       finalParts.push({
         blob: await fillSummaryTemplate({ sections: input.sections, templateUrl: input.summaryTemplateUrl }, {
@@ -705,7 +868,7 @@ export async function writeTemplateReport(
     }
     blob = await mergeReportPackages(finalParts);
   }
-  const fileName = input.fileName ?? input.vesselName.replace(/[^a-z0-9]+/gi, '_') + '_UNDERWATER_SERVICE_REPORT.docx';
+  const fileName = input.fileName ?? buildReportFileName(input.reportInfo?.vessel.jobNo ?? '', input.vesselName);
   dependencies.download?.(blob, fileName);
-  return { skipped, pageCount: pages.length, blob };
+  return { skipped: [...new Set(skipped)], pageCount: pages.length, blob };
 }

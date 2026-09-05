@@ -15,7 +15,8 @@ vi.mock('./vesselDiagram/composer', async (importOriginal) => ({
   composeVesselDiagram,
 }));
 
-vi.mock('./browser/images', () => ({
+vi.mock('./browser/images', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./browser/images')>(),
   ThumbnailPool: class {
     async acquire() {
       return { url: 'blob:thumbnail', release: () => undefined };
@@ -32,9 +33,9 @@ vi.mock('./app/vesselLookup', () => ({
 }));
 
 beforeEach(() => {
-  vi.stubGlobal('URL', {
-    createObjectURL: vi.fn(() => 'blob:preview'),
-    revokeObjectURL: vi.fn(),
+  vi.stubGlobal('URL', class extends NativeURL {
+    static createObjectURL = vi.fn(() => 'blob:preview');
+    static revokeObjectURL = vi.fn();
   });
 });
 
@@ -105,7 +106,7 @@ function stageLabels() {
 }
 
 describe('desktop report workflow', () => {
-  it('stores regenerated automatic scope in App before the Cover editor reads it', async () => {
+  it('provides regenerated automatic scope from App before the Cover editor reads it', async () => {
     vi.stubGlobal('URL', class extends NativeURL {
       static createObjectURL = vi.fn(() => 'blob:preview');
       static revokeObjectURL = vi.fn();
@@ -1224,11 +1225,33 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('GENERAL · 15개 구역 · BEFORE / AFTER');
   });
 
+  it('opens the cover or linked report metadata from its Korean pre-export warning', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCleaningGeneral(user);
+    const stages = within(screen.getByRole('navigation', { name: 'Report stages' }));
+    await user.click(stages.getByRole('button', { name: /Check \/ Preview$/ }));
+    await user.click(screen.getByRole('button', { name: /Report Check .* 목록 보기/ }));
+    await user.click(screen.getByRole('button', { name: /커버 사진이 없습니다/ }));
+    expect(screen.getByRole('heading', { name: 'Cover' })).toBeVisible();
+    await user.click(stages.getByRole('button', { name: /Check \/ Preview$/ }));
+    await user.click(screen.getByRole('button', { name: /Report Check .* 목록 보기/ }));
+    await user.click(screen.getByRole('button', { name: /커버에 연결된 Job No 정보가 없습니다/ }));
+    expect(screen.getByRole('heading', { name: 'Report Information' })).toBeVisible();
+  });
+
   it('runs the local Word exporter from the final stage', async () => {
     const user = userEvent.setup();
     const exporter = vi.fn(async () => ({ skipped: [], pageCount: 0, blob: new Blob() }));
     render(<App exporter={exporter} />);
     await buildCleaningGeneral(user);
+    const stageNavigation = within(screen.getByRole('navigation', { name: 'Report stages' }));
+    await user.click(stageNavigation.getByRole('button', { name: /Vessel \/ Scope$/ }));
+    await user.type(screen.getByLabelText('Job No'), 'US-CLS-2608007');
+    await user.click(stageNavigation.getByRole('button', { name: /Cover$/ }));
+    const coverFile = new File(['cover'], 'actual-cover.jpg', { type: 'image/jpeg' });
+    await user.upload(screen.getByLabelText('표지 사진'), coverFile);
+    await user.click(stageNavigation.getByRole('button', { name: /사진 폴더$/ }));
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
     await user.click(screen.getByRole('button', { name: 'Word 준비' }));
@@ -1239,6 +1262,9 @@ describe('desktop report workflow', () => {
     expect(await screen.findByText('Word 보고서 다운로드가 완료되었습니다.')).toBeVisible();
     expect(exporter).toHaveBeenCalledWith(expect.objectContaining({
       vesselName: 'M.V. PACIFIC AURORA',
+      coverInfo: expect.objectContaining({ photoFile: coverFile }),
+      coverTemplateUrl: 'templates/cover.docx',
+      fileName: 'US-CLS-2608007_M.V. PACIFIC AURORA_Underwater service report(Detail).docx',
       templateUrl: 'templates/Detail_report_template.docx',
       section14TemplateUrl: 'templates/section1_4_template.docx',
       summaryTemplateUrl: 'templates/summary_template.docx',

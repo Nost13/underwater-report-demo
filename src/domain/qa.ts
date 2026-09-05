@@ -1,4 +1,6 @@
 import type { PhotoData, QaIssue, ReportSection } from './types';
+import { linkedCoverValues, type CoverInfo, type LinkedCoverValues } from '../app/coverInfo';
+import type { ReportInfo } from '../app/reportInfo';
 
 const activeCount = (photos: PhotoData[], sectionId: string, phase: string) =>
   photos.filter(
@@ -11,8 +13,19 @@ const isImbalanced = (before: number, after: number) => {
   return high - low >= 3 && (low === 0 || high >= low * 2);
 };
 
-export function checkReport(sections: ReportSection[], photos: PhotoData[]): QaIssue[] {
+export function checkReport(sections: ReportSection[], photos: PhotoData[], coverInfo?: CoverInfo, reportInfo?: ReportInfo): QaIssue[] {
   const issues: QaIssue[] = [];
+  if (coverInfo) {
+    if (!coverInfo.photoFile) issues.push({ id: 'cover:photo', kind: 'MISSING_COVER_PHOTO', sectionId: null, message: '커버 사진이 없습니다. 사진 영역은 빈 상태로 내보냅니다.' });
+    const labels: Record<keyof LinkedCoverValues, string> = {
+      reportNo: 'Job No', vesselName: '선박명', imoNumber: 'IMO 번호', callSign: '호출 부호',
+      ownerClient: '선주 / 고객', operationDate: '작업일 (Start 또는 ETA)', location: '작업 장소',
+    };
+    const values = reportInfo ? linkedCoverValues(reportInfo) : null;
+    for (const key of Object.keys(labels) as Array<keyof LinkedCoverValues>) {
+      if (!values?.[key].trim()) issues.push({ id: `cover:${key}`, kind: 'MISSING_COVER_METADATA', sectionId: null, message: `커버에 연결된 ${labels[key]} 정보가 없습니다. Report Information에서 확인하세요.` });
+    }
+  }
 
   for (const section of sections) {
     for (const phase of section.phases) {

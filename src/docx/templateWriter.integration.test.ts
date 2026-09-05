@@ -7,6 +7,9 @@ import { emptyReportInfo } from '../app/reportInfo';
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
 import { composeVesselDiagram, type CanvasContext } from '../vesselDiagram/composer';
 import { writeTemplateReport } from './templateWriter';
+import { createCoverInfo } from '../app/coverInfo';
+import { posix } from 'node:path';
+import { createHash } from 'node:crypto';
 
 const templatePath = 'public/templates/Detail_report_template.docx';
 
@@ -32,6 +35,147 @@ const vesselDiagram = (): VesselDiagramConfig => ({
 const composeDiagram = async (_config: VesselDiagramConfig, ids: string[]) => new TextEncoder().encode(ids.join(','));
 
 describe('bundled Detail report template', () => {
+  it.each(['filled', 'missing', 'unreadable'] as const)('prepends exactly one intact %s cover and keeps the report package authoritative', async (mode) => {
+    const names = ['cover', 'section1_4_template', 'summary_template', 'section6_template', 'Detail_report_template', 'section8_template'];
+    const bytes = await Promise.all(names.map((name) => readFile(`public/templates/${name}.docx`)));
+    const sourceCover = await JSZip.loadAsync(bytes[0]);
+    const sourceBase = await JSZip.loadAsync(bytes[1]);
+    const parse = (xml: string) => new DOMParser().parseFromString(xml, 'application/xml');
+    const elements = (root: Document | Element, name: string) => Array.from(root.getElementsByTagNameNS('*', name));
+    const relationNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const reportInfo = emptyReportInfo();
+    Object.assign(reportInfo.vessel, { jobNo: 'US-CLS-2608007', name: 'MSC JAVELIN IX', imo: '1234567', callSign: 'CALL', ownerClient: 'OWNER' });
+    const coverInfo = createCoverInfo();
+    coverInfo.photoFile = mode === 'missing' ? null : new File(['cover'], 'cover-broken.jpg');
+    const section = createNicheSections({ component: 'Rope Guard', type: 'SINGLE', quantity: 1, service: 'INSPECTION' })[0];
+    const broken = new File(['bad'], 'same-broken.jpg');
+    if (mode === 'unreadable') reportInfo.readiness.toolboxPhotos = [broken, broken];
+    const photo: PhotoData = { id: 'ASSEMBLY', sectionId: section.id, phase: 'CURRENT', reportUse: true, order: 1, relativePath: 'detail.jpg', file: broken, captionText: '' };
+    const png = mode === 'filled'
+      ? await sourceCover.file('word/media/image1.png')!.async('uint8array')
+      : Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC'), (c) => c.charCodeAt(0));
+    let downloadedName = '';
+    const result = await writeTemplateReport({
+      vesselName: reportInfo.vessel.name, sections: [section], photos: [photo], vesselDiagram: vesselDiagram(), reportInfo, coverInfo,
+      coverTemplateUrl: names[0], section14TemplateUrl: names[1], summaryTemplateUrl: names[2],
+      section6TemplateUrl: names[3], templateUrl: names[4], section8TemplateUrl: names[5],
+    }, {
+      fetchCoverTemplate: async () => bytes[0], fetchSection14Template: async () => bytes[1], fetchSummaryTemplate: async () => bytes[2],
+      fetchSection6Template: async () => bytes[3], fetchTemplate: async () => bytes[4], fetchSection8Template: async () => bytes[5],
+      renderCoverPhoto: async () => { if (mode === 'unreadable') throw new Error('decode'); return png; },
+      resize: async () => { if (mode === 'unreadable') throw new Error('decode'); return png; },
+      resizeReadinessPhoto: async () => { throw new Error('decode'); }, composeDiagram,
+      download: (_blob, name) => { downloadedName = name; },
+    });
+    expect(result.skipped).toEqual(mode === 'unreadable' ? ['same-broken.jpg', 'cover-broken.jpg'] : []);
+    expect(downloadedName).toBe('US-CLS-2608007_MSC JAVELIN IX_Underwater service report(Detail).docx');
+    const output = await JSZip.loadAsync(result.blob);
+    const doc = parse(await output.file('word/document.xml')!.async('text'));
+    expect(elements(doc, 'parsererror')).toHaveLength(0);
+    const body = elements(doc, 'body')[0];
+    const text = body.textContent!.replace(/UNDERWATER[\sㅤ]*PHOTO REPORT/g, 'UNDERWATER PHOTO REPORT');
+    expect(text.match(/UNDERWATER PHOTO REPORT/g)).toHaveLength(1);
+    const headings = ['UNDERWATER PHOTO REPORT', '1. GENERAL INFORMATION', '2. OPERATIONAL INFORMATION', '3. SERVICE ITEMS', '4. PRE-OPERATION SAFETY & READINESS RECORD', '5.1 OVERALL RESULT', '6. ASSESSMENT GUIDELINES', '7. DETAILED SERVICE RECORD', '8. QUALIFICATION & CERTIFICATION RECORDS'];
+    for (const heading of headings) expect(text).toContain(heading);
+    const ordered = [text.indexOf(headings[0]), ...headings.slice(1).map((heading) => text.lastIndexOf(heading))];
+    expect(ordered).toEqual([...ordered].sort((a, b) => a - b));
+    expect(ordered.every((index) => index >= 0)).toBe(true);
+    expect(text).not.toContain('MSC BEIJING VIII');
+    const sectionProperties = elements(doc, 'sectPr');
+    expect(sectionProperties).toHaveLength(2); // Cover's empty header and copyright differ from the report.
+    expect(sectionProperties[0].parentElement?.localName).toBe('pPr');
+    expect(sectionProperties[0].parentElement?.parentElement?.parentElement).toBe(body);
+    expect(elements(sectionProperties[0], 'type')[0]?.getAttribute('w:val')).toBe('nextPage');
+    expect(sectionProperties[1].parentElement).toBe(body);
+    for (const section of sectionProperties) expect(elements(section, 'pgSz')[0]?.getAttribute('w:w')).toBe('11910');
+    const rels = elements(parse(await output.file('word/_rels/document.xml.rels')!.async('text')), 'Relationship');
+    const relById = new Map(rels.map((r) => [r.getAttribute('Id'), r]));
+    expect(relById.size).toBe(rels.length);
+    const resolve = (id: string) => {
+      const target = relById.get(id)!.getAttribute('Target')!;
+      return target.startsWith('/') ? target.slice(1) : posix.normalize(posix.join('word', target));
+    };
+    const original = parse(await sourceCover.file('word/document.xml')!.async('text'));
+    const coverAnchors = elements(original, 'anchor');
+    const outputAnchors = elements(doc, 'anchor').slice(0, coverAnchors.length);
+    expect(outputAnchors).toHaveLength(coverAnchors.length);
+    for (const [index, anchor] of coverAnchors.entries()) {
+      for (const name of ['positionH', 'positionV', 'extent', 'srcRect']) {
+        expect(elements(outputAnchors[index], name).map((e) => e.outerHTML)).toEqual(elements(anchor, name).map((e) => e.outerHTML));
+      }
+    }
+    expect(elements(doc, 'imagedata').length).toBeGreaterThanOrEqual(elements(original, 'imagedata').length);
+    const hero = outputAnchors.find((a) => elements(a, 'extent')[0]?.getAttribute('cx') === '7686040')!;
+    const heroPath = resolve(elements(hero, 'blip')[0].getAttributeNS(relationNS, 'embed')!);
+    expect(heroPath).toMatch(/\.jpeg$/);
+    expect(await output.file(heroPath)!.async('uint8array')).toEqual(png);
+    expect(await output.file(heroPath)!.async('uint8array')).not.toEqual(await sourceCover.file('word/media/image3.jpeg')!.async('uint8array'));
+    const types = elements(parse(await output.file('[Content_Types].xml')!.async('text')), 'Override');
+    expect(types.find((t) => t.getAttribute('PartName') === `/${heroPath}`)?.getAttribute('ContentType')).toBe('image/png');
+    // Every original non-hero cover image, including VML fallback, survives byte-for-byte.
+    const hash = async (entry: JSZip.JSZipObject) => createHash('sha256').update(await entry.async('uint8array')).digest('hex');
+    const candidates = await Promise.all(Object.values(output.files).filter((f) => f.name.startsWith('word/media/') && !f.dir).map(hash));
+    expect(candidates).not.toContain(await hash(sourceCover.file('word/media/image3.jpeg')!));
+    for (const entry of Object.values(sourceCover.files).filter((f) => f.name.startsWith('word/media/') && !f.dir && f.name !== 'word/media/image3.jpeg')) expect(candidates, entry.name).toContain(await hash(entry));
+    expect(await output.file('word/styles.xml')!.async('text')).toBe(await sourceBase.file('word/styles.xml')!.async('text'));
+    const reportHeader = await output.file('word/header2.xml')!.async('text');
+    expect(reportHeader).toContain('MSC JAVELIN IX');
+    const coverHeaderId = elements(sectionProperties[0], 'headerReference').find((e) => e.getAttribute('w:type') === 'default')!.getAttributeNS(relationNS, 'id')!;
+    expect(await output.file(resolve(coverHeaderId))!.async('text')).toBe(await sourceCover.file('word/header2.xml')!.async('text'));
+    // Package audit: well-formed XML, resolved internal parts, and every body relationship reference.
+    for (const entry of Object.values(output.files).filter((f) => !f.dir && /\.(xml|rels)$/.test(f.name))) {
+      const parsed = parse(await entry.async('text'));
+      expect(elements(parsed, 'parsererror'), entry.name).toHaveLength(0);
+      if (entry.name.endsWith('.rels')) {
+        const owner = entry.name === '_rels/.rels' ? '' : entry.name.replace('/_rels/', '/').replace(/\.rels$/, '');
+        for (const relation of elements(parsed, 'Relationship')) {
+          if (relation.getAttribute('TargetMode') === 'External') continue;
+          const target = relation.getAttribute('Target')!;
+          const path = target.startsWith('/') ? target.slice(1) : posix.normalize(posix.join(posix.dirname(owner), target));
+          expect(output.file(path), `${entry.name}: ${target}`).not.toBeNull();
+        }
+      }
+    }
+    for (const element of Array.from(doc.getElementsByTagName('*'))) for (const attribute of Array.from(element.attributes)) {
+      if (attribute.namespaceURI === relationNS || attribute.name === 'o:relid') expect(relById.has(attribute.value), attribute.name).toBe(true);
+    }
+  }, 30000);
+
+  it('remaps aliased DrawingML, VML and external links and recursively imports dependent parts', async () => {
+    const [coverBytes, baseBytes, detailBytes] = await Promise.all([
+      readFile('public/templates/cover.docx'), readFile('public/templates/section1_4_template.docx'), readFile(templatePath),
+    ]);
+    const source = await JSZip.loadAsync(coverBytes);
+    const relNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const pkgNS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+    source.file('word/document.xml', (await source.file('word/document.xml')!.async('text')).replace('<w:body>', `<w:body><w:p><w:r><w:pict><v:shape><v:imagedata xmlns:rel="${relNS}" rel:id="rId12" o:relid="rId12"/></v:shape></w:pict></w:r><w:hyperlink r:id="extraLink"><w:r><w:t>LINK</w:t></w:r></w:hyperlink><w:r><w:drawing><a:blip xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" r:link="extraLink"/></w:drawing></w:r></w:p>`));
+    source.file('word/_rels/document.xml.rels', (await source.file('word/_rels/document.xml.rels')!.async('text')).replace('</Relationships>', `<Relationship Id="extraLink" Type="${relNS}/hyperlink" Target="https://example.com/report?a=1&amp;b=2" TargetMode="External"/></Relationships>`));
+    source.file('word/_rels/header2.xml.rels', `<Relationships xmlns="${pkgNS}"><Relationship Id="nested" Type="${relNS}/image" Target="../customXml/dependent.xml"/></Relationships>`);
+    source.file('customXml/dependent.xml', '<asset>dependent content</asset>');
+    source.file('customXml/_rels/dependent.xml.rels', `<Relationships xmlns="${pkgNS}"><Relationship Id="picture" Type="${relNS}/image" Target="../word/media/image1.png"/></Relationships>`);
+    const section = createNicheSections({ component: 'Rope Guard', type: 'SINGLE', quantity: 1, service: 'INSPECTION' })[0];
+    const result = await writeTemplateReport({
+      vesselName: 'VESSEL', sections: [section], photos: [{ id: 'p', sectionId: section.id, phase: 'CURRENT', reportUse: true, order: 1, relativePath: 'p.jpg', file: new File(['p'], 'p.jpg'), captionText: '' }],
+      vesselDiagram: vesselDiagram(), reportInfo: emptyReportInfo(), coverInfo: { ...createCoverInfo(), photoFile: new File(['bad'], 'p.jpg') },
+      coverTemplateUrl: 'cover', section14TemplateUrl: 'base', templateUrl: 'detail',
+    }, { fetchCoverTemplate: () => source.generateAsync({ type: 'uint8array' }), fetchSection14Template: async () => baseBytes, fetchTemplate: async () => detailBytes, resize: async () => { throw new Error('decode'); }, renderCoverPhoto: async () => { throw new Error('decode'); }, composeDiagram });
+    expect(result.skipped).toEqual(['p.jpg']);
+    const output = await JSZip.loadAsync(result.blob);
+    const parse = (xml: string) => new DOMParser().parseFromString(xml, 'application/xml');
+    const doc = parse(await output.file('word/document.xml')!.async('text'));
+    const fallback = Array.from(doc.getElementsByTagNameNS('*', 'imagedata')).find((e) => e.hasAttribute('rel:id'))!;
+    expect(fallback.getAttribute('rel:id')).not.toBe('rId12');
+    expect(fallback.getAttribute('o:relid')).toBe(fallback.getAttribute('rel:id'));
+    const rels = Array.from(parse(await output.file('word/_rels/document.xml.rels')!.async('text')).getElementsByTagNameNS('*', 'Relationship'));
+    const linkId = doc.getElementsByTagNameNS('*', 'hyperlink')[0].getAttributeNS(relNS, 'id');
+    expect(rels.find((r) => r.getAttribute('Id') === linkId)?.getAttribute('Target')).toBe('https://example.com/report?a=1&b=2');
+    expect(Array.from(doc.getElementsByTagNameNS('*', 'blip')).find((e) => e.hasAttribute('r:link'))?.getAttribute('r:link')).toBe(linkId);
+    expect(await output.file('customXml/cover-dependent.xml')!.async('text')).toBe('<asset>dependent content</asset>');
+    const nested = parse(await output.file('word/_rels/cover-header2.xml.rels')!.async('text')).getElementsByTagNameNS('*', 'Relationship')[0];
+    expect(nested.getAttribute('Target')).toBe('/customXml/cover-dependent.xml');
+    const picture = parse(await output.file('customXml/_rels/cover-dependent.xml.rels')!.async('text')).getElementsByTagNameNS('*', 'Relationship')[0];
+    expect(await output.file(picture.getAttribute('Target')!.slice(1))!.async('uint8array')).toEqual(await source.file('word/media/image1.png')!.async('uint8array'));
+  });
   it('preserves source fonts, package parts and fixed geometry while composing raised work and caption runs', async () => {
     const templateBytes = await readFile(templatePath);
     const baseline = await JSZip.loadAsync(templateBytes);

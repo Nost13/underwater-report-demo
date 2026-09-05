@@ -3,7 +3,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { createNicheSections } from '../domain/structure';
 import type { PhotoData } from '../domain/types';
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
-import { writeTemplateReport } from './templateWriter';
+import { buildReportFileName, writeTemplateReport } from './templateWriter';
+
+describe('report download filename', () => {
+  it.each([
+    ['US-CLS-2608007', 'MSC JAVELIN IX', 'US-CLS-2608007_MSC JAVELIN IX_Underwater service report(Detail).docx'],
+    ['Us:<CLS>/\\26?*"|', 'M.V. Mixed Case', 'UsCLS26_M.V. Mixed Case_Underwater service report(Detail).docx'],
+    ['', 'M.V. TEST', 'M_V_TEST_UNDERWATER_SERVICE_REPORT.docx'],
+    ['JOB', '', 'UNDERWATER_SERVICE_REPORT.docx'],
+    ['<>', '***', 'UNDERWATER_SERVICE_REPORT.docx'],
+  ])('names %s / %s safely without changing case', (job, vessel, expected) => {
+    expect(buildReportFileName(job, vessel)).toBe(expected);
+  });
+});
 
 const vesselDiagram = (): VesselDiagramConfig => ({
   imageFile: new File(['vessel'], 'vessel.png', { type: 'image/png' }),
