@@ -89,4 +89,20 @@ describe('cover information', () => {
     info.vessel.jobNo = 'Us-cLs-2609003';
     expect(linkedCoverValues(info).reportNo).toBe('Us-cLs-2609003');
   });
+
+  it('orders shuffled niche units naturally and groups services deterministically', () => {
+    const units = [1, 2, 10].map((unit) => ({ ...ropeRemovalSection, id: `unit-${unit}`, component: 'Sea Chest', side: 'PORT' as const, unit, service: 'CLEANING' as const }));
+    const first = syncGeneratedCoverScope(createCoverInfo(), [units[2], units[0], units[1]]);
+    const second = syncGeneratedCoverScope(createCoverInfo(), [units[1], units[2], units[0]]);
+    expect(first.scopeDescription).toBe('Cleaning: Sea Chest (PORT 1) & Sea Chest (PORT 2) & Sea Chest (PORT 10)');
+    expect(second.scopeDescription).toBe(first.scopeDescription);
+  });
+
+  it('orders unknown components canonically regardless of input permutation', () => {
+    const unknown = ['Zeta Part', 'Alpha Part', 'Mu Part'].map((component) => ({ ...ropeRemovalSection, id: component, component, service: 'REMOVAL' as const }));
+    const first = syncGeneratedCoverScope(createCoverInfo(), [unknown[0], unknown[1], unknown[2]]);
+    const second = syncGeneratedCoverScope(createCoverInfo(), [unknown[2], unknown[0], unknown[1]]);
+    expect(first.scopeTitle).toBe('Removal of Alpha Part & Mu Part & Zeta Part');
+    expect(second.scopeTitle).toBe(first.scopeTitle);
+  });
 });

@@ -76,14 +76,25 @@ function scopeEntries(sections: ReportSection[]): Array<{ service: ServiceKind; 
   const entries: Array<{ service: ServiceKind; component: string; qualifier: string; index: number }> = [];
   const serviceOrder: ServiceKind[] = ['INSPECTION', 'CLEANING', 'POLISHING', 'REPAIR', 'REMOVAL'];
   const rank = (values: readonly string[], value?: string) => { const index = value ? values.indexOf(value) : -1; return index < 0 ? values.length : index; };
+  const compareText = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
+  const compareUnit = (left?: number, right?: number) => {
+    if (left == null && right == null) return 0;
+    if (left == null) return 1;
+    if (right == null) return -1;
+    return left - right;
+  };
   const ordered = sections.map((section, index) => ({ section, index })).sort((left, right) => {
     const a = left.section; const b = right.section;
-    return rank(['GENERAL', 'NICHE'], a.area) - rank(['GENERAL', 'NICHE'], b.area)
+    const areaResult = rank(['GENERAL', 'NICHE'], a.area) - rank(['GENERAL', 'NICHE'], b.area);
+    const componentResult = a.area === 'GENERAL'
+      ? rank(GENERAL_ZONES, a.component.toUpperCase()) - rank(GENERAL_ZONES, b.component.toUpperCase())
+        || compareText(a.component.trim().toUpperCase(), b.component.trim().toUpperCase())
+      : rank(SUMMARY_NICHE_ORDER, a.component.toUpperCase()) - rank(SUMMARY_NICHE_ORDER, b.component.toUpperCase())
+        || compareText(a.component.trim().toUpperCase(), b.component.trim().toUpperCase());
+    return areaResult
       || (a.area === 'GENERAL'
-        ? rank(GENERAL_ZONES, a.component.toUpperCase()) - rank(GENERAL_ZONES, b.component.toUpperCase())
-          || rank(GENERAL_SIDES, a.side) - rank(GENERAL_SIDES, b.side)
-        : rank(SUMMARY_NICHE_ORDER, a.component.toUpperCase()) - rank(SUMMARY_NICHE_ORDER, b.component.toUpperCase())
-          || rank(SIDE_ORDER, a.side) - rank(SIDE_ORDER, b.side))
+        ? componentResult || rank(GENERAL_SIDES, a.side) - rank(GENERAL_SIDES, b.side)
+        : componentResult || rank(SIDE_ORDER, a.side) - rank(SIDE_ORDER, b.side) || compareUnit(a.unit, b.unit))
       || rank(serviceOrder, a.service) - rank(serviceOrder, b.service)
       || left.index - right.index;
   });
