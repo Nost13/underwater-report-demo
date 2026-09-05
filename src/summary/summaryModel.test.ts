@@ -84,4 +84,31 @@ describe('Summary model', () => {
     expect(port).toMatchObject({ foulingRating: '4', coverage: '30%' });
     expect(port).toMatchObject({ observedRating: '4', observedType: 'Corrosion' });
   });
+
+  it('recomputes all twelve fixed overview slots after final Detail coverage edits without mutating Detail', () => {
+    const section = createNicheSections({
+      component: 'Sea Chest', type: 'SIDE', quantity: 1, service: 'CLEANING',
+    })[0];
+    section.conditions.BEFORE!.fouling.coverage = 80;
+    for (const example of [
+      { coverage: 0 as const, rating: '0', type: 'Clean / No Fouling', display: '0%' },
+      { coverage: 60 as const, rating: '5', type: 'Severe Macro Fouling', display: '60%' },
+      { coverage: null, rating: '', type: '', display: '' },
+    ]) {
+      section.conditions.AFTER!.fouling.coverage = example.coverage;
+      const snapshot = structuredClone(section);
+      const model = buildSummaryModel([section]);
+      expect(model.overviewRows.map((row) => row.component)).toEqual([
+        'Bulbous Bow', 'Bow Thruster', 'Bilge Keel', 'Sea Chest', 'Discharge Pipe', 'Anode / ICCP',
+        'Transducer', 'Stern Frame', 'Rope Guard', 'Propeller', 'Boss Cap', 'Rudder & Pintle',
+      ]);
+      expect(model.overviewRows[3]).toMatchObject({
+        phase: 'AFTER', foulingRating: example.rating, foulingType: example.type, coverage: example.display,
+      });
+      expect(model.overviewRows.filter((row) => row.component !== 'Sea Chest').every((row) => (
+        !row.foulingRating && !row.foulingType && !row.coverage
+      ))).toBe(true);
+      expect(section).toEqual(snapshot);
+    }
+  });
 });

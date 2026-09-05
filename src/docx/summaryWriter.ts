@@ -30,28 +30,29 @@ function topLevelTables(document: Document): Element[] {
     .filter((table) => !closestElement(table.parentElement, 'tbl'));
 }
 
-function setCellText(cell: Element, value: string, referenceCell?: Element): void {
+function setCellText(cell: Element, value: string): void {
   const textNodes = Array.from(cell.getElementsByTagNameNS('*', 't'));
   if (textNodes.length) {
     textNodes[0].textContent = value;
     textNodes.slice(1).forEach((node) => { node.textContent = ''; });
     return;
   }
+  if (!value) return;
   const paragraph = Array.from(cell.getElementsByTagNameNS('*', 'p'))[0];
   if (!paragraph) return;
-  const referenceRun = referenceCell
-    ? Array.from(referenceCell.getElementsByTagNameNS('*', 'r'))[0]
-    : undefined;
-  const run = referenceRun
-    ? referenceRun.cloneNode(true) as Element
-    : cell.ownerDocument.createElementNS(WORD_NAMESPACE, 'w:r');
-  Array.from(run.children)
-    .filter((child) => child.localName !== 'rPr')
-    .forEach((child) => child.remove());
+  const existingRun = directChildren(paragraph, 'r').find((run) => (
+    Array.from(run.children).every((child) => child.localName === 'rPr')
+  ));
+  const run = existingRun ?? cell.ownerDocument.createElementNS(WORD_NAMESPACE, 'w:r');
+  if (!existingRun) {
+    const paragraphProperties = directChildren(paragraph, 'pPr')[0];
+    const font = paragraphProperties && directChildren(paragraphProperties, 'rPr')[0];
+    if (font) run.appendChild(font.cloneNode(true));
+    paragraph.appendChild(run);
+  }
   const text = cell.ownerDocument.createElementNS(WORD_NAMESPACE, 'w:t');
   text.textContent = value;
   run.appendChild(text);
-  paragraph.appendChild(run);
 }
 
 function setCellShading(cell: Element, fill?: string): void {
@@ -76,8 +77,8 @@ function setCellShading(cell: Element, fill?: string): void {
   shading.setAttributeNS(WORD_NAMESPACE, 'w:fill', fill);
 }
 
-function setRatingCell(cell: Element, rating: string, referenceCell?: Element): void {
-  setCellText(cell, rating, referenceCell);
+function setRatingCell(cell: Element, rating: string): void {
+  setCellText(cell, rating);
   setCellShading(cell, RATING_FILLS[rating]);
 }
 
@@ -86,13 +87,13 @@ function fillConditionCells(cells: Element[], row?: SummaryRow): void {
     foulingRating: '', foulingType: '', coverage: '',
     observedRating: '', observedLevel: '', observedType: '',
   };
-  setRatingCell(cells[2], values.foulingRating, cells[5]);
-  setCellText(cells[3], values.foulingType, cells[6]);
-  setCellText(cells[4], values.coverage, cells[3]);
-  setRatingCell(cells[5], values.observedRating, cells[2]);
-  setCellText(cells[6], values.observedLevel, cells[3]);
-  setCellText(cells[7], values.observedType, cells[6]);
-  if (cells[8]) setCellText(cells[8], '', cells[7]);
+  setRatingCell(cells[2], values.foulingRating);
+  setCellText(cells[3], values.foulingType);
+  setCellText(cells[4], values.coverage);
+  setRatingCell(cells[5], values.observedRating);
+  setCellText(cells[6], values.observedLevel);
+  setCellText(cells[7], values.observedType);
+  if (cells[8]) setCellText(cells[8], '');
 }
 
 function fillOverviewTable(document: Document, rows: SummaryRow[]): void {
@@ -107,9 +108,9 @@ function fillOverviewTable(document: Document, rows: SummaryRow[]): void {
     const cells = directCells(row);
     for (const offset of [0, 4]) {
       const record = byComponent.get(elementText(cells[offset]).toUpperCase());
-      setRatingCell(cells[offset + 1], record?.foulingRating ?? '', cells[offset + 1]);
-      setCellText(cells[offset + 2], record?.foulingType ?? '', cells[offset + 2]);
-      setCellText(cells[offset + 3], record?.coverage ?? '', cells[offset + 3]);
+      setRatingCell(cells[offset + 1], record?.foulingRating ?? '');
+      setCellText(cells[offset + 2], record?.foulingType ?? '');
+      setCellText(cells[offset + 3], record?.coverage ?? '');
     }
   }
 }
@@ -201,7 +202,18 @@ function hasExplicitPageBreak(element: Element): boolean {
 }
 
 function isBreakOnly(element: Element): boolean {
-  return hasExplicitPageBreak(element) && !elementText(element);
+  if (element.localName !== 'p' || !hasExplicitPageBreak(element) || elementText(element)) return false;
+  // A textless drawing, field, section boundary, or bookmark is still content.
+  // Only ordinary paragraph/run formatting and explicit page breaks prove an
+  // empty page artifact; never infer emptiness from textContent alone.
+  return Array.from(element.children).every((child) => (
+    child.localName === 'pPr'
+      ? !child.getElementsByTagNameNS('*', 'sectPr').length
+      : child.localName === 'r' && Array.from(child.children).every((content) => (
+        content.localName === 'rPr'
+        || (content.localName === 'br' && content.getAttributeNS(WORD_NAMESPACE, 'type') === 'page')
+      ))
+  ));
 }
 
 function pruneSummaryPages(document: Document, keepMainHull: boolean, keepNiche: boolean): void {
@@ -213,7 +225,7 @@ function pruneSummaryPages(document: Document, keepMainHull: boolean, keepNiche:
   let current: Element[] = [];
   for (const child of children) {
     current.push(child);
-    if (hasExplicitPageBreak(child)) {
+    if (isBreakOnly(child)) {
       pages.push(current);
       current = [];
     }
@@ -221,18 +233,18 @@ function pruneSummaryPages(document: Document, keepMainHull: boolean, keepNiche:
   if (current.length) pages.push(current);
   const selected = pages.filter((page, index) => {
     if (index === 0) return true;
+    if (page.every(isBreakOnly)) return false;
     const text = elementText({ textContent: page.map((element) => element.textContent).join(' ') } as Element);
     if (/MAIN HULL SURFACES/i.test(text)) return keepMainHull;
     if (/NICHE AREAS & COMPONENTS/i.test(text)) return keepNiche;
     return true;
   });
-  Array.from(body.children).filter((child) => child !== sectionProperties).forEach((child) => child.remove());
+  const retained = new Set(selected.flat());
+  children.filter((child) => !retained.has(child)).forEach((child) => child.remove());
   selected.forEach((page, pageIndex) => {
-    const elements = [...page];
-    if (pageIndex === selected.length - 1) while (elements.length && isBreakOnly(elements.at(-1)!)) elements.pop();
-    for (const element of elements) {
-      Array.from(element.getElementsByTagNameNS('*', 'lastRenderedPageBreak')).forEach((node) => node.remove());
-      body.insertBefore(element, sectionProperties ?? null);
+    if (pageIndex === selected.length - 1) {
+      let index = page.length - 1;
+      while (index >= 0 && isBreakOnly(page[index])) page[index--].remove();
     }
   });
   if (!keepMainHull && keepNiche) {
@@ -258,7 +270,7 @@ function enableFieldUpdates(zip: JSZip): Promise<void> {
     } else {
       xml = xml.replace('</w:settings>', '<w:updateFields w:val="true"/></w:settings>');
     }
-    zip.file('word/settings.xml', xml);
+    zip.file('word/settings.xml', xml, { createFolders: false });
   })();
 }
 
@@ -287,18 +299,6 @@ function ensureSummaryBookmark(document: Document, heading: string, bookmarkName
   paragraph.appendChild(end);
 }
 
-function compactSummaryLeadPage(document: Document): void {
-  const body = Array.from(document.getElementsByTagNameNS('*', 'body'))[0];
-  if (!body) throw new Error('SUMMARY_BODY_NOT_FOUND');
-  const children = Array.from(body.children);
-  const overallResultIndex = children.findIndex((element) => elementText(element).startsWith('5.1 OVERALL RESULT'));
-  const overviewIndex = children.findIndex((element) => elementText(element).startsWith('5.2 BIO'));
-  if (overallResultIndex < 0 || overviewIndex <= overallResultIndex) return;
-  children.slice(overallResultIndex + 1, overviewIndex).forEach((element) => {
-    if (element.localName === 'p' && !elementText(element) && !hasExplicitPageBreak(element)) element.remove();
-  });
-}
-
 export async function fillSummaryTemplate(
   input: SummaryWriterInput,
   dependencies: SummaryWriterDependencies = {},
@@ -320,11 +320,12 @@ export async function fillSummaryTemplate(
   fillNicheTable(document, model.nicheRows);
   patchOverviewDiagram(document, model.mainHullRows);
   pruneSummaryPages(document, model.mainHullRows.length > 0, model.nicheRows.length > 0);
-  compactSummaryLeadPage(document);
   ensureSummaryBookmark(document, '5.1 OVERALL RESULT', '_Toc233757656');
   ensureSummaryBookmark(document, '5.2 BIO FOULING CONDITION OVERVIEW', '_Toc233757657');
-  ensureSummaryBookmark(document, '5.3 OVERALL FINDINGS MATRIX', '_Toc233757658');
-  zip.file('word/document.xml', new XMLSerializer().serializeToString(document));
+  if (model.mainHullRows.length || model.nicheRows.length) {
+    ensureSummaryBookmark(document, '5.3 OVERALL FINDINGS MATRIX', '_Toc233757658');
+  }
+  zip.file('word/document.xml', new XMLSerializer().serializeToString(document), { createFolders: false });
   await enableFieldUpdates(zip);
   return zip.generateAsync({
     type: 'blob',
