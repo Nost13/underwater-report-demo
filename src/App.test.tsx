@@ -846,6 +846,87 @@ describe('desktop report workflow', () => {
       .toEqual(['p3.jpg 사진', 'p1.jpg 사진', 'p2.jpg 사진']);
   });
 
+  it('drops the first photo after the final card in the same phase', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
+    const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
+    await user.upload(manualInput, [
+      new File(['one'], 'p1.jpg', { type: 'image/jpeg' }),
+      new File(['two'], 'p2.jpg', { type: 'image/jpeg' }),
+      new File(['three'], 'p3.jpg', { type: 'image/jpeg' }),
+    ]);
+
+    const gallery = screen.getByLabelText('BEFORE 사진 갤러리');
+    const p1 = within(gallery).getByRole('article', { name: 'p1.jpg 사진' });
+    fireEvent.dragStart(p1);
+    const endTarget = within(gallery).getByRole('button', { name: 'BEFORE 사진 맨 뒤로 이동' });
+    fireEvent.dragOver(endTarget);
+    expect(endTarget).toHaveClass('drop-target');
+    fireEvent.drop(endTarget);
+
+    expect(within(gallery).getAllByRole('article').map((card) => card.getAttribute('aria-label')))
+      .toEqual(['p2.jpg 사진', 'p3.jpg 사진', 'p1.jpg 사진']);
+  });
+
+  it('reorders within the current phase from the focusable drag handle keyboard controls', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
+    const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
+    await user.upload(manualInput, [
+      new File(['one'], 'p1.jpg', { type: 'image/jpeg' }),
+      new File(['two'], 'p2.jpg', { type: 'image/jpeg' }),
+      new File(['three'], 'p3.jpg', { type: 'image/jpeg' }),
+    ]);
+
+    const gallery = screen.getByLabelText('BEFORE 사진 갤러리');
+    const order = () => within(gallery).getAllByRole('article')
+      .map((card) => card.getAttribute('aria-label'));
+    const handle = within(gallery).getByRole('button', { name: 'p2.jpg 순서 이동' });
+    expect(handle).toHaveAttribute('aria-keyshortcuts', 'ArrowLeft ArrowUp ArrowRight ArrowDown Home End');
+    expect(handle).toHaveAccessibleDescription(/화살표 키/);
+
+    handle.focus();
+    await user.keyboard('{ArrowUp}');
+    expect(order()).toEqual(['p2.jpg 사진', 'p1.jpg 사진', 'p3.jpg 사진']);
+    await user.keyboard('{ArrowDown}');
+    expect(order()).toEqual(['p1.jpg 사진', 'p2.jpg 사진', 'p3.jpg 사진']);
+    await user.keyboard('{End}');
+    expect(order()).toEqual(['p1.jpg 사진', 'p3.jpg 사진', 'p2.jpg 사진']);
+    await user.keyboard('{Home}');
+    expect(order()).toEqual(['p2.jpg 사진', 'p1.jpg 사진', 'p3.jpg 사진']);
+  });
+
+  it('does not reorder across phases and clears the drag state when the drag ends', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    for (const phase of ['BEFORE', 'AFTER'] as const) {
+      await user.click(screen.getByRole('button', { name: `${phase} 새 사진 추가` }));
+      const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
+      await user.upload(manualInput, new File([phase], `${phase.toLowerCase()}.jpg`, { type: 'image/jpeg' }));
+    }
+
+    const beforeGallery = screen.getByLabelText('BEFORE 사진 갤러리');
+    const afterGallery = screen.getByLabelText('AFTER 사진 갤러리');
+    const before = within(beforeGallery).getByRole('article', { name: 'before.jpg 사진' });
+    const after = within(afterGallery).getByRole('article', { name: 'after.jpg 사진' });
+    fireEvent.dragStart(before);
+    fireEvent.dragOver(after);
+    fireEvent.drop(after);
+    fireEvent.dragEnd(before);
+
+    expect(before).not.toHaveClass('dragging');
+    expect(within(beforeGallery).getByRole('article', { name: 'before.jpg 사진' })).toBeVisible();
+    expect(within(afterGallery).getByRole('article', { name: 'after.jpg 사진' })).toBeVisible();
+  });
+
   it('advances folder, structure, and import progress only after each action succeeds', async () => {
     const user = userEvent.setup();
     class MemoryDirectory {

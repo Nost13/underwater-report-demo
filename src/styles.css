@@ -554,6 +554,9 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .photo-drag-handle { position: absolute; z-index: 2; top: 6px; left: 6px; min-width: 30px; height: 30px; padding: 0 7px; border: 1px solid rgba(255,255,255,.7); border-radius: 7px; background: rgba(18,48,60,.9); color: #fff; font-size: 13px; font-weight: 900; letter-spacing: -3px; line-height: 1; cursor: grab; box-shadow: 0 2px 7px rgba(5,27,36,.24); }
 .photo-drag-handle:active { cursor: grabbing; }
 .photo-drag-handle:focus-visible { outline: 3px solid rgba(22,172,162,.34); outline-offset: 2px; }
+.photo-drop-end { grid-column: 1 / -1; width: 100%; min-height: 28px; padding: 3px 10px; border: 1px dashed #9bb6be; border-radius: 7px; background: #f5f8f9; color: #58717b; font-size: var(--font-ui-xs); font-weight: 850; transition: border-color .15s, background .15s, color .15s, box-shadow .15s; }
+.photo-drop-end[aria-disabled="true"] { opacity: .64; }
+.photo-drop-end.drop-target { border-color: var(--teal-600); background: #eaf8f6; color: var(--teal-700); box-shadow: 0 0 0 3px rgba(16,139,133,.14); }
 .thumb { position: relative; width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: 6px; background: #dbe4e7; overflow: hidden; }
 .thumb img, .unmatched-thumb img, .preview-photo img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .photo-thumb-content { width: 100%; height: 100%; }

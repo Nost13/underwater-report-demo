@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import { createDemoPhotos, COMPONENT_OPTIONS, DEMO_VESSELS, SERVICES } from './app/demoData';
 import { deriveOperationValues, emptyReportInfo, reportInfoForScopes, reportInfoFromVessel, type ReportInfo } from './app/reportInfo';
 import { ReportInformation } from './app/ReportInformation';
@@ -1026,8 +1026,27 @@ function PhasePanel({ phase, section, sections, photos, dispatch, source, workPe
   const condition = section.conditions[phase];
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const [dropTargetPhotoId, setDropTargetPhotoId] = useState<string | null>(null);
+  const [dropAtEnd, setDropAtEnd] = useState(false);
   if (!condition) return null;
   const sortedPhotos = [...photos].sort((left, right) => left.order - right.order);
+  const resetDragState = () => {
+    setDraggedPhotoId(null);
+    setDropTargetPhotoId(null);
+    setDropAtEnd(false);
+  };
+  const reorderFromKeyboard = (photoId: string, command: 'PREVIOUS' | 'NEXT' | 'FIRST' | 'LAST') => {
+    const index = sortedPhotos.findIndex((photo) => photo.id === photoId);
+    if (index < 0) return;
+    if (command === 'PREVIOUS' && index > 0) {
+      dispatch({ type: 'REORDER_PHOTO', photoId, beforePhotoId: sortedPhotos[index - 1].id });
+    } else if (command === 'NEXT' && index < sortedPhotos.length - 1) {
+      dispatch({ type: 'REORDER_PHOTO', photoId, beforePhotoId: sortedPhotos[index + 2]?.id ?? null });
+    } else if (command === 'FIRST' && index > 0) {
+      dispatch({ type: 'REORDER_PHOTO', photoId, beforePhotoId: sortedPhotos[0].id });
+    } else if (command === 'LAST' && index < sortedPhotos.length - 1) {
+      dispatch({ type: 'REORDER_PHOTO', photoId, beforePhotoId: null });
+    }
+  };
   const selectFromPanel = (event: React.MouseEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     if (target !== event.currentTarget && target.closest('button, input, select, textarea, label, output, a, [role="button"], [role="switch"], [contenteditable="true"]')) return;
@@ -1055,30 +1074,49 @@ function PhasePanel({ phase, section, sections, photos, dispatch, source, workPe
       onDragStart={() => {
         setDraggedPhotoId(photo.id);
         setDropTargetPhotoId(null);
+        setDropAtEnd(false);
       }}
       onDragOver={(event) => {
         if (!draggedPhotoId || draggedPhotoId === photo.id) return;
         event.preventDefault();
         setDropTargetPhotoId(photo.id);
+        setDropAtEnd(false);
       }}
       onDrop={(event) => {
         event.preventDefault();
         if (draggedPhotoId && draggedPhotoId !== photo.id) {
           dispatch({ type: 'REORDER_PHOTO', photoId: draggedPhotoId, beforePhotoId: photo.id });
         }
-        setDraggedPhotoId(null);
-        setDropTargetPhotoId(null);
+        resetDragState();
       }}
-      onDragEnd={() => {
-        setDraggedPhotoId(null);
+      onDragEnd={resetDragState}
+      onKeyboardReorder={(command) => reorderFromKeyboard(photo.id, command)}
+    />) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>이 Phase에 사진을 추가하거나 폴더에서 불러오세요.</p></div>}{sortedPhotos.length > 1 && <button
+      type="button"
+      className={`photo-drop-end${dropAtEnd ? ' drop-target' : ''}`}
+      aria-label={`${phase} 사진 맨 뒤로 이동`}
+      aria-disabled={!draggedPhotoId}
+      tabIndex={-1}
+      onDragOver={(event) => {
+        if (!draggedPhotoId) return;
+        event.preventDefault();
         setDropTargetPhotoId(null);
+        setDropAtEnd(true);
       }}
-    />) : <div className="phase-empty"><span>＋</span><b>{phase} 사진 없음</b><p>이 Phase에 사진을 추가하거나 폴더에서 불러오세요.</p></div>}</div>
+      onDrop={(event) => {
+        event.preventDefault();
+        if (draggedPhotoId) {
+          dispatch({ type: 'REORDER_PHOTO', photoId: draggedPhotoId, beforePhotoId: null });
+        }
+        resetDragState();
+      }}
+    ><span aria-hidden="true">↓</span> 맨 뒤에 놓기</button>}</div>
   </section>;
 }
 
-function PhotoRow({ photo, phasePhotos, section, phase, sections, dispatch, dragging, dropTarget, onDragStart, onDragOver, onDrop, onDragEnd }: { photo: PhotoData; phasePhotos: PhotoData[]; section: ReportSection; phase: Phase; sections: ReportSection[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; dragging: boolean; dropTarget: boolean; onDragStart: () => void; onDragOver: (event: React.DragEvent<HTMLElement>) => void; onDrop: (event: React.DragEvent<HTMLElement>) => void; onDragEnd: () => void }) {
+function PhotoRow({ photo, phasePhotos, section, phase, sections, dispatch, dragging, dropTarget, onDragStart, onDragOver, onDrop, onDragEnd, onKeyboardReorder }: { photo: PhotoData; phasePhotos: PhotoData[]; section: ReportSection; phase: Phase; sections: ReportSection[]; dispatch: React.Dispatch<Parameters<typeof reportReducer>[1]>; dragging: boolean; dropTarget: boolean; onDragStart: () => void; onDragOver: (event: React.DragEvent<HTMLElement>) => void; onDrop: (event: React.DragEvent<HTMLElement>) => void; onDragEnd: () => void; onKeyboardReorder: (command: 'PREVIOUS' | 'NEXT' | 'FIRST' | 'LAST') => void }) {
   const [moving, setMoving] = useState(false);
+  const orderHelpId = useId();
   const [sectionId, setSectionId] = useState(section.id);
   const targetSection = sections.find((item) => item.id === sectionId) ?? section;
   const [targetPhase, setTargetPhase] = useState<Phase>(phase);
@@ -1108,6 +1146,21 @@ function PhotoRow({ photo, phasePhotos, section, phase, sections, dispatch, drag
   const captionPreview = photo.captionText.trim()
     ? `${baseCaption} | ${photo.captionText.trim()}`
     : baseCaption;
+  const reorderKeys: Record<string, 'PREVIOUS' | 'NEXT' | 'FIRST' | 'LAST'> = {
+    ArrowLeft: 'PREVIOUS',
+    ArrowUp: 'PREVIOUS',
+    ArrowRight: 'NEXT',
+    ArrowDown: 'NEXT',
+    Home: 'FIRST',
+    End: 'LAST',
+  };
+  const reorderWithKeyboard = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const command = reorderKeys[event.key];
+    if (!command) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onKeyboardReorder(command);
+  };
 
   return <article
     className={`photo-row${photo.reportUse ? '' : ' excluded'}${dragging ? ' dragging' : ''}${dropTarget ? ' drop-target' : ''}`}
@@ -1119,7 +1172,7 @@ function PhotoRow({ photo, phasePhotos, section, phase, sections, dispatch, drag
     onDrop={onDrop}
     onDragEnd={onDragEnd}
   >
-    <div className="photo-card-top"><button type="button" className="photo-drag-handle" aria-label={`${photo.file.name} 순서 이동`} title="같은 Phase 안에서 드래그해 순서 변경">⋮⋮</button><div className="thumb"><PhotoThumb file={photo.file} alt={photo.file.name} /><span>{String(index).padStart(2, '0')}</span></div></div>
+    <div className="photo-card-top"><button type="button" className="photo-drag-handle" aria-label={`${photo.file.name} 순서 이동`} aria-describedby={orderHelpId} aria-keyshortcuts="ArrowLeft ArrowUp ArrowRight ArrowDown Home End" title="같은 Phase 안에서 드래그하거나 키보드로 순서 변경" onKeyDown={reorderWithKeyboard}>⋮⋮</button><span id={orderHelpId} className="visually-hidden">같은 Phase에서 화살표 키로 이전 또는 다음, Home 키로 처음, End 키로 맨 뒤로 이동합니다.</span><div className="thumb"><PhotoThumb file={photo.file} alt={photo.file.name} /><span>{String(index).padStart(2, '0')}</span></div></div>
     <div className="photo-info"><b>{photo.file.name}</b><span aria-label={`${photo.file.name} 캡션 미리보기`} aria-live="polite">{captionPreview}</span></div>
     <label className="photo-caption-field"><span>추가 캡션</span><input aria-label={`${photo.file.name} 추가 캡션`} value={photo.captionText} placeholder="선택 입력" onChange={(event) => dispatch({ type: 'UPDATE_PHOTO_CAPTION', photoId: photo.id, value: event.target.value })} /></label>
     <div className="photo-actions"><label className="switch"><input type="checkbox" className="switch-input" aria-label={`${photo.file.name} Report Use`} checked={photo.reportUse} onChange={() => dispatch({ type: 'TOGGLE_REPORT_USE', photoId: photo.id })} /><i /><span>REPORT USE</span></label>{moving ? <div className="photo-move"><select aria-label={`${photo.file.name} 이동 Section`} value={sectionId} onChange={(event) => { const next = sections.find((item) => item.id === event.target.value) ?? section; setSectionId(next.id); setTargetPhase(next.phases[0]); }}>{sections.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select><select aria-label={`${photo.file.name} 이동 Phase`} value={targetPhase} onChange={(event) => setTargetPhase(event.target.value as Phase)}>{targetSection.phases.map((item) => <option key={item}>{item}</option>)}</select><button type="button" className="move-confirm" onClick={move}>이동 완료</button><button type="button" className="move-cancel" aria-label="이동 취소" onClick={cancelMove}>취소</button></div> : <div className="photo-action-buttons"><button type="button" className="photo-action-button move" aria-label={`${photo.file.name} 이동`} onClick={startMove}><span aria-hidden="true">↗</span>이동</button><button type="button" className="photo-action-button danger" aria-label={`${photo.file.name} 미배정으로 이동`} onClick={() => dispatch({ type: 'UNASSIGN_PHOTO', photoId: photo.id })}><span aria-hidden="true">×</span>미배정으로 이동</button></div>}</div>
