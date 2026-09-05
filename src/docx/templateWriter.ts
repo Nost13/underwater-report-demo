@@ -525,6 +525,25 @@ function ensureSummaryTocBookmarks(xml: string): string {
   return xml.replace(/PAGEREF\s+_Toc233757655/g, 'PAGEREF _Toc233757656');
 }
 
+function normalizeDrawingIds(xml: string): string {
+  const properties = /(<wp:docPr\b[^>]*?\sid=")(\d+)(")/g;
+  // Reserve the entire document first: an early duplicate must not consume an
+  // otherwise unique ID belonging to a later drawing (including report photos).
+  const reserved = new Set(Array.from(xml.matchAll(properties), (match) => Number(match[2])));
+  const seen = new Set<number>();
+  let nextId = 1;
+  return xml.replace(properties, (original, opening: string, value: string, closing: string) => {
+    const id = Number(value);
+    if (!seen.has(id)) {
+      seen.add(id);
+      return original;
+    }
+    while (reserved.has(nextId)) nextId += 1;
+    reserved.add(nextId);
+    return `${opening}${nextId++}${closing}`;
+  });
+}
+
 function uniqueRelationshipId(xml: string, preferred: string): string {
   let candidate = preferred;
   let suffix = 2;
@@ -628,9 +647,9 @@ async function mergeReportPackages(parts: PackagePart[]): Promise<Blob> {
     + baseParts.suffix;
   base.zip.file(
     'word/document.xml',
-    packages.some((part) => part.prefix === 'summary')
+    normalizeDrawingIds(packages.some((part) => part.prefix === 'summary')
       ? ensureSummaryTocBookmarks(mergedDocumentXml)
-      : mergedDocumentXml,
+      : mergedDocumentXml),
   );
   base.zip.file('word/_rels/document.xml.rels', mergedRelationshipsXml);
   base.zip.file('[Content_Types].xml', ensurePngContentType(ensureJpegContentType(mergedContentTypesXml)));
@@ -811,7 +830,7 @@ export async function writeTemplateReport(
     renderedBodies.push(serializeFragment(pageDocument));
   }
   const documentXml = documentParts.prefix + renderedBodies.join('') + documentParts.sectionProperties + documentParts.suffix;
-  zip.file('word/document.xml', documentXml);
+  zip.file('word/document.xml', input.reportInfo && input.section14TemplateUrl ? documentXml : normalizeDrawingIds(documentXml));
   zip.file('word/_rels/document.xml.rels', relationshipsXml);
   zip.file('[Content_Types].xml', contentTypesXml);
   let blob = await zip.generateAsync({

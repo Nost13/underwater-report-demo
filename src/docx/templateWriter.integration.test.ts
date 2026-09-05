@@ -35,6 +35,56 @@ const vesselDiagram = (): VesselDiagramConfig => ({
 const composeDiagram = async (_config: VesselDiagramConfig, ids: string[]) => new TextEncoder().encode(ids.join(','));
 
 describe('bundled Detail report template', () => {
+  it('keeps first drawing IDs and assigns unused IDs only to later duplicates in a complete multi-component report', async () => {
+    const names = ['cover', 'section1_4_template', 'summary_template', 'section6_template', 'Detail_report_template', 'section8_template'];
+    const bytes = await Promise.all(names.map((name) => readFile(`public/templates/${name}.docx`)));
+    const sections = ['Rope Guard', 'Transducer'].map((component) => createNicheSections({ component, type: 'SINGLE', quantity: 1, service: 'INSPECTION' })[0]);
+    const photos: PhotoData[] = sections.map((section, index) => ({ id: `drawing-${index}`, sectionId: section.id, phase: 'CURRENT', reportUse: true, order: 1, relativePath: `${index}.jpg`, file: new File(['photo'], `${index}.jpg`), captionText: '' }));
+    const inputs = {
+      vesselName: 'MULTI COMPONENT', sections, photos, vesselDiagram: vesselDiagram(), reportInfo: emptyReportInfo(), coverInfo: createCoverInfo(),
+      coverTemplateUrl: names[0], section14TemplateUrl: names[1], summaryTemplateUrl: names[2], section6TemplateUrl: names[3], templateUrl: names[4], section8TemplateUrl: names[5],
+    };
+    const dependencies = {
+      fetchCoverTemplate: async () => bytes[0], fetchSection14Template: async () => bytes[1], fetchSummaryTemplate: async () => bytes[2],
+      fetchSection6Template: async () => bytes[3], fetchTemplate: async () => bytes[4], fetchSection8Template: async () => bytes[5],
+      resize: async () => new Uint8Array([255, 216, 255, 217]), composeDiagram,
+    };
+    const single = await writeTemplateReport({ ...inputs, sections: [sections[0]], photos: [photos[0]] }, dependencies);
+    const multi = await writeTemplateReport(inputs, dependencies);
+    const rerun = await writeTemplateReport(inputs, dependencies);
+    const xml = async (blob: Blob) => (await JSZip.loadAsync(blob)).file('word/document.xml')!.async('text');
+    const singleXml = await xml(single.blob);
+    const multiXml = await xml(multi.blob);
+    expect(multi.pageCount).toBe(2);
+    const drawings = (text: string) => Array.from(new DOMParser().parseFromString(text, 'application/xml').getElementsByTagNameNS('http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'docPr'));
+    const multiDrawings = drawings(multiXml);
+    const ids = multiDrawings.map((node) => node.getAttribute('id')!);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.every((id) => /^\d+$/.test(id) && Number(id) > 0)).toBe(true);
+    // Every unique original from the complete single-component document remains
+    // at its first occurrence, including the cover, readiness and Summary art.
+    const originalNodes = drawings(singleXml);
+    for (const original of originalNodes) {
+      const first = multiDrawings.find((node) => node.getAttribute('id') === original.getAttribute('id'))!;
+      expect(first?.outerHTML, original.getAttribute('name') ?? '').toBe(original.outerHTML);
+    }
+    const profiles = multiDrawings.filter((node) => node.getAttribute('descr') === 'vessel_profile');
+    expect(profiles).toHaveLength(2);
+    const sourceDetail = await JSZip.loadAsync(bytes[4]);
+    const sourceProfile = drawings(await sourceDetail.file('word/document.xml')!.async('text')).find((node) => node.getAttribute('descr') === 'vessel_profile')!;
+    expect(profiles[0].getAttribute('id')).toBe(sourceProfile.getAttribute('id'));
+    const sourceCover = await JSZip.loadAsync(bytes[0]);
+    const originalCoverIds = drawings(await sourceCover.file('word/document.xml')!.async('text')).map((node) => node.getAttribute('id'));
+    expect(ids.slice(0, originalCoverIds.length)).toEqual(originalCoverIds);
+    expect(profiles[1].getAttribute('id')).not.toBe(profiles[0].getAttribute('id'));
+    const secondPhoto = multiDrawings.find((node) => node.getAttribute('name') === 'Report photo 2')!;
+    expect(secondPhoto.getAttribute('id')).toBe('2'); // Reserve later unique original IDs before assigning duplicates.
+    const originalIds = new Set([...originalNodes.map((node) => node.getAttribute('id')), '2']);
+    expect(originalIds.has(profiles[1].getAttribute('id'))).toBe(false);
+    const profileDrawing = (node: Element) => node.parentElement!.outerHTML.replace(/(<wp:docPr\b[^>]*\bid=")[^"]+"/, '$1ID"').replace(/rIdVesselDiagram\d+/g, 'rIdVesselDiagram');
+    expect(profileDrawing(profiles[1])).toBe(profileDrawing(profiles[0]));
+    expect(await xml(rerun.blob)).toBe(multiXml);
+  }, 15000);
   it.each(['filled', 'missing', 'unreadable'] as const)('prepends exactly one intact %s cover and keeps the report package authoritative', async (mode) => {
     const names = ['cover', 'section1_4_template', 'summary_template', 'section6_template', 'Detail_report_template', 'section8_template'];
     const bytes = await Promise.all(names.map((name) => readFile(`public/templates/${name}.docx`)));
