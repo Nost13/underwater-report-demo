@@ -2,7 +2,7 @@ import type { ReportSection, ServiceKind } from '../domain/types';
 import type { ReportInfo } from './reportInfo';
 import { SERVICE_REPORT_LABELS } from './reportInfo';
 import { GENERAL_ZONES, GENERAL_SIDES } from '../domain/structure';
-import { MAIN_HULL_ORDER, SIDE_ORDER, SUMMARY_NICHE_ORDER } from '../summary/summaryModel';
+import { SIDE_ORDER, SUMMARY_NICHE_ORDER } from '../summary/summaryModel';
 
 export interface CoverCrop {
   focusX: number;

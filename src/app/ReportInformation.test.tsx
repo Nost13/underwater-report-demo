@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { StrictMode, useState } from 'react';
+import { Profiler, StrictMode, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { emptyReportInfo, type ReportInfo } from './reportInfo';
 import { ReportInformation } from './ReportInformation';
@@ -144,6 +144,26 @@ describe('Report Information', () => {
     await user.click(within(photos).getByRole('button', { name: `Clear ${section} photo 2` }));
     expect(within(photos).getByText(`${section} photo 2 is empty`)).toBeVisible();
     expect(note).toHaveValue(originalNote);
+  });
+
+  it('never commits a replacement readiness caption with the previous photo', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((file) => `blob:${(file as File).name}`);
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const committedSources: Array<string | null> = [];
+    render(<Profiler id="readiness" onRender={() => {
+      const replacement = document.querySelector('img[alt="Toolbox photo 1: replacement.jpg"]');
+      if (replacement) committedSources.push(replacement.getAttribute('src'));
+    }}><Harness /></Profiler>);
+
+    await user.upload(screen.getByLabelText('Upload Toolbox photos'),
+      new File(['first'], 'first.jpg', { type: 'image/jpeg' }));
+    await user.upload(screen.getByLabelText('Replace Toolbox photo 1'),
+      new File(['replacement'], 'replacement.jpg', { type: 'image/jpeg' }));
+
+    expect(screen.getByRole('img', { name: 'Toolbox photo 1: replacement.jpg' }))
+      .toHaveAttribute('src', 'blob:replacement.jpg');
+    expect(committedSources).not.toContain('blob:first.jpg');
   });
 
   it('keeps only the displayed readiness preview URL alive through StrictMode replacement, clearing, and unmount', async () => {

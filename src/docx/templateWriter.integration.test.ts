@@ -431,10 +431,21 @@ describe('bundled Detail report template', () => {
     ));
     const detailHeadingIndex = bodyChildren.length - reversedDetailHeadingIndex - 1;
     expect(detailHeadingIndex).toBeGreaterThan(0);
-    const boundary = bodyChildren[detailHeadingIndex - 1];
-    expect(boundary.getElementsByTagNameNS('*', 'pageBreakBefore')).toHaveLength(1);
-    expect((boundary.textContent ?? '').trim()).toBe('');
-    expect(bodyChildren[detailHeadingIndex].getElementsByTagNameNS('*', 'pageBreakBefore')).toHaveLength(0);
+    // A separate page-start paragraph consumes a visible line before each
+    // source page. In Word that displaced Summary's last matrix row to a
+    // thirteenth page, even though the native source has room for all rows.
+    const partHeadings = [
+      '5. OVERALL SUMMARY', '6. ASSESSMENT GUIDELINES',
+      '7. DETAILED SERVICE RECORD', '8. QUALIFICATION & CERTIFICATION RECORDS',
+    ];
+    for (const label of partHeadings) {
+      const heading = bodyChildren.find((child) => child.localName === 'p'
+        && (child.textContent ?? '').trim() === label)!;
+      expect(heading, label).toBeDefined();
+      expect(heading.getElementsByTagNameNS('*', 'pageBreakBefore'), label).toHaveLength(1);
+      const previous = heading.previousElementSibling!;
+      expect(previous.getElementsByTagNameNS('*', 'pageBreakBefore'), label).toHaveLength(0);
+    }
     expect(documentXml.match(/<w:sectPr(?:\s|>)/g)).toHaveLength(1);
     expect(documentXml).toContain('rIdDetailedImage1');
     expect(await output.file('word/media/detail-image-1.jpg')?.async('uint8array'))
@@ -536,8 +547,10 @@ describe('bundled Detail report template', () => {
         (paragraph.textContent ?? '').replace(/\s+/g, '').includes('7.DETAILEDSERVICERECORD')
         && paragraph.getElementsByTagNameNS('*', 'pageBreakBefore').length > 0
       ));
-    expect(detailPageStarts).toHaveLength(3);
-    for (const pageStart of detailPageStarts) {
+    // The first component now owns the package boundary break as well. Subsequent
+    // components still follow the preceding detail table without a blank paragraph.
+    expect(detailPageStarts).toHaveLength(4);
+    for (const pageStart of detailPageStarts.slice(1)) {
       expect(pageStart.previousElementSibling?.localName).toBe('tbl');
     }
   });

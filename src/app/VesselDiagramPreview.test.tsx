@@ -30,6 +30,39 @@ afterEach(() => {
 });
 
 describe('VesselDiagramPreview', () => {
+  it('removes a replaced image from the DOM before revoking its PNG URL', async () => {
+    let serial = 0;
+    const referencedAtRevocation: string[] = [];
+    const compose = vi.fn(async () => new Uint8Array([137, 80, 78, 71]));
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => `blob:diagram-${++serial}`),
+      revokeObjectURL: vi.fn((url: string) => {
+        if (document.querySelector(`img[src="${url}"]`)) referencedAtRevocation.push(url);
+      }),
+    });
+    const { rerender, unmount } = render(
+      <VesselDiagramPreview config={config} section={section('Transducer')} compose={compose} />,
+    );
+    await screen.findByRole('img', { name: '선박 위치도 미리보기' });
+    rerender(<VesselDiagramPreview config={config} section={section('Propeller Blade')} compose={compose} />);
+    await waitFor(() => expect(screen.getByRole('img', { name: '선박 위치도 미리보기' })).toHaveAttribute('src', 'blob:diagram-2'));
+    unmount();
+    expect(referencedAtRevocation).toEqual([]);
+  });
+
+  it('keeps its PNG when report edits do not change the selected markers', async () => {
+    const compose = vi.fn(async () => new Uint8Array([137, 80, 78, 71]));
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:word'), revokeObjectURL: vi.fn() });
+    const { rerender } = render(<VesselDiagramPreview config={config} section={section('Transducer')} compose={compose} />);
+    await screen.findByRole('img', { name: '선박 위치도 미리보기' });
+    rerender(<VesselDiagramPreview config={config} section={{ ...section('Transducer'), conditions: { CURRENT: {
+      fouling: { type: 'Micro fouling', coverage: 10, slimeOnly: true },
+      observed: { type: '', level: '' },
+    } } }} compose={compose} />);
+    expect(compose).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  });
+
   it('uses the exact Word image ratio and can preview an editor marker selection', async () => {
     const compose = vi.fn(async () => new Uint8Array([137, 80, 78, 71]));
     vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:word'), revokeObjectURL: vi.fn() });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import type { ReportSection } from '../domain/types';
 import { composeVesselDiagram, WORD_DIAGRAM_HEIGHT, WORD_DIAGRAM_WIDTH } from '../vesselDiagram/composer';
 import { resolveMarkerIds } from '../vesselDiagram/markers';
@@ -16,49 +16,44 @@ interface VesselDiagramPreviewProps {
   compose?: ComposeVesselDiagram;
 }
 
+function createDiagramPreviewStore(config: VesselDiagramConfig, markerIds: string[], compose: ComposeVesselDiagram) {
+  const initial = { imageUrl: null as string | null, error: false };
+  let snapshot = initial;
+  return {
+    getSnapshot: () => snapshot,
+    getServerSnapshot: () => initial,
+    subscribe: (notify: () => void) => {
+      let active = true;
+      let ownedUrl: string | null = null;
+      compose(config, markerIds).then((bytes) => {
+        if (!active) return;
+        ownedUrl = URL.createObjectURL(new Blob([Uint8Array.from(bytes)], { type: 'image/png' }));
+        snapshot = { imageUrl: ownedUrl, error: false };
+        notify();
+      }).catch(() => {
+        if (!active) return;
+        snapshot = { imageUrl: null, error: true };
+        notify();
+      });
+      return () => {
+        active = false;
+        // React has removed this snapshot's image before unsubscribing.
+        if (ownedUrl) URL.revokeObjectURL(ownedUrl);
+        snapshot = initial;
+      };
+    },
+  };
+}
+
 export function VesselDiagramPreview({
   config,
   section,
   markerIds,
   compose = composeVesselDiagram,
 }: VesselDiagramPreviewProps) {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [failedRequest, setFailedRequest] = useState<{
-    config: VesselDiagramConfig;
-    section?: ReportSection;
-    markerIds?: string[];
-  } | null>(null);
-  const imageUrlRef = useRef<string | null>(null);
-  const error = failedRequest?.config === config && failedRequest.section === section && failedRequest.markerIds === markerIds;
-
-  const revokeImageUrl = useCallback(() => {
-    if (!imageUrlRef.current) return;
-    URL.revokeObjectURL(imageUrlRef.current);
-    imageUrlRef.current = null;
-    setImageUrl(null);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    revokeImageUrl();
-
-    compose(config, markerIds ?? (section ? resolveMarkerIds(section) : [])).then((bytes) => {
-      if (!active) return;
-      const nextUrl = URL.createObjectURL(new Blob([Uint8Array.from(bytes)], { type: 'image/png' }));
-      imageUrlRef.current = nextUrl;
-      setImageUrl(nextUrl);
-      setFailedRequest(null);
-    }).catch(() => {
-      if (!active) return;
-      revokeImageUrl();
-      setFailedRequest({ config, section, markerIds });
-    });
-
-    return () => {
-      active = false;
-      revokeImageUrl();
-    };
-  }, [compose, config, markerIds, revokeImageUrl, section]);
+  const markerKey = JSON.stringify(markerIds ?? (section ? resolveMarkerIds(section) : []));
+  const store = useMemo(() => createDiagramPreviewStore(config, JSON.parse(markerKey), compose), [config, markerKey, compose]);
+  const { imageUrl, error } = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
 
   return <div className="template-location-diagram" aria-label="선박 위치도 미리보기" style={{ aspectRatio: `${WORD_DIAGRAM_WIDTH} / ${WORD_DIAGRAM_HEIGHT}` }}>
     {error ? <span className="template-location-diagram-error">선박 위치도를 만들지 못했습니다.</span>

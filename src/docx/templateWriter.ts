@@ -521,6 +521,20 @@ function pageStartParagraph(): string {
   return '<w:p><w:pPr><w:pageBreakBefore/></w:pPr></w:p>';
 }
 
+function startBodyOnNewPage(body: string, sourceXml: string): string {
+  const document = new DOMParser().parseFromString(sourceXml, 'application/xml');
+  if (document.querySelector('parsererror')) throw new Error('REPORT_PACKAGE_INVALID');
+  const sourceBody = document.getElementsByTagNameNS(WORD_NAMESPACE, 'body')[0];
+  const paragraph = sourceBody?.firstElementChild;
+  if (paragraph?.localName !== 'p') throw new Error('TEMPLATE_PAGE_START_INVALID');
+  markPageStart(document);
+  const properties = directChildren(paragraph, 'pPr')[0];
+  const serialized = new XMLSerializer().serializeToString(properties);
+  // Patch only the first paragraph properties. A separate break paragraph adds
+  // a line at the top of the imported page and can overflow fixed source tables.
+  return body.replace(/^(\s*<w:p\b[^>]*>\s*)(?:<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>)?/, `$1${serialized}`);
+}
+
 function ensureSummaryTocBookmarks(xml: string): string {
   return xml.replace(/PAGEREF\s+_Toc233757655/g, 'PAGEREF _Toc233757656');
 }
@@ -637,7 +651,7 @@ async function mergeReportPackages(parts: PackagePart[]): Promise<Blob> {
         `$1${replacementId}$2`,
       );
     }
-    appendedBodies.push(pageStartParagraph() + body);
+    appendedBodies.push(startBodyOnNewPage(body, documentXml));
   }
   const mergedDocumentXml = documentPrefix
     + prependedBodies.join('')

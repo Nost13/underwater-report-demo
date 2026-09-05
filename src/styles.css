@@ -851,6 +851,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
   .stage-item { padding-left: 40px; font-size: var(--font-ui-base); }
   .actionbar { left: 178px; }
   .scope-grid { grid-template-columns: 1fr; }
+  .cover-editor-grid { grid-template-columns: minmax(0, 1fr); }
   .report-information-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .operation-record-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .report-workspace { grid-template-columns: minmax(0, 1fr); }

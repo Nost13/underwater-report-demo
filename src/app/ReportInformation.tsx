@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useMemo, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react';
 import { DIVER_QUALIFICATIONS, searchDiverQualifications, type DiverQualification } from './diverQualifications';
 import { deriveOperationValues, type ReadinessPhotoSlots, type ReportInfo } from './reportInfo';
 
@@ -45,13 +45,25 @@ const readinessFields: Array<[ReadinessField, string, string]> = [
   ['preparationNote', 'Preparation Note', '내용'],
 ];
 
+function createReadinessPhotoStore(file: File) {
+  let url: string | null = null;
+  return {
+    getSnapshot: () => url,
+    subscribe: (onChange: () => void) => {
+      // Own the URL only after commit; replacement never shows the old file.
+      const ownedUrl = URL.createObjectURL(file);
+      url = ownedUrl;
+      onChange();
+      return () => { URL.revokeObjectURL(ownedUrl); if (url === ownedUrl) url = null; };
+    },
+  };
+}
+
 function ReadinessPhotoPreview({ file, alt }: { file: File; alt: string }) {
-  const [previewUrl, setPreviewUrl] = useState('');
-  useEffect(() => {
-    const nextUrl = URL.createObjectURL(file);
-    setPreviewUrl(nextUrl);
-    return () => URL.revokeObjectURL(nextUrl);
-  }, [file]);
+  const store = useMemo(() => createReadinessPhotoStore(file), [file]);
+  const previewUrl = useSyncExternalStore(store.subscribe, store.getSnapshot, () => null);
+  // These local blob previews cannot use the server image optimizer.
+  // eslint-disable-next-line @next/next/no-img-element
   return previewUrl ? <img src={previewUrl} alt={alt} /> : null;
 }
 
