@@ -2,7 +2,7 @@
 
 ## Objective
 
-Make photo assignment, personnel selection, operational inputs, and final Word output match the operator's workflow and the supplied company-form references. The web editor remains the source of truth; Word generation consumes the same state without hidden transformations that change order or layout.
+Make cover creation, photo assignment, personnel selection, operational inputs, and final Word output match the operator's workflow and the supplied company-form references. The web editor remains the source of truth; Word generation consumes the same state without hidden transformations that change order or layout.
 
 ## Scope
 
@@ -19,6 +19,7 @@ This change covers:
 9. Per-photo supplemental captions and raised separators.
 10. Larger fixed-cell vessel diagrams and a Word-ratio preview.
 11. Job-number/vessel-name Word file naming.
+12. A dedicated cover editor backed by the supplied `cover.docx` template.
 
 ## Chosen Approach
 
@@ -47,6 +48,24 @@ Readiness information gains two fixed two-slot collections:
 
 Each slot stores either a local `File` or no file. Replacing or clearing a slot does not change the text fields.
 
+### Cover data
+
+Cover state contains:
+
+- an issue date, initially the current local date and always editable;
+- a cover photo `File` reference;
+- cover-photo crop focus and zoom values;
+- an editable scope-of-work title and description.
+
+The remaining cover values are read from the existing report state so they cannot silently diverge:
+
+- Report No. from Job No.;
+- vessel name, IMO number, call sign, and owner/client from vessel information;
+- operation date from Start, falling back to ETA and then blank;
+- location from Operational Information.
+
+The scope title and description are generated from the selected service and component scopes until the operator edits either field. After a manual edit, later scope changes do not overwrite the cover text. A visible `자동 내용 다시 적용` action regenerates both values on demand.
+
 ### Work performed labels
 
 Each section phase stores two editable values:
@@ -57,6 +76,37 @@ Each section phase stores two editable values:
 The exported value is composed as `MAIN WORK | PHASE`, with both values uppercased. The phase may be edited independently without changing the main work label.
 
 ## Web Interaction Design
+
+### Workflow order
+
+The web stages become:
+
+1. Vessel / Scope;
+2. Report Information;
+3. Cover;
+4. Vessel Diagram;
+5. Photo Folder;
+6. Report Input;
+7. Check / Preview;
+8. Summary;
+9. Word.
+
+The Cover stage has its own file picker and therefore does not depend on the later Photo Folder import.
+
+### Cover editor
+
+The Cover stage shows a fixed-ratio preview derived from the supplied one-page A4 cover. It exposes only the editable fields while preserving the template's visual system.
+
+The operator can:
+
+- select, replace, or clear one cover photo;
+- drag the photo's focus point within the fixed banner area;
+- adjust zoom without changing the banner dimensions;
+- edit Date of Issue;
+- edit the generated Scope of Work title and description;
+- reapply the generated scope text.
+
+Report No., vessel metadata, operation date, and location are displayed as linked values with a shortcut back to Report Information rather than duplicated editable inputs. Missing linked values remain visibly blank in the preview.
 
 ### Diver search
 
@@ -110,6 +160,26 @@ The editor shows an additional fixed-aspect preview representing the Word table 
 
 ## Word Output Design
 
+### Cover
+
+The supplied `cover.docx` is copied as the first document section and patched in place. The writer preserves its A4 page geometry, fonts, top logo, classification logos, rules, footer, tables, grouped shapes, and all unrelated package parts.
+
+The cover writer replaces only these slots:
+
+- REPORT NO;
+- DATE OF ISSUE;
+- hero vessel image;
+- VESSEL NAME;
+- IMO NUMBER;
+- CALL SIGN;
+- OWNER/CLIENT;
+- OPERATION DATE & LOCATION;
+- SCOPE OF WORK title and description.
+
+The hero photo uses cover-fill cropping with the saved focus and zoom. It replaces the existing floating picture relationship and retains the original anchor, position, and dimensions. A missing photo leaves the template image slot blank rather than retaining the MSC BEIJING VIII sample image.
+
+The final document order is `COVER -> 1-4 -> 5 -> 6 -> 7 -> 8`. The cover is not inserted between report sections and does not change the internal ordering of Detail pages.
+
 ### Operational information
 
 Dates render as `01 Sep 2026,` followed by a line break and `01:36` in the same table-cell paragraph. No trailing empty paragraph is inserted. Work Window and Working Time use the web-derived values exactly.
@@ -161,6 +231,9 @@ Invalid Windows filename characters are removed, while the Job No. capitalizatio
 - Enter with no diver result has no effect.
 - Reorder actions targeting another phase are rejected by the reducer.
 - Missing readiness photos leave their slots blank and do not stop export.
+- A missing cover photo leaves the cover image area blank and appears as a pre-export warning, not a fatal error.
+- Missing linked cover metadata stays blank and is listed in Check / Preview.
+- Unsupported cover-photo data follows the existing skipped-image reporting behavior.
 - Invalid image data follows the existing skipped-photo reporting path.
 - Diagram composition failures continue to direct the user back to the vessel editor.
 - Missing Job No. or vessel name falls back to the existing safe report filename rather than producing an invalid name.
@@ -181,5 +254,10 @@ Implementation follows test-first development. Required coverage includes:
 - Section 4 photo-cell insertion;
 - Section 5 heading, table, and page-structure preservation;
 - fixed vessel-diagram cell dimensions and preview composition.
+- cover defaulting, manual-scope override, and scope regeneration;
+- cover image focus/zoom composition;
+- in-place replacement of every cover text and image slot;
+- preservation of the cover page geometry, grouped header artwork, logo row, and footer;
+- final assembly order beginning with exactly one cover page.
 
-After unit and integration tests, build the portable site, deploy through the existing GitHub Pages workflow, and verify the public asset and deployment commit.
+After unit and integration tests, render the generated DOCX and inspect every page for pagination, clipping, font changes, and fixed-table fidelity. Then build the portable site, deploy through the existing GitHub Pages workflow, and verify the public asset and deployment commit.
