@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 import { resizeForReport } from '../browser/images';
 import { buildWordPhasePages } from './reportModel';
 import { RATING_FILLS } from './ratingPalette';
-import { fillSection14Template } from './section14Writer';
+import { fillSection14Template, type Section14WriterDependencies } from './section14Writer';
 import { fillSummaryTemplate } from './summaryWriter';
 import type { ReportInfo } from '../app/reportInfo';
 import type { DiverQualification } from '../app/diverQualifications';
@@ -38,6 +38,7 @@ interface WriterDependencies {
   resize?: (file: File, maxEdge?: number) => Promise<Uint8Array>;
   download?: (blob: Blob, fileName: string) => void;
   fetchSection14Template?: () => Promise<ArrayBuffer | Uint8Array>;
+  resizeReadinessPhoto?: Section14WriterDependencies['resizePhoto'];
   fetchSummaryTemplate?: () => Promise<ArrayBuffer | Uint8Array>;
   fetchSection6Template?: () => Promise<ArrayBuffer | Uint8Array>;
   fetchSection8Template?: () => Promise<ArrayBuffer | Uint8Array>;
@@ -639,6 +640,10 @@ export async function writeTemplateReport(
       templateUrl: input.section14TemplateUrl,
     }, {
       fetchTemplate: dependencies.fetchSection14Template,
+      resizePhoto: dependencies.resizeReadinessPhoto,
+      onPhotoSkipped: (fileName) => {
+        if (!skipped.includes(fileName)) skipped.push(fileName);
+      },
     });
     const finalParts: PackagePart[] = [{ blob: section14Blob, prefix: 'section14' }];
     if (input.summaryTemplateUrl) {

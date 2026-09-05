@@ -31,6 +31,46 @@ const vesselDiagram = (): VesselDiagramConfig => ({
 const composeDiagram = async (_config: VesselDiagramConfig, ids: string[]) => new TextEncoder().encode(ids.join(','));
 
 describe('bundled Detail report template', () => {
+  it('returns failed readiness filenames in the existing skipped list while preserving successful slots', async () => {
+    const [detailBytes, section14Bytes] = await Promise.all([
+      readFile(templatePath),
+      readFile('public/templates/section1_4_template.docx'),
+    ]);
+    const reportInfo = emptyReportInfo();
+    const broken = new File(['bad'], 'unsupported.heic');
+    const successful = new File(['photo'], 'readiness.jpg');
+    reportInfo.readiness.toolboxPhotos = [broken, successful];
+    reportInfo.readiness.preparationPhotos = [broken, null];
+    const section = createNicheSections({ component: 'Rope Guard', type: 'SINGLE', quantity: 1, service: 'INSPECTION' })[0];
+    const photo: PhotoData = {
+      id: 'SKIPPED-DETAIL', sectionId: section.id, phase: 'CURRENT', reportUse: true, order: 1,
+      relativePath: 'detail-bad.jpg', file: new File(['bad'], 'detail-bad.jpg'), captionText: '',
+    };
+    const rendered = new Uint8Array([255, 216, 7, 255, 217]);
+    const attempted: string[] = [];
+    const result = await writeTemplateReport({
+      vesselName: 'M.V. SKIPPED TEST', sections: [section], photos: [photo],
+      templateUrl: 'templates/Detail_report_template.docx', vesselDiagram: vesselDiagram(),
+      reportInfo, section14TemplateUrl: 'templates/section1_4_template.docx',
+    }, {
+      fetchTemplate: async () => detailBytes,
+      fetchSection14Template: async () => section14Bytes,
+      resize: async () => { throw new Error('Bad detail photo'); },
+      resizeReadinessPhoto: async (file) => {
+        attempted.push(file.name);
+        if (file === broken) throw new Error('Unsupported image');
+        return rendered;
+      },
+      composeDiagram,
+    });
+    expect(result.skipped).toEqual(['detail-bad.jpg', 'unsupported.heic']);
+    expect(attempted).toEqual(['unsupported.heic', 'readiness.jpg', 'unsupported.heic']);
+    const output = await JSZip.loadAsync(result.blob);
+    expect(await output.file('word/media/image2.jpeg')!.async('uint8array')).toEqual(rendered);
+    expect(await output.file('word/media/image1.jpeg')!.async('uint8array')).toEqual(await output.file('word/media/image4.jpeg')!.async('uint8array'));
+    expect(await output.file('word/media/image3.jpeg')!.async('uint8array')).toEqual(await output.file('word/media/image4.jpeg')!.async('uint8array'));
+  });
+
   it('places the populated Section 1–4 pages before detailed service records', async () => {
     const [detailBytes, section14Bytes, summaryBytes, section6Bytes, section8Bytes] = await Promise.all([
       readFile(templatePath),

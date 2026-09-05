@@ -15,6 +15,7 @@ export interface Section14ExportInput {
 export interface Section14WriterDependencies {
   fetchTemplate?: () => Promise<ArrayBuffer | Uint8Array>;
   resizePhoto?: (file: File, width: number, height: number) => Promise<Uint8Array>;
+  onPhotoSkipped?: (fileName: string) => void;
 }
 
 function directChildren(element: Element, localName: string): Element[] {
@@ -102,6 +103,7 @@ async function fillReadinessPhotos(
   document: Document,
   info: ReportInfo,
   resizePhoto: NonNullable<Section14WriterDependencies['resizePhoto']>,
+  onPhotoSkipped?: Section14WriterDependencies['onPhotoSkipped'],
 ): Promise<void> {
   const entry = zip.file('word/_rels/document.xml.rels');
   if (!entry) throw new Error('SECTION14_RELATIONSHIPS_MISSING');
@@ -128,9 +130,14 @@ async function fillReadinessPhotos(
       const height = Number(extent?.getAttribute('cy'));
       if (!(width > 0 && height > 0)) throw new Error('SECTION14_PHOTO_EXTENT_INVALID');
       const photo = slots[index];
-      const bytes = photo
-        ? await resizePhoto(photo, 1200, Math.round(1200 * height / width))
-        : Uint8Array.from(atob(WHITE_JPEG), (character) => character.charCodeAt(0));
+      let bytes: Uint8Array = Uint8Array.from(atob(WHITE_JPEG), (character) => character.charCodeAt(0));
+      if (photo) {
+        try {
+          bytes = await resizePhoto(photo, 1200, Math.round(1200 * height / width));
+        } catch {
+          onPhotoSkipped?.(photo.name);
+        }
+      }
       // Keep the original relationship, drawing and content type; replace its JPEG payload.
       zip.file(`word/${target}`, bytes, { createFolders: false });
     }
@@ -173,7 +180,7 @@ export async function fillSection14Template(
   fillOperationInfo(document, input.reportInfo);
   fillServiceItems(document, input.reportInfo);
   fillReadiness(document, input.reportInfo);
-  await fillReadinessPhotos(zip, document, input.reportInfo, dependencies.resizePhoto ?? resizeForReportSlot);
+  await fillReadinessPhotos(zip, document, input.reportInfo, dependencies.resizePhoto ?? resizeForReportSlot, dependencies.onPhotoSkipped);
   zip.file('word/document.xml', new XMLSerializer().serializeToString(document), { createFolders: false });
   const headers = Object.keys(zip.files).filter((path) => /^word\/header\d+\.xml$/.test(path));
   for (const path of headers) {

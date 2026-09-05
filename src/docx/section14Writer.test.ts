@@ -151,4 +151,43 @@ describe('Section 1–4 template writer', () => {
     expect(cellAt(doc, 0, 5, 1).textContent).toBe('Us-CLS-2608007');
     expect(await output.file('word/header2.xml')!.async('text')).toContain('Us-CLS-2608007');
   });
+
+  it('blanks failed readiness photos, reports each failure, and continues successful slots without package drift', async () => {
+    const { original, bytes, info } = await fixture();
+    const emptyOutput = await JSZip.loadAsync(await fillSection14Template({ reportInfo: info, templateUrl: '' }, { fetchTemplate: async () => bytes }));
+    const broken = new File(['bad'], 'unsupported.heic');
+    const successful = new File(['photo'], 'preparation.jpg');
+    const secondBroken = new File(['bad'], 'corrupt.jpg');
+    info.readiness.toolboxPhotos = [broken, successful];
+    info.readiness.preparationPhotos = [broken, secondBroken];
+    const rendered = new Uint8Array([255, 216, 9, 255, 217]);
+    const attempted: string[] = [];
+    const skipped: string[] = [];
+    const output = await JSZip.loadAsync(await fillSection14Template({ reportInfo: info, templateUrl: '' }, {
+      fetchTemplate: async () => bytes,
+      resizePhoto: async (file) => {
+        attempted.push(file.name);
+        if (file !== successful) throw new Error('Unsupported or corrupt image');
+        return rendered;
+      },
+      onPhotoSkipped: (fileName) => skipped.push(fileName),
+    }));
+    expect(attempted).toEqual(['unsupported.heic', 'preparation.jpg', 'unsupported.heic', 'corrupt.jpg']);
+    expect(skipped).toEqual(['unsupported.heic', 'unsupported.heic', 'corrupt.jpg']);
+    expect(await output.file('word/media/image2.jpeg')!.async('uint8array')).toEqual(rendered);
+    for (const index of [1, 3, 4]) {
+      const image = await output.file(`word/media/image${index}.jpeg`)!.async('uint8array');
+      expect(createHash('sha256').update(image).digest('hex')).toBe('9d514f28b3f4f0906a17af13bc000893bd0ca9fadf50fc7c6a60b5374b74be3f');
+    }
+    expect(Object.keys(output.files).sort()).toEqual(Object.keys(original.files).sort());
+    // Failure recovery must change only the successful slot relative to the verified all-white output.
+    for (const path of Object.keys(emptyOutput.files).filter((path) => !emptyOutput.files[path].dir && path !== 'word/media/image2.jpeg')) {
+      expect(await output.file(path)!.async('uint8array'), path).toEqual(await emptyOutput.file(path)!.async('uint8array'));
+    }
+    const before = parse(await original.file('word/document.xml')!.async('text'));
+    const after = parse(await output.file('word/document.xml')!.async('text'));
+    for (const name of ['tblPr', 'tblGrid', 'trPr', 'tcPr', 'drawing', 'sectPr']) {
+      expect(elements(after, name).map(serialize), name).toEqual(elements(before, name).map(serialize));
+    }
+  });
 });
