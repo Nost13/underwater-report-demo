@@ -61,6 +61,19 @@ async function fixtureTemplate(): Promise<ArrayBuffer> {
 }
 
 describe('template Word writer', () => {
+  it('preserves operator work text literally and omits a separator for a blank phase', async () => {
+    const section = createNicheSections({ component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'CLEANING' })[0];
+    const result = await writeTemplateReport({
+      vesselName: 'TEST', sections: [section], photos: [reportPhoto(section.id)], templateUrl: '/template.docx', vesselDiagram: vesselDiagram(),
+      workPerformLabels: { [`${section.id}::BEFORE`]: { main: 'Work perform review', phase: '  ' } },
+    }, { fetchTemplate: fixtureTemplate, resize: async () => new Uint8Array([1]), composeDiagram: async () => new Uint8Array([1]) });
+    const xml = await (await JSZip.loadAsync(result.blob)).file('word/document.xml')!.async('text');
+    const document = new DOMParser().parseFromString(xml, 'application/xml');
+    const work = Array.from(document.getElementsByTagNameNS('*', 'p')).find((p) => p.textContent === 'WORK PERFORM REVIEW');
+    expect(work).toBeDefined();
+    expect(work!.getElementsByTagNameNS('*', 'position')).toHaveLength(0);
+  });
+
   it('replaces the vessel profile with a composed diagram and removes legacy zone anchors', async () => {
     const section = createNicheSections({ component: 'Transducer', type: 'SINGLE', quantity: 1, service: 'CLEANING' })[0];
     const config = vesselDiagram();
@@ -183,8 +196,8 @@ describe('template Word writer', () => {
       captionText: '',
     }));
     const result = await writeTemplateReport({ vesselName: 'M.V. TEST', sections: [section], photos, templateUrl: '/template.docx', vesselDiagram: vesselDiagram(), workPerformLabels: {
-      [`${section.id}::BEFORE`]: 'Arrival',
-      [`${section.id}::AFTER`]: 'After',
+      [`${section.id}::BEFORE`]: { main: 'Custom cleaning', phase: 'Arrival' },
+      [`${section.id}::AFTER`]: { main: 'Boss cap cleaning', phase: 'After' },
     } }, {
       fetchTemplate: fixtureTemplate, resize: async () => new Uint8Array([1, 2, 3]), download: () => undefined,
       composeDiagram: async () => new Uint8Array([137, 80, 78, 71]),
@@ -193,8 +206,9 @@ describe('template Word writer', () => {
     expect(result.pageCount).toBe(2);
     expect(xml).not.toContain('BOSS CAP (Before)');
     expect(xml).not.toContain('BOSS CAP (After)');
-    expect(xml).toContain('Cleaning Arrival');
-    expect(xml).toContain('Cleaning After');
+    const text = new DOMParser().parseFromString(xml!, 'application/xml').documentElement.textContent;
+    expect(text).toContain('CUSTOM CLEANING | ARRIVAL');
+    expect(text).toContain('BOSS CAP CLEANING | AFTER');
     expect(xml).not.toContain('w:type="page"');
     expect(xml?.match(/pageBreakBefore/g)).toHaveLength(1);
   });
@@ -236,7 +250,7 @@ describe('template Word writer', () => {
     const xml = await zip.file('word/document.xml')?.async('text') ?? '';
     expect(result.pageCount).toBe(2);
     expect(xml).not.toContain('BOSS CAP (Before)');
-    expect(xml).toContain('Cleaning Before');
+    expect(new DOMParser().parseFromString(xml, 'application/xml').documentElement.textContent).toContain('BOSS CAP CLEANING | BEFORE');
     expect(xml.match(/7\. DETAILED SERVICE RECORD/g)).toHaveLength(2);
     expect(xml).not.toMatch(/\{\{(?:P\d+|BC|TITLE|WORK|FT|FC|OL|OT|SIDE_LABEL)\}\}|@(?:FR|OR)/);
     expect(zip.file('word/media/image5.jpg')).not.toBeNull();

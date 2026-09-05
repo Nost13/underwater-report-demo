@@ -259,17 +259,21 @@ describe('report state', () => {
   it('initializes and edits a separate WORK PERFORM label per Section phase', () => {
     const seeded = reportReducer(initialReportState, { type: 'SET_SCOPE', sections: [section] });
 
-    expect(seeded.workPerformLabels[`${section.id}::BEFORE`]).toBe('Before');
-    expect(seeded.workPerformLabels[`${section.id}::AFTER`]).toBe('After');
+    expect(seeded.workPerformLabels[`${section.id}::BEFORE`]).toEqual({ main: 'BOSS CAP CLEANING', phase: 'BEFORE' });
+    expect(seeded.workPerformLabels[`${section.id}::AFTER`]).toEqual({ main: 'BOSS CAP CLEANING', phase: 'AFTER' });
 
     const next = reportReducer(seeded, {
       type: 'UPDATE_WORK_PERFORM_LABEL',
       sectionId: section.id,
       phase: 'BEFORE',
+      field: 'phase',
       value: 'Arrival',
     });
 
-    expect(next.workPerformLabels[`${section.id}::BEFORE`]).toBe('Arrival');
-    expect(next.workPerformLabels[`${section.id}::AFTER`]).toBe('After');
+    expect(next.workPerformLabels[`${section.id}::BEFORE`]).toEqual({ main: 'BOSS CAP CLEANING', phase: 'Arrival' });
+    expect(next.workPerformLabels[`${section.id}::AFTER`]).toEqual({ main: 'BOSS CAP CLEANING', phase: 'AFTER' });
+    const edited = reportReducer(next, { type: 'UPDATE_WORK_PERFORM_LABEL', sectionId: section.id, phase: 'BEFORE', field: 'main', value: 'Custom work' });
+    expect(edited.workPerformLabels[`${section.id}::BEFORE`]).toEqual({ main: 'Custom work', phase: 'Arrival' });
+    expect(reportReducer(edited, { type: 'UPDATE_WORK_PERFORM_LABEL', sectionId: 'missing', phase: 'BEFORE', field: 'main', value: 'bad' })).toBe(edited);
   });
 });

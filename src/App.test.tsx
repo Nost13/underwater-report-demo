@@ -1298,7 +1298,7 @@ describe('desktop report workflow', () => {
     expect(pages).toHaveLength(2);
     const firstPage = pages[0];
     expect(within(firstPage).getByText('7. DETAILED SERVICE RECORD')).toBeVisible();
-    expect(within(firstPage).getByText('WORK PERFORM')).toBeVisible();
+    expect(within(firstPage).getByText('WORK PERFORMED')).toBeVisible();
     const foulingTable = within(firstPage).getByText('FOULING CONDITION').closest('table');
     expect(foulingTable).not.toBeNull();
     expect(within(foulingTable as HTMLTableElement).queryAllByText('—')).toHaveLength(0);
@@ -1314,10 +1314,17 @@ describe('desktop report workflow', () => {
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
-    const additional = screen.getByLabelText('BEFORE WORK PERFORM 추가 문구');
-    expect(additional).toHaveValue('Before');
+    const main = screen.getByLabelText('BEFORE 작업명');
+    expect(main).toHaveValue('HULL CLEANING');
+    const additional = screen.getByLabelText('BEFORE 단계 문구');
+    expect(additional).toHaveValue('BEFORE');
     await user.clear(additional);
     await user.type(additional, 'Arrival');
+    expect(main).toHaveValue('HULL CLEANING');
+    await user.clear(main);
+    await user.type(main, 'Custom cleaning');
+    expect(additional).toHaveValue('Arrival');
+    expect(screen.getByLabelText('AFTER 작업명')).toHaveValue('HULL CLEANING');
 
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
     await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
@@ -1325,8 +1332,8 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
 
     const firstPage = screen.getAllByRole('article', { name: /Word template preview page/ })[0];
-    expect(within(firstPage).getByText('Cleaning')).toBeVisible();
-    expect(within(firstPage).getByText('Arrival')).toBeVisible();
+    expect(within(firstPage).getByText('CUSTOM CLEANING')).toBeVisible();
+    expect(within(firstPage).getByText('ARRIVAL')).toBeVisible();
     expect(within(firstPage).queryByText(/\(Before\)/)).not.toBeInTheDocument();
   });
 

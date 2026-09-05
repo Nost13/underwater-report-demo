@@ -38,7 +38,11 @@ export interface ReportLabels {
 }
 
 export type ReportLabelMap = Record<string, ReportLabels>;
-export type WorkPerformLabelMap = Record<string, string>;
+export interface WorkPerformLabel {
+  main: string;
+  phase: string;
+}
+export type WorkPerformLabelMap = Record<string, WorkPerformLabel>;
 
 export interface ScopeTarget {
   id: string;

@@ -1,7 +1,7 @@
 import { deriveFoulingCondition, deriveObservedRating } from '../domain/conditions';
 import { defaultReportLabels, reportLabelKey } from '../app/reportLabels';
-import type { Phase, PhotoData, ReportLabelMap, ReportLabels, ReportSection, ServiceKind, WorkPerformLabelMap } from '../domain/types';
-import { defaultWorkPerformLabel, workPerformLabelKey } from '../app/workPerformLabels';
+import type { Phase, PhotoData, ReportLabelMap, ReportLabels, ReportSection, WorkPerformLabel, WorkPerformLabelMap } from '../domain/types';
+import { defaultWorkPerformed, workPerformLabelKey } from '../app/workPerformLabels';
 import { MAIN_HULL_ORDER, SIDE_ORDER, SUMMARY_NICHE_ORDER } from '../summary/summaryModel';
 
 export interface TemplateValues {
@@ -34,14 +34,6 @@ const nicheOrder = [
   ...SUMMARY_NICHE_ORDER.slice(10),
 ];
 
-const titleCase = (value: string) => value
-  .toLowerCase()
-  .split(' ')
-  .map((word) => word ? word[0].toUpperCase() + word.slice(1) : word)
-  .join(' ');
-
-const serviceLabel = (service: ServiceKind) => titleCase(service);
-
 const rank = (values: string[], value?: string) => {
   const index = value ? values.indexOf(value) : -1;
   return index < 0 ? values.length : index;
@@ -68,7 +60,7 @@ export function templateValues(
   section: ReportSection,
   phase: Phase,
   labels: ReportLabels = defaultReportLabels(section),
-  workAdditional = defaultWorkPerformLabel(phase),
+  workLabel: WorkPerformLabel = { main: defaultWorkPerformed(section), phase },
 ): TemplateValues {
   const condition = section.conditions[phase];
   const fouling = deriveFoulingCondition(
@@ -86,8 +78,8 @@ export function templateValues(
         : section.side === 'BOTTOM' ? 'BOTTOM' : '',
     title: label,
     photoCaption: labels.photoCaption,
-    work: serviceLabel(section.service),
-    workAdditional,
+    work: workLabel.main.trim().toUpperCase(),
+    workAdditional: workLabel.phase.trim().toUpperCase(),
     fr: fouling.rating,
     ft: fouling.type,
     fc: condition?.fouling.coverage === null || condition?.fouling.coverage === undefined
@@ -124,9 +116,7 @@ export function buildWordPhasePages(
             section,
             phase,
             reportLabels[reportLabelKey(section)] ?? defaultReportLabels(section),
-            Object.hasOwn(workPerformLabels, workPerformLabelKey(section.id, phase))
-              ? workPerformLabels[workPerformLabelKey(section.id, phase)]
-              : defaultWorkPerformLabel(phase),
+            workPerformLabels[workPerformLabelKey(section.id, phase)],
           ),
         });
         start += capacity;

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import JSZip from 'jszip';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createNicheSections } from '../domain/structure';
 import type { PhotoData } from '../domain/types';
 import { emptyReportInfo } from '../app/reportInfo';
@@ -31,6 +31,85 @@ const vesselDiagram = (): VesselDiagramConfig => ({
 const composeDiagram = async (_config: VesselDiagramConfig, ids: string[]) => new TextEncoder().encode(ids.join(','));
 
 describe('bundled Detail report template', () => {
+  it('preserves source fonts, package parts and fixed geometry while composing raised work and caption runs', async () => {
+    const templateBytes = await readFile(templatePath);
+    const baseline = await JSZip.loadAsync(templateBytes);
+    const parse = (xml: string) => new DOMParser().parseFromString(xml, 'application/xml');
+    const source = parse(await baseline.file('word/document.xml')!.async('text'));
+    const elements = (root: Document | Element, name: string) => Array.from(root.getElementsByTagNameNS('*', name));
+    const serialize = (node: Node) => new XMLSerializer().serializeToString(node);
+    const paragraph = (root: Document, text: string) => elements(root, 'p').find((p) => p.textContent?.includes(text))!;
+    const workSource = paragraph(source, '{{WORK}}');
+    const labelRPr = elements(elements(workSource, 'r')[0], 'rPr')[0];
+    const valueRPr = elements(elements(workSource, 'r')[2], 'rPr')[0];
+    const section = createNicheSections({ component: 'Rope Guard', type: 'SINGLE', quantity: 1, service: 'REMOVAL' })[0];
+    const photos: PhotoData[] = Array.from({ length: 5 }, (_, index) => ({
+      id: `fidelity-${index}`, sectionId: section.id, phase: 'BEFORE', reportUse: true, order: index,
+      file: new File(['photo'], `${index}.jpg`), relativePath: `${index}.jpg`,
+      captionText: index === 1 ? '  Port inlet  ' : index === 4 ? 'Continuation' : '   ',
+    }));
+    const resize = vi.fn(async () => new Uint8Array([255, 216, 7, 255, 217]));
+    const result = await writeTemplateReport({
+      vesselName: 'FIDELITY', sections: [section], photos: [...photos].reverse(),
+      templateUrl: templatePath, vesselDiagram: vesselDiagram(),
+      reportLabels: { 'NICHE/ROPE GUARD': { upperAreaLabel: 'ROPE GUARD', detailTitle: 'ROPE GUARD', photoCaption: 'Sea Chest' } },
+    }, { fetchTemplate: async () => templateBytes, resize, composeDiagram });
+    const output = await JSZip.loadAsync(result.blob);
+    const document = parse(await output.file('word/document.xml')!.async('text'));
+    expect(result.pageCount).toBe(2);
+    expect(result.skipped).toEqual([]);
+    const work = paragraph(document, 'WORK PERFORMED');
+    expect(work.textContent?.replace(/\s+/g, ' ').trim()).toBe('WORK PERFORMED ROPE REMOVAL | BEFORE');
+    expect(serialize(elements(elements(work, 'r')[0], 'rPr')[0])).toBe(serialize(labelRPr));
+    const main = elements(work, 'r').find((run) => run.textContent === 'ROPE REMOVAL')!;
+    expect(serialize(elements(main, 'rPr')[0])).toBe(serialize(valueRPr));
+    const captions = elements(document, 'p').filter((p) => p.textContent?.startsWith('Sea Chest'));
+    expect(captions.map((p) => p.textContent)).toEqual([
+      'Sea Chest | Before', 'Sea Chest | Before | Port inlet', 'Sea Chest | Before', 'Sea Chest | Before', 'Sea Chest | Before | Continuation',
+    ]);
+    for (const p of [work, ...captions]) {
+      const separators = elements(p, 'r').filter((r) => r.textContent === ' | ');
+      expect(separators.length).toBeGreaterThan(0);
+      for (const separator of separators) expect(elements(separator, 'position')[0]?.getAttribute('w:val')).toBe('2');
+    }
+    for (const [index, caption] of captions.entries()) {
+      const captionSource = paragraph(source, `{{P${index + 1}}}`);
+      const captionRPr = elements(elements(captionSource, 'r')[0], 'rPr')[0];
+      for (const run of elements(caption, 'r')) {
+        const properties = elements(run, 'rPr')[0].cloneNode(true) as Element;
+        elements(properties, 'position').forEach((position) => position.remove());
+        expect(serialize(properties)).toBe(serialize(captionRPr));
+      }
+    }
+    // Five photos exercise both source page patterns; all fixed table geometry survives.
+    for (const name of ['tblPr', 'tblGrid', 'trPr', 'tcW', 'sectPr']) {
+      expect(elements(document, name).map(serialize)).toEqual(elements(source, name).map(serialize));
+    }
+    const photosDrawn = elements(document, 'inline').filter((inline) => elements(inline, 'docPr')[0]?.getAttribute('name')?.startsWith('Report photo'));
+    expect(photosDrawn).toHaveLength(5);
+    for (const drawing of photosDrawn) {
+      for (const extent of [...elements(drawing, 'extent'), ...elements(drawing, 'ext')]) {
+        expect([extent.getAttribute('cx'), extent.getAttribute('cy')]).toEqual(['3236400', '2340000']);
+      }
+    }
+    expect(resize.mock.calls.map((call) => (call as unknown as [File])[0])).toEqual(photos.map((p) => p.file));
+    expect(resize).toHaveBeenCalledWith(photos[0].file, 1798, 1300);
+    for (const entry of Object.values(baseline.files).filter((file) => !file.dir)) {
+      if (['word/document.xml', 'word/_rels/document.xml.rels', '[Content_Types].xml'].includes(entry.name)) continue;
+      expect(await output.file(entry.name)!.async('uint8array'), entry.name).toEqual(await entry.async('uint8array'));
+    }
+    const originalRelationships = parse(await baseline.file('word/_rels/document.xml.rels')!.async('text'));
+    const outputRelationships = parse(await output.file('word/_rels/document.xml.rels')!.async('text'));
+    for (const original of elements(originalRelationships, 'Relationship')) {
+      const preserved = elements(outputRelationships, 'Relationship').find((relation) => relation.getAttribute('Id') === original.getAttribute('Id'));
+      expect(serialize(preserved!)).toBe(serialize(original));
+    }
+    expect(Object.values(output.files).filter((file) => !file.dir && !baseline.file(file.name)).map((file) => file.name).sort()).toEqual([
+      'word/media/image1.jpg', 'word/media/image2.jpg', 'word/media/image3.jpg', 'word/media/image4.jpg', 'word/media/image5.jpg', 'word/media/vessel-diagram-1.png',
+    ]);
+    expect(await readFile(templatePath)).toEqual(templateBytes);
+  });
+
   it('returns failed readiness filenames in the existing skipped list while preserving successful slots', async () => {
     const [detailBytes, section14Bytes] = await Promise.all([
       readFile(templatePath),
@@ -307,7 +386,7 @@ describe('bundled Detail report template', () => {
     expect(documentText).toContain('NICHE AREAS & COMPONENTS / PROPELLER');
     expect(documentText).toContain('PROPELLER BLADE 1');
     expect(documentText).not.toContain('PROPELLER BLADE 1 (Before)');
-    expect(documentText).toContain('Polishing Before');
+    expect(documentText).toContain('PROPELLER BLADE POLISHING | BEFORE');
     expect(documentText).not.toContain('Propeller Polishing');
     expect(documentText).toContain('70%');
     expect(documentXml).not.toMatch(/\{\{(?:P\d+|BC|TITLE|WORK|FT|FC|OL|OT|SIDE_LABEL)\}\}|@(?:FR|OR)/);

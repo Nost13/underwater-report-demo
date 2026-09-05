@@ -45,8 +45,8 @@ describe('Word report phase model', () => {
       sideLabel: '',
       title: 'PROPELLER BLADE 1',
       photoCaption: 'Propeller Blade',
-      work: 'Polishing',
-      workAdditional: 'Before',
+      work: 'PROPELLER BLADE POLISHING',
+      workAdditional: 'BEFORE',
       fr: '1',
       ft: 'Micro fouling',
       fc: '70%',
@@ -65,8 +65,8 @@ describe('Word report phase model', () => {
       bc: 'NICHE AREAS & COMPONENTS / ROPE GUARD',
       title: 'ROPE GUARD',
       photoCaption: 'Rope Guard',
-      work: 'Inspection',
-      workAdditional: '',
+      work: 'ROPE GUARD INSPECTION',
+      workAdditional: 'CURRENT',
     });
   });
 
@@ -79,7 +79,7 @@ describe('Word report phase model', () => {
       bc: 'NICHE AREAS & COMPONENTS / PROPULSION',
       title: 'BLADE 1',
       photoCaption: 'Propeller Blade Detail',
-      workAdditional: 'After',
+      workAdditional: 'AFTER',
     });
   });
 
@@ -154,11 +154,11 @@ describe('Word report phase model', () => {
     const photos = Array.from({ length: 5 }, (_, index) => photo('P' + (index + 1), 'BEFORE', index + 1));
 
     expect(buildWordPhasePages([section], photos, {}, {
-      [`${section.id}::BEFORE`]: 'Arrival',
-    }).map((page) => page.values.workAdditional)).toEqual(['Arrival', 'Arrival']);
+      [`${section.id}::BEFORE`]: { main: 'Custom polishing', phase: 'Arrival' },
+    }).map((page) => [page.values.work, page.values.workAdditional])).toEqual([['CUSTOM POLISHING', 'ARRIVAL'], ['CUSTOM POLISHING', 'ARRIVAL']]);
 
     expect(buildWordPhasePages([section], photos.slice(0, 1), {}, {
-      [`${section.id}::BEFORE`]: '',
+      [`${section.id}::BEFORE`]: { main: 'Custom polishing', phase: '' },
     })[0].values.workAdditional).toBe('');
   });
 });

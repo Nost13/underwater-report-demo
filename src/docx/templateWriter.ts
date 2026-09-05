@@ -1,5 +1,7 @@
 import JSZip from 'jszip';
-import { resizeForReport } from '../browser/images';
+import { resizeForReportSlot } from '../browser/images';
+import { composePhotoCaption } from '../domain/photos';
+import { setSeparatedRuns } from './ooxmlText';
 import { buildWordPhasePages } from './reportModel';
 import { RATING_FILLS } from './ratingPalette';
 import { fillSection14Template, type Section14WriterDependencies } from './section14Writer';
@@ -35,7 +37,7 @@ export interface WordExportResult {
 
 interface WriterDependencies {
   fetchTemplate?: () => Promise<ArrayBuffer | Uint8Array>;
-  resize?: (file: File, maxEdge?: number) => Promise<Uint8Array>;
+  resize?: typeof resizeForReportSlot;
   download?: (blob: Blob, fileName: string) => void;
   fetchSection14Template?: () => Promise<ArrayBuffer | Uint8Array>;
   resizeReadinessPhoto?: Section14WriterDependencies['resizePhoto'];
@@ -247,12 +249,42 @@ function replaceText(document: Document, values: Record<string, string>): void {
   }
 }
 
+function replaceWorkPerformed(document: Document, main: string, phase: string): void {
+  for (const paragraph of Array.from(document.getElementsByTagNameNS('*', 'p'))) {
+    if (!paragraphText(paragraph).includes('{{WORK}}')) continue;
+    // The source has a differently styled label followed by a split Arial value token.
+    // Compose only the token runs so the label, spacing and paragraph remain intact.
+    const runs = directChildren(paragraph, 'r');
+    const combined = runs.map(paragraphText).join('');
+    const start = combined.indexOf('{{WORK}}');
+    const end = start + '{{WORK}}'.length;
+    let offset = 0;
+    const valueRuns = runs.filter((run) => {
+      const runStart = offset;
+      offset += paragraphText(run).length;
+      return runStart < end && offset > start;
+    });
+    const first = valueRuns[0];
+    if (!first) continue;
+    const values = document.createElementNS(WORD_NAMESPACE, 'w:p');
+    values.appendChild(first.cloneNode(true));
+    setSeparatedRuns(values, [main, phase]);
+    for (const run of Array.from(values.children)) paragraph.insertBefore(run, first);
+    valueRuns.forEach((run) => run.remove());
+    const labelTexts = runs.filter((run) => !valueRuns.includes(run))
+      .flatMap((run) => Array.from(run.getElementsByTagNameNS('*', 't')));
+    for (const text of labelTexts) {
+      text.textContent = (text.textContent ?? '').replace(/\bWORK PERFORM\b/, 'WORK PERFORMED');
+    }
+  }
+}
+
 function insertPhotoAboveCaption(
   document: Document,
   token: string,
   relationshipId: string,
   imageIndex: number,
-  caption: string,
+  caption: string[],
 ): void {
   const captionParagraph = Array.from(document.getElementsByTagNameNS('*', 'p'))
     .find((paragraph) => paragraphText(paragraph).includes(token));
@@ -276,7 +308,7 @@ function insertPhotoAboveCaption(
   const drawingRun = drawingDocument.documentElement.firstElementChild;
   if (!drawingRun || drawingDocument.querySelector('parsererror')) throw new Error('PHOTO_XML_INVALID');
   imageParagraph.appendChild(document.importNode(drawingRun, true));
-  replaceTokenInParagraph(captionParagraph, token, caption);
+  setSeparatedRuns(captionParagraph, caption);
 }
 
 function addRelationship(xml: string, id: string, target: string): string {
@@ -546,7 +578,7 @@ export async function writeTemplateReport(
     if (!response.ok) throw new Error('TEMPLATE_LOAD_FAILED');
     return response.arrayBuffer();
   });
-  const resize = dependencies.resize ?? resizeForReport;
+  const resize = dependencies.resize ?? resizeForReportSlot;
   const composeDiagram = dependencies.composeDiagram ?? composeVesselDiagram;
   if (!input.vesselDiagram?.confirmed) throw new Error('VESSEL_DIAGRAM_UNCONFIRMED');
   const template = await fetchTemplate();
@@ -573,10 +605,10 @@ export async function writeTemplateReport(
     if (renderedBodies.length > 0) markPageStart(pageDocument);
     setRatingCellFill(pageDocument, '@FR', page.values.fr);
     setRatingCellFill(pageDocument, '@OR', page.values.or);
+    replaceWorkPerformed(pageDocument, page.values.work, page.values.workAdditional);
     replaceText(pageDocument, {
       '{{BC}}': page.values.bc, '{{SIDE_LABEL}}': page.values.sideLabel,
       '{{TITLE}}': page.values.title,
-      '{{WORK}}': [page.values.work, page.values.workAdditional].filter(Boolean).join(' '),
       '@FR': page.values.fr, '{{FT}}': page.values.ft, '{{FC}}': page.values.fc,
       '@OR': page.values.or, '{{OL}}': page.values.ol, '{{OT}}': page.values.ot,
     });
@@ -600,19 +632,20 @@ export async function writeTemplateReport(
       replaceVesselProfile(pageDocument, diagramRelationshipId);
       removeLegacyZoneShapes(pageDocument);
     }
-    const caption = page.values.photoCaption;
     for (let index = 0; index < page.photos.length; index += 1) {
       const photo = page.photos[index];
       const slot = page.kind === 'first' ? index + 1 : index + 5;
       const token = '{{P' + slot + '}}';
       imageIndex += 1;
       try {
-        const bytes = await resize(photo.file, 1800);
+        // Exact 3236400:2340000 slot ratio at approximately 1800 px wide.
+        const bytes = await resize(photo.file, PHOTO_WIDTH_EMU / 1800, PHOTO_HEIGHT_EMU / 1800);
         const name = 'image' + imageIndex + '.jpg';
         const relationId = 'rIdReportImage' + imageIndex;
         zip.file('word/media/' + name, bytes);
         relationshipsXml = addRelationship(relationshipsXml, relationId, name);
-        insertPhotoAboveCaption(pageDocument, token, relationId, imageIndex, caption);
+        insertPhotoAboveCaption(pageDocument, token, relationId, imageIndex,
+          composePhotoCaption(page.values.photoCaption, page.phase, photo.captionText));
       } catch {
         skipped.push(photo.file.name);
         replaceText(pageDocument, { [token]: 'N/A' });

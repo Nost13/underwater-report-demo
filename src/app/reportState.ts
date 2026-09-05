@@ -35,7 +35,7 @@ export type ReportAction =
   | { type: 'APPLY_GROUP_CONDITION'; sectionId: string; phase: Phase; condition: Condition }
   | { type: 'REVERT_CONDITION_TO_GROUP'; sectionId: string; phase: Phase }
   | { type: 'UPDATE_REPORT_LABELS'; groupKey: string; labels: Partial<ReportLabels> }
-  | { type: 'UPDATE_WORK_PERFORM_LABEL'; sectionId: string; phase: Phase; value: string }
+  | { type: 'UPDATE_WORK_PERFORM_LABEL'; sectionId: string; phase: Phase; field: 'main' | 'phase'; value: string }
   | { type: 'FOCUS_SECTION'; sectionId: string };
 
 export const initialReportState: ReportState = {
@@ -217,14 +217,18 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
         },
       };
     }
-    case 'UPDATE_WORK_PERFORM_LABEL':
+    case 'UPDATE_WORK_PERFORM_LABEL': {
+      const key = workPerformLabelKey(action.sectionId, action.phase);
+      const current = state.workPerformLabels[key];
+      if (!current) return state;
       return {
         ...state,
         workPerformLabels: {
           ...state.workPerformLabels,
-          [workPerformLabelKey(action.sectionId, action.phase)]: action.value,
+          [key]: { ...current, [action.field]: action.value },
         },
       };
+    }
     case 'FOCUS_SECTION':
       return { ...state, focusedSectionId: action.sectionId };
   }
