@@ -1337,6 +1337,30 @@ describe('desktop report workflow', () => {
     expect(within(firstPage).queryByText(/\(Before\)/)).not.toBeInTheDocument();
   });
 
+  it.each([
+    { base: '', main: 'HULL CLEANING', phase: '', supplemental: '', caption: 'Before', work: 'WORK PERFORMEDHULL CLEANING' },
+    { base: '  ', main: '  ', phase: 'Arrival', supplemental: '  ', caption: 'Before', work: 'WORK PERFORMEDARRIVAL' },
+    { base: '  ', main: '  ', phase: '  ', supplemental: ' Port inlet ', caption: 'Before | Port inlet', work: 'WORK PERFORMED' },
+  ])('omits blank preview parts without dangling separators ($work, $caption)', async ({ base, main, phase, supplemental, caption, work }) => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    await buildCleaningGeneral(user);
+    await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    fireEvent.change(screen.getByLabelText('BEFORE 작업명'), { target: { value: main } });
+    fireEvent.change(screen.getByLabelText('BEFORE 단계 문구'), { target: { value: phase } });
+    await user.click(screen.getByRole('button', { name: '보고서 표기 설정' }));
+    fireEvent.change(screen.getByLabelText('사진 캡션'), { target: { value: base } });
+    await user.click(screen.getByRole('button', { name: '표기 설정 닫기' }));
+    await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
+    const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
+    await user.upload(manualInput, new File(['before'], 'before.jpg', { type: 'image/jpeg' }));
+    fireEvent.change(screen.getByLabelText('before.jpg 추가 캡션'), { target: { value: supplemental } });
+    await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
+    const page = screen.getAllByRole('article', { name: /Word template preview page/ })[0];
+    expect(page.querySelector('figure.filled figcaption')?.textContent).toBe(caption);
+    expect(within(page).getByText('WORK PERFORMED').parentElement?.textContent).toBe(work);
+  });
+
   it('composes Preview pages with canonical marker IDs regardless of custom Word labels', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
