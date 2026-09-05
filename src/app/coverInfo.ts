@@ -1,6 +1,8 @@
 import type { ReportSection, ServiceKind } from '../domain/types';
 import type { ReportInfo } from './reportInfo';
 import { SERVICE_REPORT_LABELS } from './reportInfo';
+import { GENERAL_ZONES, GENERAL_SIDES } from '../domain/structure';
+import { MAIN_HULL_ORDER, SIDE_ORDER, SUMMARY_NICHE_ORDER } from '../summary/summaryModel';
 
 export interface CoverCrop {
   focusX: number;
@@ -37,11 +39,12 @@ function localIsoDate(now: Date): string {
 }
 
 function formatCoverDate(value: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:T|$)/.exec(value.trim());
   if (!match) return '';
   const month = Number(match[2]);
   const day = Number(match[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+  const calendarCheck = new Date(Date.UTC(Number(match[1]), month - 1, day));
+  if (calendarCheck.getUTCFullYear() !== Number(match[1]) || calendarCheck.getUTCMonth() !== month - 1 || calendarCheck.getUTCDate() !== day) return '';
   return `${day} ${MONTHS[month - 1]} ${match[1]}`;
 }
 
@@ -63,22 +66,35 @@ export function linkedCoverValues(info: ReportInfo): LinkedCoverValues {
     imoNumber: info.vessel.imo,
     callSign: info.vessel.callSign,
     ownerClient: info.vessel.ownerClient,
-    operationDate: formatCoverDate(info.operation.start || info.operation.eta),
+    operationDate: formatCoverDate(info.operation.start) || formatCoverDate(info.operation.eta),
     location: info.operation.location,
   };
 }
 
-function scopeEntries(sections: ReportSection[]): Array<{ service: ServiceKind; component: string; qualifier: string }> {
+function scopeEntries(sections: ReportSection[]): Array<{ service: ServiceKind; component: string; qualifier: string; index: number }> {
   const seen = new Set<string>();
-  const entries: Array<{ service: ServiceKind; component: string; qualifier: string }> = [];
-  for (const section of sections) {
+  const entries: Array<{ service: ServiceKind; component: string; qualifier: string; index: number }> = [];
+  const serviceOrder: ServiceKind[] = ['INSPECTION', 'CLEANING', 'POLISHING', 'REPAIR', 'REMOVAL'];
+  const rank = (values: readonly string[], value?: string) => { const index = value ? values.indexOf(value) : -1; return index < 0 ? values.length : index; };
+  const ordered = sections.map((section, index) => ({ section, index })).sort((left, right) => {
+    const a = left.section; const b = right.section;
+    return rank(['GENERAL', 'NICHE'], a.area) - rank(['GENERAL', 'NICHE'], b.area)
+      || (a.area === 'GENERAL'
+        ? rank(GENERAL_ZONES, a.component.toUpperCase()) - rank(GENERAL_ZONES, b.component.toUpperCase())
+          || rank(GENERAL_SIDES, a.side) - rank(GENERAL_SIDES, b.side)
+        : rank(SUMMARY_NICHE_ORDER, a.component.toUpperCase()) - rank(SUMMARY_NICHE_ORDER, b.component.toUpperCase())
+          || rank(SIDE_ORDER, a.side) - rank(SIDE_ORDER, b.side))
+      || rank(serviceOrder, a.service) - rank(serviceOrder, b.service)
+      || left.index - right.index;
+  });
+  for (const { section, index } of ordered) {
     const component = section.component.trim();
     if (!component) continue;
     const qualifier = [section.side, section.unit == null ? '' : String(section.unit)].filter(Boolean).join(' ');
     const key = `${section.service}\u0000${component}\u0000${qualifier}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    entries.push({ service: section.service, component, qualifier });
+    entries.push({ service: section.service, component, qualifier, index });
   }
   return entries;
 }

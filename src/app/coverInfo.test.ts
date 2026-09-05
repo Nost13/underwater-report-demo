@@ -45,6 +45,16 @@ describe('cover information', () => {
     expect(linkedCoverValues(info).operationDate).toBe('');
   });
 
+  it('ignores malformed, impossible, and whitespace-only Start values when falling back', () => {
+    const info = emptyReportInfo();
+    info.operation.start = ' 2026-02-30T08:00 ';
+    info.operation.eta = ' 2026-02-28T06:00 ';
+    expect(linkedCoverValues(info).operationDate).toBe('28 Feb 2026');
+    info.operation.start = 'not-a-date';
+    info.operation.eta = '  ';
+    expect(linkedCoverValues(info).operationDate).toBe('');
+  });
+
   it('does not overwrite manually edited scope until regeneration is requested', () => {
     const manual = { ...createCoverInfo(new Date('2026-09-05')), scopeTitle: 'CUSTOM', scopeMode: 'MANUAL' as const };
     expect(syncGeneratedCoverScope(manual, [ropeRemovalSection])).toBe(manual);
@@ -59,7 +69,24 @@ describe('cover information', () => {
       { ...ropeRemovalSection, id: 'c', component: 'Sea Chest', side: 'STBD' as const, unit: 2, service: 'CLEANING' as const },
     ];
     const result = syncGeneratedCoverScope(createCoverInfo(), sections);
-    expect(result.scopeTitle).toBe('Removal of Entanglement Rope & Fishing Net; Cleaning of Sea Chest');
-    expect(result.scopeDescription).toBe('Removal: Entanglement Rope & Fishing Net (PORT 1)\nCleaning: Sea Chest (STBD 2)');
+    expect(result.scopeTitle).toBe('Cleaning of Sea Chest; Removal of Entanglement Rope & Fishing Net');
+    expect(result.scopeDescription).toBe('Cleaning: Sea Chest (STBD 2)\nRemoval: Entanglement Rope & Fishing Net (PORT 1)');
+  });
+
+  it('sorts shuffled general and niche sections into findings-matrix order', () => {
+    const sections = [
+      { ...ropeRemovalSection, id: 'niche-late', component: 'Rudder & Pintle', area: 'NICHE' as const, service: 'CLEANING' as const },
+      { ...ropeRemovalSection, id: 'general-aft', component: 'AFT', area: 'GENERAL' as const, side: 'STBD' as const, service: 'INSPECTION' as const },
+      { ...ropeRemovalSection, id: 'niche-early', component: 'Bulbous Bow', area: 'NICHE' as const, service: 'INSPECTION' as const },
+      { ...ropeRemovalSection, id: 'general-fwd', component: 'FWD', area: 'GENERAL' as const, side: 'PORT' as const, service: 'INSPECTION' as const },
+    ];
+    expect(syncGeneratedCoverScope(createCoverInfo(), sections).scopeTitle)
+      .toBe('Inspection of FWD & AFT & Bulbous Bow; Cleaning of Rudder & Pintle');
+  });
+
+  it('preserves mixed and lowercase Job No. casing in linked values', () => {
+    const info = emptyReportInfo();
+    info.vessel.jobNo = 'Us-cLs-2609003';
+    expect(linkedCoverValues(info).reportNo).toBe('Us-cLs-2609003');
   });
 });
