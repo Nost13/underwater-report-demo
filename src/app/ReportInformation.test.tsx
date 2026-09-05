@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import { StrictMode, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { emptyReportInfo, type ReportInfo } from './reportInfo';
 import { ReportInformation } from './ReportInformation';
@@ -144,5 +144,49 @@ describe('Report Information', () => {
     await user.click(within(photos).getByRole('button', { name: `Clear ${section} photo 2` }));
     expect(within(photos).getByText(`${section} photo 2 is empty`)).toBeVisible();
     expect(note).toHaveValue(originalNote);
+  });
+
+  it('keeps only the displayed readiness preview URL alive through StrictMode replacement, clearing, and unmount', async () => {
+    const user = userEvent.setup();
+    let nextUrl = 0;
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+      .mockImplementation(() => `blob:readiness-${++nextUrl}`);
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const activeUrls = () => createObjectURL.mock.results
+      .map((result) => result.value)
+      .filter((url) => !revokeObjectURL.mock.calls.some(([revoked]) => revoked === url));
+    const { unmount } = render(<StrictMode><Harness /></StrictMode>);
+    const photos = screen.getByRole('group', { name: 'Toolbox photos' });
+    const upload = within(photos).getByLabelText('Upload Toolbox photos');
+
+    await user.upload(upload, new File(['first'], 'first.jpg', { type: 'image/jpeg' }));
+    const firstPreview = await within(photos).findByRole('img', { name: 'Toolbox photo 1: first.jpg' });
+    const firstUrl = firstPreview.getAttribute('src');
+    expect(firstUrl).toBeTruthy();
+    expect(revokeObjectURL).not.toHaveBeenCalledWith(firstUrl);
+    expect(activeUrls()).toEqual([firstUrl]);
+
+    await user.upload(within(photos).getByLabelText('Replace Toolbox photo 1'),
+      new File(['replacement'], 'replacement.jpg', { type: 'image/jpeg' }));
+    const replacementPreview = await within(photos).findByRole('img', { name: 'Toolbox photo 1: replacement.jpg' });
+    await waitFor(() => expect(replacementPreview.getAttribute('src')).not.toBe(firstUrl));
+    const replacementUrl = replacementPreview.getAttribute('src');
+    expect(revokeObjectURL).toHaveBeenCalledWith(firstUrl);
+    expect(revokeObjectURL).not.toHaveBeenCalledWith(replacementUrl);
+    expect(activeUrls()).toEqual([replacementUrl]);
+
+    await user.click(within(photos).getByRole('button', { name: 'Clear Toolbox photo 1' }));
+    expect(revokeObjectURL).toHaveBeenCalledWith(replacementUrl);
+    expect(activeUrls()).toEqual([]);
+
+    await user.upload(upload, new File(['unmount'], 'unmount.jpg', { type: 'image/jpeg' }));
+    const unmountPreview = await within(photos).findByRole('img', { name: 'Toolbox photo 1: unmount.jpg' });
+    const unmountUrl = unmountPreview.getAttribute('src');
+    expect(revokeObjectURL).not.toHaveBeenCalledWith(unmountUrl);
+    expect(activeUrls()).toEqual([unmountUrl]);
+
+    unmount();
+    expect(revokeObjectURL).toHaveBeenCalledWith(unmountUrl);
+    expect(activeUrls()).toEqual([]);
   });
 });

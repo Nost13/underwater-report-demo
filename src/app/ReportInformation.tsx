@@ -46,9 +46,13 @@ const readinessFields: Array<[ReadinessField, string, string]> = [
 ];
 
 function ReadinessPhotoPreview({ file, alt }: { file: File; alt: string }) {
-  const previewUrl = useMemo(() => URL.createObjectURL(file), [file]);
-  useEffect(() => () => URL.revokeObjectURL(previewUrl), [previewUrl]);
-  return <img src={previewUrl} alt={alt} />;
+  const [previewUrl, setPreviewUrl] = useState('');
+  useEffect(() => {
+    const nextUrl = URL.createObjectURL(file);
+    setPreviewUrl(nextUrl);
+    return () => URL.revokeObjectURL(nextUrl);
+  }, [file]);
+  return previewUrl ? <img src={previewUrl} alt={alt} /> : null;
 }
 
 export function ReportInformation({ value, onChange, onBack, onNext }: ReportInformationProps) {
