@@ -21,6 +21,30 @@ describe('cover crop', () => {
 });
 
 describe('cover photo rendering', () => {
+  it('compensates the retained Word crop so it reveals the full intended source rectangle', async () => {
+    const bitmap = { width: 1200, height: 800, close: vi.fn() };
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap));
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage, fillRect: vi.fn() } as unknown as CanvasRenderingContext2D);
+    let outputHeight = 0;
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, callback) {
+      outputHeight = this.height;
+      callback({ arrayBuffer: async () => new Uint8Array([1]).buffer } as Blob);
+    });
+    await renderCoverPhoto(new File(['photo'], 'photo.jpg'), { focusX: 1, focusY: .5, zoom: 2 }, { width: 3026, height: 1551, cropInsets: { top: .15821, bottom: .15821 } });
+    const [, sx, sy, sw, sh, dx, dy, dw, dh] = drawImage.mock.calls[0];
+    expect(sx).toBe(600);
+    expect(sy).toBeCloseTo(400 - 600 * 1551 / 3026 / 2);
+    expect(sw).toBe(600);
+    expect(sh).toBeCloseTo(600 * 1551 / 3026);
+    expect(outputHeight).toBe(Math.ceil(1551 / .68358));
+    expect([dx, dw]).toEqual([0, 3026]);
+    expect(dy).toBeCloseTo(outputHeight * .15821);
+    expect(dh).toBeCloseTo(outputHeight * .68358);
+    // Applying Word's existing source crop exposes exactly the intended draw region.
+    expect((outputHeight * .15821 - dy) / dh).toBeCloseTo(0);
+    expect((outputHeight * (1 - .15821) - dy) / dh).toBeCloseTo(1);
+  });
   it('draws the selected source crop into the requested output size and releases the bitmap', async () => {
     const close = vi.fn();
     const bitmap = { width: 1200, height: 800, close };

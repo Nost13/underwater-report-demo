@@ -27,6 +27,10 @@ beforeEach(() => {
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 describe('Cover editor', () => {
+  it('uses the measured Word hero frame aspect ratio for the interactive crop preview', () => {
+    render(<Harness />);
+    expect(screen.getByLabelText('사진 초점 조정')).toHaveStyle({ aspectRatio: '3026 / 1551' });
+  });
   it('identifies Cover as the exact third workflow step', () => {
     render(<Harness />);
 
@@ -36,6 +40,10 @@ describe('Cover editor', () => {
   it('selects, replaces and clears its own photo with no leaked URLs under StrictMode', () => {
     const view = render(<StrictMode><Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'first.jpg') }} /></StrictMode>);
     expect(active.size).toBe(1);
+    const currentUrl = [...active][0];
+    fireEvent.change(screen.getByLabelText('Date of Issue'), { target: { value: '2027-01-02' } });
+    expect([...active]).toEqual([currentUrl]);
+    expect(screen.getByAltText('표지 사진 미리보기')).toHaveAttribute('src', currentUrl);
     const picker = screen.getByLabelText('표지 사진');
     fireEvent.change(picker, { target: { files: [new File(['b'], 'second.jpg', { type: 'image/jpeg' })] } });
     expect(screen.getByAltText('표지 사진 미리보기')).toHaveAttribute('src', [...active][0]);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent } from 'react';
 import type { ReportSection } from '../domain/types';
 import { COVER_PHOTO_SIZE, coverSourceRect } from '../browser/coverImage';
 import { linkedCoverValues, syncGeneratedCoverScope, type CoverInfo } from './coverInfo';
@@ -14,18 +14,32 @@ interface CoverEditorProps {
   onEditReportInfo(): void;
 }
 
+function createPhotoUrlStore(file: File | null) {
+  let url: string | null = null;
+  return {
+    getSnapshot: () => url,
+    subscribe: (onChange: () => void) => {
+      if (!file) return () => {};
+      // Allocate only on subscription, after commit. A discarded render owns
+      // no URL, and StrictMode's resubscription receives a fresh live URL.
+      const ownedUrl = URL.createObjectURL(file);
+      url = ownedUrl;
+      onChange();
+      return () => { URL.revokeObjectURL(ownedUrl); if (url === ownedUrl) url = null; };
+    },
+  };
+}
+
+function usePhotoUrl(file: File | null): string | null {
+  const store = useMemo(() => createPhotoUrlStore(file), [file]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, () => null);
+}
+
 export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onNext, onEditReportInfo }: CoverEditorProps) {
-  const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
+  const url = usePhotoUrl(value.photoFile);
   const [dimensions, setDimensions] = useState<{ url: string; width: number; height: number } | null>(null);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const dragging = useRef<number | null>(null);
-  useEffect(() => {
-    if (!value.photoFile) return;
-    const url = URL.createObjectURL(value.photoFile);
-    setPhoto({ file: value.photoFile, url });
-    return () => URL.revokeObjectURL(url);
-  }, [value.photoFile]);
-  const url = photo?.file === value.photoFile ? photo?.url : undefined;
   const linked = linkedCoverValues(reportInfo);
   const scope = syncGeneratedCoverScope(value, sections);
   const metadata = [
@@ -75,6 +89,7 @@ export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onN
         <article className="cover-a4" aria-label="A4 표지 미리보기">
           <header className="cover-paper-header"><strong>UNDERWATER SERVICE REPORT</strong><dl><div><dt>REPORT NO</dt><dd>{linked.reportNo}</dd></div><div><dt>DATE OF ISSUE</dt><dd>{value.issueDate}</dd></div></dl></header>
           <div className="cover-photo-banner" aria-label="사진 초점 조정" role="group" tabIndex={value.photoFile ? 0 : -1}
+            style={{ aspectRatio: `${COVER_PHOTO_SIZE.width} / ${COVER_PHOTO_SIZE.height}` }}
             onPointerDown={(event) => { if (!value.photoFile || event.button !== 0) return; dragging.current = event.pointerId; event.currentTarget.setPointerCapture?.(event.pointerId); focus(event); }}
             onPointerMove={(event) => { if (dragging.current === event.pointerId) focus(event); }}
             onPointerUp={stopDrag} onPointerCancel={stopDrag} onLostPointerCapture={stopDrag}
@@ -85,6 +100,7 @@ export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onN
               event.preventDefault();
               onChange({ ...scope, crop: { ...value.crop, focusX: Math.max(0, Math.min(1, value.crop.focusX + delta[0])), focusY: Math.max(0, Math.min(1, value.crop.focusY + delta[1])) } });
             }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- Local blob URLs and natural dimensions are required for interactive cropping. */}
             {url && failedUrl !== url ? <img src={url} alt="표지 사진 미리보기" draggable={false} style={imageStyle} onLoad={(event) => setDimensions({ url, width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} onError={() => setFailedUrl(url)} /> : <span>{url ? '사진을 읽을 수 없습니다. 다른 사진을 선택하세요.' : '표지 사진을 선택하세요'}</span>}
           </div>
           <dl className="cover-paper-metadata">{metadata.slice(1).map(([label, text]) => <div key={label}><dt>{label}</dt><dd>{text}</dd></div>)}</dl>

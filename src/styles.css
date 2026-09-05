@@ -40,7 +40,7 @@
 .cover-paper-header dl { display: flex; justify-content: space-between; margin: 22px 0 0; }
 .cover-a4 dt { font-size: 9px; font-weight: 700; letter-spacing: .06em; }
 .cover-a4 dd { margin: 5px 0 0; min-height: 16px; font-size: 13px; overflow-wrap: anywhere; }
-.cover-photo-banner { position: relative; width: 100%; height: 297.5px; flex: 0 0 297.5px; overflow: hidden; display: grid; place-items: center; background: #edf2f3; color: var(--muted); touch-action: none; cursor: crosshair; }
+.cover-photo-banner { position: relative; width: 100%; flex: 0 0 auto; overflow: hidden; display: grid; place-items: center; background: #edf2f3; color: var(--muted); touch-action: none; cursor: crosshair; }
 .cover-photo-banner:focus-visible { outline: 3px solid var(--teal-600); outline-offset: -3px; }
 .cover-photo-banner img { display: block; width: 100%; height: 100%; pointer-events: none; user-select: none; }
 .cover-paper-metadata { margin: 22px 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
