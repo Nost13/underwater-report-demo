@@ -3,6 +3,7 @@ import type { ReportSection } from '../domain/types';
 import { composeVesselDiagram, WORD_DIAGRAM_HEIGHT, WORD_DIAGRAM_WIDTH } from '../vesselDiagram/composer';
 import { resolveMarkerIds } from '../vesselDiagram/markers';
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
+import { diagramForSection } from '../vesselDiagram/layoutLibrary';
 
 type ComposeVesselDiagram = (
   config: VesselDiagramConfig,
@@ -52,7 +53,8 @@ export function VesselDiagramPreview({
   compose = composeVesselDiagram,
 }: VesselDiagramPreviewProps) {
   const markerKey = JSON.stringify(markerIds ?? (section ? resolveMarkerIds(section) : []));
-  const store = useMemo(() => createDiagramPreviewStore(config, JSON.parse(markerKey), compose), [config, markerKey, compose]);
+  const viewConfig = section ? diagramForSection(config,section) : config;
+  const store = useMemo(() => createDiagramPreviewStore(viewConfig, JSON.parse(markerKey), compose), [viewConfig, markerKey, compose]);
   const { imageUrl, error } = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
 
   return <div className="template-location-diagram" aria-label="선박 위치도 미리보기" style={{ aspectRatio: `${WORD_DIAGRAM_WIDTH} / ${WORD_DIAGRAM_HEIGHT}` }}>

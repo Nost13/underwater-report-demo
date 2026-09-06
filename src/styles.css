@@ -885,3 +885,38 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
   .diagram-alignment-actions { width: 100%; }
   .diagram-upload input { min-height: 40px; }
 }
+/* Local recovery is a working control, never a silent background promise. */
+.draft-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 20px; border-bottom:1px solid #cbdadd; background:#eef8f7; font-size:14px; }
+.draft-toolbar > span { margin-right:auto; }
+.draft-toolbar button { min-height:38px; padding:8px 12px; border:1px solid #bdcfd4; border-radius:7px; background:white; color:#103440; font-weight:700; cursor:pointer; }
+.draft-toolbar p[role="alert"] { width:100%; margin:0; color:#a83220; }
+.draft-recovery { position:fixed; z-index:1000; top:15vh; left:50%; transform:translateX(-50%); width:min(780px,94vw); max-height:70vh; overflow:auto; padding:24px; background:white; border:2px solid #117d78; border-radius:12px; box-shadow:0 0 0 100vmax #102c4077; }
+.draft-recovery > div { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid #ddd; }
+.draft-recovery > div strong { min-width:180px; }
+.diagram-image-controls { display:flex; gap:16px; flex-wrap:wrap; padding:16px; margin-bottom:16px; border:1px solid #bdcfd4; border-radius:10px; font-size:14px; }
+.diagram-image-controls label { display:flex; gap:8px; align-items:center; }
+.diagram-image-controls input[type="range"] { width:140px; }
+.layout-library { padding:20px; margin-bottom:18px; }
+.layout-library button,.layout-candidate button { min-height:40px; margin:5px; padding:8px 12px; border:1px solid #bdd3d5; border-radius:7px; background:white; font-weight:700; cursor:pointer; }
+.layout-library button[aria-pressed="true"] { background:#0d7774; color:white; }
+.layout-library details { margin:10px 0; }
+.layout-library label { display:flex; gap:12px; padding:5px 0; }
+.layout-library [role="alert"] { color:#ae3422; }
+.layout-candidate { padding:20px; border:2px solid #16827a; }
+.layout-comparison { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+.workflow-modal { border:1px solid #a7cbd0; border-radius:16px; padding:24px; width:min(900px,90vw); max-height:85vh; overflow:auto; color:#0b2733; }
+.workflow-modal::backdrop { background:#071f2d99; }
+.workflow-modal button { margin:8px; min-height:42px; }
+.workflow-modal textarea { display:block; width:100%; min-height:150px; }
+.photo-library-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:12px; margin:16px 0; }
+.photo-library-grid article { border:2px solid #d5e2e5; border-radius:10px; overflow:hidden; padding:4px; }
+.photo-library-grid article.selected { border-color:#007c79; background:#e7f9f5; }
+.photo-library-grid button { display:flex; flex-direction:column; width:100%; margin:0; padding:5px; gap:5px; word-break:break-word; }
+.photo-library-grid img { width:100%; height:110px; object-fit:cover; }
+.vessel-panel > button, .layout-library button, .diagram-image-controls button, .summary-result-card > button, .field > span button, .personnel-counts > button, .readiness-photo-editor > button { min-height:40px; padding:8px 13px; border:1px solid #afccd1; border-radius:8px; background:#fff; color:#103849; font-weight:700; cursor:pointer; margin:5px 4px 5px 0; }
+.layout-library-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.layout-library details { margin:12px 0; }
+.layout-library details label { display:flex; justify-content:space-between; gap:12px; margin:8px 0; }
+.report-input-top-grid > .draft-toolbar { grid-column:1/-1; flex-wrap:wrap; }
+.cover-controls > button:not(.text-button), .export-card [aria-label="최종 보고서 점검"] > button { min-height:44px; padding:10px 14px; border:1px solid #afccd1; border-radius:8px; background:#fff; color:#103849; font-size:14px; line-height:1.4; cursor:pointer; text-align:left; }
+.export-card [aria-label="최종 보고서 점검"] > button { display:block; width:100%; margin:8px 0; }

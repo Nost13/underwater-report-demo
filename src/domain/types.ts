@@ -82,22 +82,26 @@ export type QaIssueKind =
   | 'MISSING_CONDITION'
   | 'PHASE_IMBALANCE'
   | 'UNMATCHED'
+  | 'EXCLUDED_PHOTOS'
   | 'MISSING_COVER_PHOTO'
-  | 'MISSING_COVER_METADATA';
+  | 'MISSING_COVER_METADATA'
+  | 'UNREVIEWED_CONDITION' | 'INVALID_TIME' | 'READINESS_PHOTOS' | 'PERSONNEL_MISMATCH' | 'OPTIONAL_INFO' | 'PENDING_GROUP';
 
 interface QaIssueBase {
   id: string;
   message: string;
+  severity?: 'ERROR' | 'WARNING';
+  stage?: number;
 }
 
 export type QaIssue =
   | (QaIssueBase & {
-    kind: Exclude<QaIssueKind, 'UNMATCHED' | 'MISSING_COVER_PHOTO' | 'MISSING_COVER_METADATA'>;
+    kind: 'MISSING_PHASE_PHOTO' | 'MISSING_CONDITION' | 'PHASE_IMBALANCE' | 'UNREVIEWED_CONDITION';
     sectionId: string;
     phase: Phase;
   })
   | (QaIssueBase & {
-    kind: 'UNMATCHED' | 'MISSING_COVER_PHOTO' | 'MISSING_COVER_METADATA';
+    kind: Exclude<QaIssueKind, 'MISSING_PHASE_PHOTO' | 'MISSING_CONDITION' | 'PHASE_IMBALANCE' | 'UNREVIEWED_CONDITION'>;
     sectionId: null;
     phase?: never;
   });

@@ -2,10 +2,15 @@ import JSZip from 'jszip';
 import { buildSummaryModel, MAIN_HULL_ORDER, type SummaryRow } from '../summary/summaryModel';
 import type { ReportSection } from '../domain/types';
 import { RATING_FILLS } from './ratingPalette';
+import { buildOverallResult } from '../summary/overallResult';
+import type { ReportState } from '../app/reportState';
+import type { OverallResultOverride } from '../app/reportInfo';
 
 const WORD_NAMESPACE = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
 export interface SummaryWriterInput {
+  conditionReviews?: ReportState['conditionReviews'];
+  overallResult?: OverallResultOverride;
   sections: ReportSection[];
   templateUrl: string;
 }
@@ -314,7 +319,8 @@ export async function fillSummaryTemplate(
   const document = new DOMParser().parseFromString(await documentEntry.async('text'), 'application/xml');
   if (document.querySelector('parsererror')) throw new Error('SUMMARY_TEMPLATE_XML_INVALID');
   const model = buildSummaryModel(input.sections);
-  fillOverallResult(document, model.headline, model.narrative);
+  const result = buildOverallResult(input.sections,input.conditionReviews,input.overallResult);
+  fillOverallResult(document, result.headline, result.narrative);
   fillOverviewTable(document, model.overviewRows);
   fillMainHullTables(document, model.mainHullRows);
   fillNicheTable(document, model.nicheRows);

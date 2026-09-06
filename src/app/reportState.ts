@@ -1,6 +1,7 @@
 import { paginateSection, type ReportPage } from '../domain/pagination';
 import type { Condition, Phase, PhotoData, ReportLabelMap, ReportLabels, ReportSection, WorkPerformLabelMap } from '../domain/types';
 import { initializeReportLabels } from './reportLabels';
+import { reconcileScope } from './scopeRevision';
 import { initializeWorkPerformLabels, workPerformLabelKey } from './workPerformLabels';
 import {
   cloneCondition,
@@ -20,9 +21,16 @@ export interface ReportState {
   conditionSources: ConditionSources;
   reportLabels: ReportLabelMap;
   workPerformLabels: WorkPerformLabelMap;
+  conditionReviews?: Record<string, Partial<Record<Phase,boolean>>>;
+  groupDrafts?: Record<string, Condition>;
 }
 
 export type ReportAction =
+  | { type: 'HYDRATE'; state: ReportState }
+  | { type: 'GROUP_DRAFT'; key: string; condition: Condition | null }
+  | { type: 'REVISE_SCOPE'; sections: ReportSection[] }
+  | { type: 'CONFIRM_CONDITION'; sectionId: string; phase: Phase }
+  | { type: 'ASSIGN_PHOTOS'; photoIds: string[]; sectionId: string; phase: Phase }
   | { type: 'SET_SCOPE'; sections: ReportSection[] }
   | { type: 'IMPORT_PHOTOS'; photos: PhotoData[] }
   | { type: 'ASSIGN_PHOTO'; photoId: string; sectionId: string; phase: Phase }
@@ -50,6 +58,17 @@ export const initialReportState: ReportState = {
 
 export function reportReducer(state: ReportState, action: ReportAction): ReportState {
   switch (action.type) {
+    case 'HYDRATE': return action.state;
+    case 'GROUP_DRAFT': { const groupDrafts={...state.groupDrafts}; if(action.condition)groupDrafts[action.key]=action.condition;else delete groupDrafts[action.key]; return {...state,groupDrafts}; }
+    case 'REVISE_SCOPE': return reconcileScope(state,action.sections);
+    case 'CONFIRM_CONDITION': {
+      if(!state.sections.some((section)=>section.id===action.sectionId&&section.phases.includes(action.phase)))return state;
+      return {...state,conditionReviews:{...state.conditionReviews,[action.sectionId]:{...state.conditionReviews?.[action.sectionId],[action.phase]:true}}};
+    }
+    case 'ASSIGN_PHOTOS': {
+      if(!state.sections.some((section)=>section.id===action.sectionId&&section.phases.includes(action.phase)))return state;
+      return [...new Set(action.photoIds)].reduce((next,photoId)=>reportReducer(next,{type:'ASSIGN_PHOTO',photoId,sectionId:action.sectionId,phase:action.phase}),state);
+    }
     case 'SET_SCOPE': {
       const inheritance = initializeConditionInheritance(action.sections);
       return {
@@ -138,6 +157,7 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
       if (!current) return state;
       return {
         ...state,
+        conditionReviews:{...state.conditionReviews,[action.sectionId]:{...state.conditionReviews?.[action.sectionId],[action.phase]:false}},
         sections: state.sections.map((section) => section.id === action.sectionId ? {
           ...section,
           conditions: {
@@ -161,6 +181,10 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
       const nextDefault = cloneCondition(action.condition);
       return {
         ...state,
+        conditionReviews: Object.fromEntries(state.sections.map((section)=>[section.id,{
+          ...state.conditionReviews?.[section.id],
+          ...(conditionGroupKey(section)===groupKey && state.conditionSources[section.id]?.[action.phase]!=='OVERRIDE'?{[action.phase]:false}:{}),
+        }])),
         conditionDefaults: {
           ...state.conditionDefaults,
           [groupKey]: {
@@ -190,6 +214,7 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
       if (!groupDefault) return state;
       return {
         ...state,
+        conditionReviews:{...state.conditionReviews,[action.sectionId]:{...state.conditionReviews?.[action.sectionId],[action.phase]:false}},
         sections: state.sections.map((section) => section.id === action.sectionId ? {
           ...section,
           conditions: {

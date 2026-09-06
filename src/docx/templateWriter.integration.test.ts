@@ -189,7 +189,7 @@ describe('bundled Detail report template', () => {
     for (const element of Array.from(doc.getElementsByTagName('*'))) for (const attribute of Array.from(element.attributes)) {
       if (attribute.namespaceURI === relationNS || attribute.name === 'o:relid') expect(relById.has(attribute.value), attribute.name).toBe(true);
     }
-  }, 30000);
+  }, 60000); // Six real DOCX packages plus image/XML fidelity checks exceed 30s on this Windows host.
 
   it('remaps aliased DrawingML, VML and external links and recursively imports dependent parts', async () => {
     const [coverBytes, baseBytes, detailBytes] = await Promise.all([

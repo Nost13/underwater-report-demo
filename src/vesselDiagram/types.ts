@@ -17,6 +17,11 @@ export interface VesselDiagramConfig {
   hullMarkers: ZoneMarker[];
   nicheMarkers: ZoneMarker[];
   confirmed: boolean;
+  imagePlacement?: NormalizedRect;
+  imageAspectLocked?: boolean;
+  bottomView?: VesselDiagramConfig;
+  useBottomView?: boolean;
+  sectionViews?: Record<string, 'SIDE' | 'BOTTOM'>;
 }
 
 export const DEFAULT_CALIBRATION: HullCalibration = { sternX: 0.08, bowX: 0.92, hullTopY: 0.15, bottomY: 0.86 };

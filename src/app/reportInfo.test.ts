@@ -40,7 +40,7 @@ describe('report information', () => {
       location: 'Busan Anchorage',
       berthingSide: 'STBD',
       position: 'ANCHORAGE A-1',
-    }).position).toBe('ANCHORAGE A-1');
+    },undefined,{position:'MANUAL'}).position).toBe('ANCHORAGE A-1');
   });
 
   it('clears an automatically copied side when the location changes to an anchorage', () => {
@@ -122,11 +122,11 @@ describe('report information', () => {
       workingTime: 'CUSTOM TIME',
     };
 
-    expect(deriveOperationValues(operation, 'eta')).toMatchObject({
+    expect(deriveOperationValues(operation, 'eta', {workWindow:'MANUAL',workingTime:'MANUAL'})).toMatchObject({
       workWindow: 'CUSTOM WINDOW',
       workingTime: 'CUSTOM TIME',
     });
-    expect(deriveOperationValues(operation, 'end')).toMatchObject({
+    expect(deriveOperationValues(operation, 'end', {workWindow:'MANUAL',workingTime:'MANUAL'})).toMatchObject({
       workWindow: 'CUSTOM WINDOW',
       workingTime: 'CUSTOM TIME',
     });

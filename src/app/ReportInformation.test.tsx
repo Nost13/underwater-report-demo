@@ -94,9 +94,11 @@ describe('Report Information', () => {
       .toHaveTextContent('SITE SUPERVISOR : 1 / DIVER : 4 / OTHER : 2');
 
     await user.click(screen.getByRole('button', { name: '김동우 제외' }));
-    expect(screen.getByLabelText('Diver')).toHaveValue('0');
+    expect(screen.getByLabelText('Diver')).toHaveValue('4');
     expect(screen.getByLabelText('Personnel Deployed'))
-      .toHaveTextContent('SITE SUPERVISOR : 1 / DIVER : 0 / OTHER : 2');
+      .toHaveTextContent('SITE SUPERVISOR : 1 / DIVER : 4 / OTHER : 2');
+    await user.click(screen.getByRole('button',{name:'역할별 등록 인원으로 자동 계산'}));
+    expect(screen.getByLabelText('Diver')).toHaveValue('0');
   });
 
   it('searches the company-neutral diver database and selects personnel for Section 8', async () => {

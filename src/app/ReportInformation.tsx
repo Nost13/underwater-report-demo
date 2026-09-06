@@ -1,8 +1,10 @@
 import { useMemo, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react';
 import { DIVER_QUALIFICATIONS, searchDiverQualifications, type DiverQualification } from './diverQualifications';
-import { composePersonnel, deriveOperationValues, type PersonnelCounts, type ReadinessPhotoSlots, type ReportInfo } from './reportInfo';
+import type { OpenPhotoLibrary } from './PhotoLibraryPicker';
+import { composePersonnel, countPersonnel, deriveOperationValues, type PersonnelCounts, type ReadinessPhotoSlots, type ReportInfo } from './reportInfo';
 
 interface ReportInformationProps {
+  onOpenLibrary?:OpenPhotoLibrary;
   value: ReportInfo;
   onChange: Dispatch<SetStateAction<ReportInfo>>;
   onBack: () => void;
@@ -72,7 +74,7 @@ function ReadinessPhotoPreview({ file, alt }: { file: File; alt: string }) {
   return previewUrl ? <img src={previewUrl} alt={alt} /> : null;
 }
 
-export function ReportInformation({ value, onChange, onBack, onNext }: ReportInformationProps) {
+export function ReportInformation({ value, onChange, onBack, onNext,onOpenLibrary }: ReportInformationProps) {
   const [diverSearch, setDiverSearch] = useState('');
   const diverResults = useMemo(() => {
     if (!diverSearch.trim()) return [];
@@ -83,7 +85,8 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
   }, [diverSearch, value.personnelQualifications]);
   const setOperation = (field: OperationField, next: string) => onChange((current) => ({
     ...current,
-    operation: deriveOperationValues({ ...current.operation, [field]: next }, field),
+    operationModes: ['workWindow','workingTime','position'].includes(field) ? { ...current.operationModes, [field]: 'MANUAL' } : current.operationModes,
+    operation: deriveOperationValues({ ...current.operation, [field]: next }, field, current.operationModes),
   }));
   const setReadiness = (field: ReadinessField, next: string) => onChange((current) => ({
     ...current,
@@ -101,11 +104,14 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
     return {
       ...current,
       personnelCounts,
+      personnelCountModes: { ...current.personnelCountModes, [field]: 'MANUAL' },
       operation: { ...current.operation, personnel: composePersonnel(personnelCounts) },
     };
   });
   const setPersonnel = (next: DiverQualification[]) => onChange((current) => {
-    const personnelCounts = { ...current.personnelCounts, diver: String(next.length) };
+    const automatic = countPersonnel(next);
+    const personnelCounts = { ...current.personnelCounts };
+    for (const key of Object.keys(automatic) as Array<keyof PersonnelCounts>) if (current.personnelCountModes?.[key] !== 'MANUAL') personnelCounts[key] = automatic[key];
     return {
     ...current,
     personnelQualifications: next,
@@ -123,6 +129,7 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
   const renderOperationField = ([field, label, placeholder]: [OperationField, string, string]) => (
     <label className="field" key={field}>
       <span>{label}</span>
+      {(['workWindow','workingTime','position'] as const).filter((key) => key === field).map((key) => <span key={key}><small>{value.operationModes?.[key] === 'MANUAL' ? '수동 입력 유지' : '자동 계산'}</small><button type="button" aria-label={`${label} 자동값 다시 적용`} onClick={(event) => { event.preventDefault(); onChange((current) => { const operationModes = {...current.operationModes,[key]:'AUTO' as const}; return {...current,operationModes,operation:deriveOperationValues(current.operation,undefined,operationModes)}; }); }}>자동값 다시 적용</button></span>)}
       {field === 'berthingSide'
         ? <select aria-label={label} value={value.operation.berthingSide} onChange={(event) => setOperation(field, event.target.value)}>
           <option value="">—</option><option value="PORT SIDE">PORT SIDE</option><option value="STBD SIDE">STBD SIDE</option>
@@ -148,6 +155,8 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
     };
     return <fieldset className="readiness-photo-editor" aria-label={`${section} photos`}>
       <legend>{section} photos</legend>
+      <p>{photos.filter(Boolean).length} / 2장 준비</p>
+      {onOpenLibrary&&<button type="button" onClick={()=>onOpenLibrary(`${section} 사진 선택`,2,(selected)=>setReadinessPhotos(field,[selected[0]?.file??null,selected[1]?.file??null]))}>불러온 사진 보관함에서 선택</button>}
       <label className="readiness-photo-upload">
         <span>사진 최대 2장 선택</span>
         <input
@@ -192,6 +201,7 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
   };
 
   return <div className="workspace report-information-workspace">
+    <section className="panel report-information-panel" aria-label="General Information"><header className="report-information-title"><span>01</span><div><h3>General Information</h3><p>조회 결과를 보완하거나 선박 정보를 직접 입력합니다.</p></div></header><div className="report-information-grid">{(Object.keys(value.vessel) as Array<keyof ReportInfo['vessel']>).map((key)=><label className="field" key={key}><span>{({name:'선박명',imo:'IMO 번호',callSign:'Call Sign',type:'선종',loa:'LOA (m)',breadth:'선폭 (m)',gt:'GT',dwt:'DWT',yearBuilt:'건조 연도',ownerClient:'Owner / Client',jobNo:'Job No'})[key]}</span><input aria-label={`보고서 ${key}`} value={value.vessel[key]} onChange={(event)=>onChange((current)=>({...current,vessel:{...current.vessel,[key]:event.target.value}}))}/></label>)}</div></section>
     <div className="page-heading"><div><p className="step-kicker">STEP 02</p><h2>Report Information</h2><p>1–4 양식에 들어갈 운항·작업 정보를 입력하세요. 비워 둔 항목은 문서에서도 공란으로 유지됩니다.</p></div><span className="privacy-chip">LOCAL ONLY</span></div>
     <section className="panel report-information-panel" aria-label="Operational Information">
       <header className="report-information-title"><span>02</span><div><h3>Operational Information</h3><p>VESSEL SCHEDULE · OPERATION RECORD · VESSEL &amp; SITE</p></div></header>
@@ -205,6 +215,7 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
           <span>{label}</span><input aria-label={label} value={value.personnelCounts[field]} placeholder={placeholder} onChange={(event) => setPersonnelCounts(field, event.target.value)} />
         </label>)}
         <output aria-label="Personnel Deployed">{value.operation.personnel}</output>
+        <button type="button" onClick={() => onChange((current) => { const personnelCounts = countPersonnel(current.personnelQualifications); return {...current,personnelCounts,personnelCountModes:{},operation:{...current.operation,personnel:composePersonnel(personnelCounts)}}; })}>역할별 등록 인원으로 자동 계산</button>
       </div>
     </section>
     <section className="panel report-information-panel personnel-qualification-panel" aria-label="Personnel Qualifications">
@@ -220,7 +231,7 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
         </button>) : <p>일치하는 미선택 인원이 없습니다.</p>}
       </div>}
       {value.personnelQualifications.length > 0 ? <div className="selected-personnel-table-wrap"><table aria-label="선택한 자격 인원" className="selected-personnel-table"><thead><tr><th>NAME</th><th>ROLE</th><th>QUALIFICATION</th><th>CERTIFICATE NO.</th><th /></tr></thead><tbody>
-        {value.personnelQualifications.map((person) => <tr key={person.certificateNo}><td><b>{person.englishName}</b><small>{person.koreanName}</small></td><td>{person.role}</td><td>{person.qualification}</td><td>{person.certificateNo}</td><td><button type="button" aria-label={`${person.koreanName} 제외`} onClick={() => removePersonnel(person.certificateNo)}>×</button></td></tr>)}
+        {value.personnelQualifications.map((person) => <tr key={person.certificateNo}><td><b>{person.englishName}</b><small>{person.koreanName}</small></td><td><select aria-label={`${person.koreanName} 역할`} value={/SUPERVISOR|감독/i.test(person.role)?'SITE SUPERVISOR':person.role==='OTHER'?'OTHER':'DIVER'} onChange={(event) => setPersonnel(value.personnelQualifications.map((item) => item.certificateNo===person.certificateNo?{...item,role:event.target.value}:item))}><option>SITE SUPERVISOR</option><option>DIVER</option><option>OTHER</option></select></td><td>{person.qualification}</td><td>{person.certificateNo}</td><td><button type="button" aria-label={`${person.koreanName} 제외`} onClick={() => removePersonnel(person.certificateNo)}>×</button></td></tr>)}
       </tbody></table></div> : <p className="personnel-empty">선택한 인원이 없습니다. 선택한 인원만 Section 8에 출력됩니다.</p>}
     </section>
     <section className="panel report-information-panel" aria-label="Safety and Readiness">

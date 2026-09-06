@@ -3,8 +3,10 @@ import type { ReportSection } from '../domain/types';
 import { COVER_PHOTO_SIZE, coverSourceRect } from '../browser/coverImage';
 import { linkedCoverValues, syncGeneratedCoverScope, type CoverInfo } from './coverInfo';
 import type { ReportInfo } from './reportInfo';
+import type { OpenPhotoLibrary } from './PhotoLibraryPicker';
 
 interface CoverEditorProps {
+  onOpenLibrary?: OpenPhotoLibrary;
   value: CoverInfo;
   onChange(value: CoverInfo): void;
   reportInfo: ReportInfo;
@@ -35,7 +37,7 @@ function usePhotoUrl(file: File | null): string | null {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, () => null);
 }
 
-export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onNext, onEditReportInfo }: CoverEditorProps) {
+export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onNext, onEditReportInfo, onOpenLibrary }: CoverEditorProps) {
   const url = usePhotoUrl(value.photoFile);
   const [dimensions, setDimensions] = useState<{ url: string; width: number; height: number } | null>(null);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
@@ -98,6 +100,7 @@ export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onN
           event.currentTarget.value = '';
         }} /></label>
         <button className="ghost" disabled={!value.photoFile} onClick={() => onChange({ ...scope, photoFile: null })}>사진 비우기</button>
+        {onOpenLibrary&&<button type="button" onClick={()=>onOpenLibrary('커버 사진 선택',1,(photos)=>onChange({...scope,photoFile:photos[0].file,crop:{focusX:.5,focusY:.5,zoom:1}}))}>불러온 사진 보관함에서 선택</button>}
         <label className="field"><span>사진 확대</span><input type="range" min="1" max="3" step=".05" value={value.crop.zoom} disabled={!value.photoFile} onChange={(event) => onChange({ ...scope, crop: { ...value.crop, zoom: Number(event.target.value) } })} /></label>
         <p className="cover-help">사진 위를 드래그해 초점을 조정하세요. 방향키로도 조정할 수 있습니다.</p>
         <label className="field"><span>Date of Issue</span><input type="date" value={value.issueDate} onChange={(event) => onChange({ ...scope, issueDate: event.target.value })} /></label>

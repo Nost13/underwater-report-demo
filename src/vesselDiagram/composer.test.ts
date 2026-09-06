@@ -82,6 +82,18 @@ function fakeComposer(calls: string[]): ComposeDependencies {
 }
 
 describe('vessel diagram composer', () => {
+  it('draws an explicitly positioned background without modifying marker geometry', async () => {
+    const config = configWithAllMarkers();
+    config.imagePlacement = {x:.1,y:.2,width:.8,height:.6};
+    const draws: number[][] = [];
+    const marker = { ...config.nicheMarkers[0].rect };
+    await composeVesselDiagram(config, [], {
+      decodeImage: async () => ({width:1000,height:250}),
+      createCanvas: () => ({getContext: () => ({fillStyle:'',strokeStyle:'',lineWidth:0,fillRect:()=>{},strokeRect:()=>{},beginPath:()=>{},ellipse:()=>{},fill:()=>{},stroke:()=>{},drawImage:(_image:CanvasImageSource,...numbers:number[])=>{draws.push(numbers);}}),toBlob:(callback)=>callback(new Blob([new Uint8Array([137,80,78,71])]))}),
+    });
+    [204.8,97.6,1638.4,292.8].forEach((value,index)=>expect(draws[0][index]).toBeCloseTo(value,8));
+    expect(config.nicheMarkers[0].rect).toEqual(marker);
+  });
   it('crops vessel whitespace and uniformly contains edge markers in the exact Word PNG', async () => {
     const config = configWithAllMarkers();
     config.nicheMarkers = [

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { ReportSection } from '../domain/types';
 import { VesselDiagramPreview } from './VesselDiagramPreview';
+import { replaceDiagramImage } from '../vesselDiagram/layoutLibrary';
+import { fitContain } from '../vesselDiagram/composer';
 import {
   alignMarkerSelection,
   canMatchCircleSize,
@@ -35,6 +37,7 @@ import {
 } from '../vesselDiagram/types';
 
 interface VesselDiagramEditorProps {
+  viewLabel?: string;
   sections: ReportSection[];
   value: VesselDiagramConfig | null;
   onChange: (value: VesselDiagramConfig) => void;
@@ -115,23 +118,23 @@ const reprojectRect = (rect: NormalizedRect, previous: HullCalibration, next: Hu
   });
 };
 
-async function decodeImage(file: File): Promise<void> {
+async function decodeImage(file: File): Promise<{width:number;height:number}> {
   if (file.size <= 0) throw new Error('empty image');
   if (typeof createImageBitmap === 'function') {
     const bitmap = await createImageBitmap(file);
     try {
       if (!bitmap.width || !bitmap.height) throw new Error('invalid image');
+      return { width: bitmap.width, height: bitmap.height };
     } finally {
       bitmap.close();
     }
-    return;
   }
 
   const temporaryUrl = URL.createObjectURL(file);
   try {
-    await new Promise<void>((resolve, reject) => {
+    return await new Promise<{width:number;height:number}>((resolve, reject) => {
       const image = new Image();
-      image.onload = () => image.naturalWidth && image.naturalHeight ? resolve() : reject(new Error('invalid image'));
+      image.onload = () => image.naturalWidth && image.naturalHeight ? resolve({width:image.naturalWidth,height:image.naturalHeight}) : reject(new Error('invalid image'));
       image.onerror = () => reject(new Error('invalid image'));
       image.src = temporaryUrl;
     });
@@ -193,7 +196,7 @@ function resizeCircleRect(
   });
 }
 
-export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext }: VesselDiagramEditorProps) {
+export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext, viewLabel = '사이드뷰' }: VesselDiagramEditorProps) {
   const [step, setStep] = useState<EditorStep>('HULL');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -261,12 +264,14 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
     }
     const uploadVersion = ++uploadVersionRef.current;
     try {
-      await decodeImage(file);
+      const dimensions = await decodeImage(file);
       if (uploadVersion !== uploadVersionRef.current) return;
       setStep('HULL');
       setSelectedIds([]);
       setError(null);
-      onChange(newDraft(file, sections));
+      const fit = fitContain(dimensions.width, dimensions.height, DIAGRAM_WIDTH, DIAGRAM_HEIGHT);
+      const imagePlacement = {x:fit.x/DIAGRAM_WIDTH,y:fit.y/DIAGRAM_HEIGHT,width:fit.width/DIAGRAM_WIDTH,height:fit.height/DIAGRAM_HEIGHT};
+      onChange(value ? { ...replaceDiagramImage(value,file), imagePlacement:value.imagePlacement ?? imagePlacement } : { ...newDraft(file, sections), imagePlacement });
     } catch {
       setError('PNG 또는 JPG 선박 이미지를 확인할 수 없습니다.');
     }
@@ -529,12 +534,20 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
       <div><p className="step-kicker">VESSEL DIAGRAM</p><h2>{step === 'HULL' ? 'Hull 맞추기' : 'Niche 맞추기'}</h2></div>
       <p>이미지는 이 브라우저에서만 사용됩니다.</p>
     </header>
-    <label className="diagram-upload"><span>선박 사이드뷰 이미지</span><input
-      aria-label="선박 사이드뷰 이미지"
+    <label className="diagram-upload"><span>선박 {viewLabel} 이미지</span><input
+      aria-label={`선박 ${viewLabel} 이미지`}
       type="file"
       accept="image/png,image/jpeg,.png,.jpg,.jpeg"
       onChange={(event) => void uploadImage(event.target.files?.[0])}
     />{value && <b>{value.imageName}</b>}</label>
+    {value && step === 'HULL' && <fieldset className="diagram-image-controls"><legend>도면 크기·위치 맞추기 — 도형은 그대로 유지</legend>
+      <label><input type="checkbox" checked={value.imageAspectLocked !== false} onChange={(event)=>replace({imageAspectLocked:event.target.checked})} />가로·세로 비율 유지</label>
+      {(['x','y','width','height'] as const).map((key)=><label key={key}>{({x:'도면 가로 위치',y:'도면 세로 위치',width:'도면 가로 크기',height:'도면 세로 크기'})[key]}<input type="range" aria-label={({x:'도면 가로 위치',y:'도면 세로 위치',width:'도면 가로 크기',height:'도면 세로 크기'})[key]} min={key==='x'||key==='y'?-.5:.1} max={key==='x'||key==='y'?.5:2} step="0.002" value={(value.imagePlacement??{x:0,y:0,width:1,height:1})[key]} onChange={(event)=>{
+        const current=value.imagePlacement??{x:0,y:0,width:1,height:1}; const next={...current,[key]:Number(event.target.value)};
+        if(value.imageAspectLocked!==false && (key==='width'||key==='height')) { const other=key==='width'?'height':'width'; next[other]=current[other]*next[key]/current[key]; }
+        replace({imagePlacement:next});
+      }}/><output>{Math.round((value.imagePlacement??{x:0,y:0,width:1,height:1})[key]*100)}%</output></label>)}
+    </fieldset>}
     {error && <p role="alert" className="diagram-error">{error}</p>}
     {value && <div className="diagram-editor-grid">
       <div className="diagram-panel">
@@ -565,10 +578,10 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext 
             })}
           >{callout.label}</button>)}
           <div ref={surfaceRef} className="vessel-diagram-surface" onPointerMove={moveInteraction} onPointerUp={finishInteraction}>
-            {imageUrl && <div className="diagram-editor-image-area" aria-label="웹 편집 선박 이미지 영역">
+            {imageUrl && <div className="diagram-editor-image-area" aria-label="웹 편집 선박 이미지 영역" style={value.imagePlacement ? {inset:'auto',left:`${value.imagePlacement.x*100}%`,top:`${value.imagePlacement.y*100}%`,width:`${value.imagePlacement.width*100}%`,height:`${value.imagePlacement.height*100}%`} : undefined}>
               {/* Object URLs reference local files and cannot use Next's remote image optimizer. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt="업로드한 선박 사이드뷰" />
+              <img src={imageUrl} alt={`업로드한 선박 ${viewLabel}`} style={value.imagePlacement ? {objectFit:'fill'}:undefined} />
             </div>}
             {step === 'HULL' && <svg viewBox={`0 0 ${DIAGRAM_WIDTH} ${DIAGRAM_HEIGHT}`} aria-label="Hull 기준선">
               {guide('sternX', '선미 기준선', true)}

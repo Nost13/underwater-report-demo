@@ -7,7 +7,7 @@ import { emptyReportInfo } from '../app/reportInfo';
 
 describe('report check issues', () => {
   it('lists missing cover photo and each linked field without inventing a section target', () => {
-    const issues = checkReport([], [], createCoverInfo(), emptyReportInfo());
+    const issues = checkReport([], [], createCoverInfo(), emptyReportInfo()).filter((issue)=>issue.kind.startsWith('MISSING_COVER'));
     expect(issues.map((issue) => issue.id)).toEqual([
       'cover:photo', 'cover:reportNo', 'cover:vesselName', 'cover:imoNumber',
       'cover:callSign', 'cover:ownerClient', 'cover:operationDate', 'cover:location',
@@ -23,10 +23,10 @@ describe('report check issues', () => {
     const info = emptyReportInfo();
     Object.assign(info.vessel, { jobNo: 'JOB', name: 'VESSEL', imo: '123', callSign: 'CALL', ownerClient: 'OWNER' });
     Object.assign(info.operation, { start: '', eta: '2026-09-05T12:00', location: 'BUSAN' });
-    expect(checkReport([], [], cover, info)).toEqual([]);
+    expect(checkReport([], [], cover, info).filter((issue)=>issue.kind.startsWith('MISSING_COVER'))).toEqual([]);
     info.operation.eta = 'invalid';
     info.vessel.jobNo = '  ';
-    expect(checkReport([], [], cover, info).map((issue) => issue.id)).toEqual(['cover:reportNo', 'cover:operationDate']);
+    expect(checkReport([], [], cover, info).filter((issue)=>issue.kind.startsWith('MISSING_COVER')).map((issue) => issue.id)).toEqual(['cover:reportNo', 'cover:operationDate']);
   });
   it('reports missing photos, missing conditions, unmatched files, and a large phase imbalance', () => {
     const [section] = createNicheSections({

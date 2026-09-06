@@ -14,6 +14,7 @@ import type { PhotoData, ReportLabelMap, ReportSection, WorkPerformLabelMap } fr
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
 import { composeVesselDiagram, type ComposeDependencies } from '../vesselDiagram/composer';
 import { resolveMarkerIds } from '../vesselDiagram/markers';
+import { diagramConfirmed, diagramForSection } from '../vesselDiagram/layoutLibrary';
 
 export interface WordExportInput {
   vesselName: string;
@@ -23,6 +24,7 @@ export interface WordExportInput {
   reportLabels?: ReportLabelMap;
   workPerformLabels?: WorkPerformLabelMap;
   reportInfo?: ReportInfo;
+  conditionReviews?: import('../app/reportState').ReportState['conditionReviews'];
   coverInfo?: CoverInfo;
   coverTemplateUrl?: string;
   section14TemplateUrl?: string;
@@ -764,7 +766,11 @@ export async function writeTemplateReport(
   });
   const resize = dependencies.resize ?? resizeForReportSlot;
   const composeDiagram = dependencies.composeDiagram ?? composeVesselDiagram;
-  if (!input.vesselDiagram?.confirmed) throw new Error('VESSEL_DIAGRAM_UNCONFIRMED');
+  if(input.vesselDiagram?.confirmed)for(const section of input.sections){
+    const view=diagramForSection(input.vesselDiagram,section);
+    if(view.confirmed)assertDiagramMarkers(view,resolveMarkerIds(section),section);
+  }
+  if (!diagramConfirmed(input.vesselDiagram,input.sections)) throw new Error('VESSEL_DIAGRAM_UNCONFIRMED');
   const template = await fetchTemplate();
   const zip = await JSZip.loadAsync(template);
   const documentEntry = zip.file('word/document.xml');
@@ -798,10 +804,11 @@ export async function writeTemplateReport(
     });
     if (page.kind === 'first') {
       const markerIds = resolveMarkerIds(page.section);
-      assertDiagramMarkers(input.vesselDiagram, markerIds, page.section);
+      const viewConfig = diagramForSection(input.vesselDiagram,page.section);
+      assertDiagramMarkers(viewConfig, markerIds, page.section);
       let diagram: Uint8Array;
       try {
-        diagram = await composeDiagram(input.vesselDiagram, markerIds, { trimOuterWhitespace: true });
+        diagram = await composeDiagram(viewConfig, markerIds, { trimOuterWhitespace: true });
       } catch {
         throw new Error(`VESSEL_DIAGRAM_COMPOSITION_FAILED:${page.section.id}`);
       }
@@ -877,7 +884,7 @@ export async function writeTemplateReport(
     }
     if (input.summaryTemplateUrl) {
       finalParts.push({
-        blob: await fillSummaryTemplate({ sections: input.sections, templateUrl: input.summaryTemplateUrl }, {
+        blob: await fillSummaryTemplate({ sections: input.sections, templateUrl: input.summaryTemplateUrl, conditionReviews:input.conditionReviews,overallResult:input.reportInfo?.overallResult }, {
           fetchTemplate: dependencies.fetchSummaryTemplate,
         }),
         prefix: 'summary',

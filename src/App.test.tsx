@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import type { WordExportInput } from './docx/templateWriter';
+import * as reportQa from './domain/qa';
 
 const NativeURL = globalThis.URL;
 
@@ -33,6 +34,7 @@ vi.mock('./app/vesselLookup', () => ({
 }));
 
 beforeEach(() => {
+  vi.spyOn(window,'confirm').mockReturnValue(true);
   vi.stubGlobal('URL', class extends NativeURL {
     static createObjectURL = vi.fn(() => 'blob:preview');
     static revokeObjectURL = vi.fn();
@@ -40,6 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   composeVesselDiagram.mockClear();
   vi.unstubAllGlobals();
 });
@@ -242,6 +245,7 @@ describe('desktop report workflow', () => {
   });
 
   it.each(['VESSEL_MARKER_NOT_FOUND', 'VESSEL_DIAGRAM_COMPOSITION_FAILED'])('shows actionable section context and a setup route for %s', async (code) => {
+    vi.spyOn(reportQa,'checkReport').mockReturnValue([]); // Isolate exporter error routing; QA gate has separate coverage.
     const user = userEvent.setup();
     const exporter = async (input: WordExportInput) => {
       const section = input.sections.find(({ component, side }) => component === 'AFT' && side === 'STBD')!;
@@ -253,7 +257,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('heading', { name: 'Summary 확인' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: '최종 Word 준비' }));
     await user.click(screen.getByRole('button', { name: 'Word 보고서 다운로드' }));
-    const message = await screen.findByRole('alert');
+    const message = await screen.findByText(/선박 위치도 —/);
     expect(message).toHaveTextContent('AFT · STBD');
     expect(message).toHaveTextContent('CLEANING');
     expect(message).toHaveTextContent('선박 위치도');
@@ -264,6 +268,7 @@ describe('desktop report workflow', () => {
   });
 
   it('retains the generic export advice for unrelated failures', async () => {
+    vi.spyOn(reportQa,'checkReport').mockReturnValue([]);
     const user = userEvent.setup();
     render(<App exporter={async () => { throw new Error('DOWNLOAD_FAILED'); }} />);
     await buildCleaningGeneral(user);
@@ -323,6 +328,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
 
     const schedule = await screen.findByLabelText('ChainPortal 운항 일정');
+    await user.click(within(schedule).getByRole('button',{name:/PNIT.*적용/}));
     expect(within(schedule).getByText('2026-09-04 08:30')).toBeVisible();
     expect(within(schedule).getByText('2026-09-05 20:00')).toBeVisible();
     expect(within(schedule).getByText('Busan / PNIT / 3')).toBeVisible();
@@ -355,6 +361,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
     await user.selectOptions(screen.getByLabelText('선박 조회 결과'), '9947158');
 
+    await user.click(await screen.findByRole('button',{name:/HJNC.*적용/}));
     expect(await screen.findByText('Busan / HJNC / 2')).toBeVisible();
   });
 
@@ -368,7 +375,7 @@ describe('desktop report workflow', () => {
 
     await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), '9876543');
     await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
-    await user.selectOptions(screen.getByLabelText('ChainPortal 일정 선택'), '2026-09-12T06:00|2026-09-13T18:00|1');
+    await user.click(await screen.findByRole('button',{name:/BCT.*적용/}));
 
     expect(screen.getByText('Busan / BCT / 1')).toBeVisible();
     expect(screen.getByText('2026-09-12 06:00')).toBeVisible();
@@ -1234,7 +1241,7 @@ describe('desktop report workflow', () => {
 
     expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('사진 폴더 선택');
     expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('표준 폴더 구조 생성');
-    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('선분류');
+    expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('선택 사항');
     expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('사진 불러오기');
     expect(screen.getByLabelText('사진 입력 진행 상태')).toHaveTextContent('후분류');
     expect(screen.getByLabelText('현재 작업 범위')).toHaveTextContent('CLEANING');
@@ -1272,6 +1279,7 @@ describe('desktop report workflow', () => {
   });
 
   it('runs the local Word exporter from the final stage', async () => {
+    vi.spyOn(reportQa,'checkReport').mockReturnValue([]);
     const user = userEvent.setup();
     const exporter = vi.fn(async () => ({ skipped: [], pageCount: 0, blob: new Blob() }));
     render(<App exporter={exporter} />);

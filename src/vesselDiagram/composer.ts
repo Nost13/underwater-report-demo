@@ -221,7 +221,9 @@ export async function composeVesselDiagram(
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, DIAGRAM_WIDTH, DIAGRAM_HEIGHT);
 
-    const rect = fitContain(
+    const placement = config.imagePlacement;
+    if (placement && (!Object.values(placement).every(Number.isFinite) || placement.width <= 0 || placement.height <= 0)) return fail('VESSEL_IMAGE_PLACEMENT_INVALID');
+    const rect = placement ? {x:placement.x*DIAGRAM_WIDTH,y:placement.y*DIAGRAM_HEIGHT,width:placement.width*DIAGRAM_WIDTH,height:placement.height*DIAGRAM_HEIGHT} : fitContain(
       image.naturalWidth ?? image.width,
       image.naturalHeight ?? image.height,
       DIAGRAM_WIDTH,

@@ -4,6 +4,8 @@ import type { DiverQualification } from './diverQualifications';
 import { formatBerthingSide } from './berthingSide';
 
 export type ReadinessPhotoSlots = [File | null, File | null];
+export type OperationModes = Partial<Record<'workWindow' | 'workingTime' | 'position', 'AUTO' | 'MANUAL'>>;
+export interface OverallResultOverride { headline: string; narrative: string; sourceFingerprint: string }
 
 export interface ReadinessInfo {
   toolboxTime: string;
@@ -21,6 +23,9 @@ export interface PersonnelCounts {
 }
 
 export interface ReportInfo {
+  operationModes?: OperationModes;
+  personnelCountModes?: Partial<Record<keyof PersonnelCounts, 'AUTO' | 'MANUAL'>>;
+  overallResult?: OverallResultOverride;
   vessel: {
     name: string;
     imo: string;
@@ -125,22 +130,22 @@ export function composePersonnel(counts: PersonnelCounts): string {
 export function deriveOperationValues(
   operation: ReportInfo['operation'],
   changedField?: keyof ReportInfo['operation'],
+  modes: OperationModes = {},
 ): ReportInfo['operation'] {
   const next = { ...operation };
   next.berthingSide = formatBerthingSide(next.berthingSide);
-  if (!changedField || changedField === 'eta' || changedField === 'etd') {
+  if (modes.workWindow !== 'MANUAL' && (!changedField || changedField === 'eta' || changedField === 'etd')) {
     const workWindow = formatWorkWindow(next.eta, next.etd);
-    if (workWindow) next.workWindow = workWindow;
+    next.workWindow = workWindow;
   }
-  if (!changedField || changedField === 'start' || changedField === 'end') {
+  if (modes.workingTime !== 'MANUAL' && (!changedField || changedField === 'start' || changedField === 'end')) {
     const workingTime = formatWorkingTime(next.start, next.end);
-    if (workingTime) next.workingTime = workingTime;
+    next.workingTime = workingTime;
   }
-  if (!changedField || changedField === 'location' || changedField === 'berthingSide') {
+  if (modes.position !== 'MANUAL' && (!changedField || changedField === 'location' || changedField === 'berthingSide')) {
     const isAnchorage = /ANCHOR(?:AGE)?|묘박|정박지/i.test(next.location);
     const position = next.berthingSide;
-    if (isAnchorage && position === next.position) next.position = '';
-    else if (!isAnchorage && position) next.position = position;
+    next.position = isAnchorage ? '' : position;
   }
   return next;
 }
@@ -167,5 +172,17 @@ export function reportInfoFromVessel(vessel: Vessel | null): ReportInfo {
 }
 
 export function reportInfoForScopes(info: ReportInfo, services: ServiceKind[]): ReportInfo {
-  return { ...info, serviceItems: services.map((service) => SERVICE_REPORT_LABELS[service]) };
+  const labels=services.map((service)=>SERVICE_REPORT_LABELS[service]);
+  const custom=info.serviceItems.filter((item)=>!Object.values(SERVICE_REPORT_LABELS).includes(item));
+  return {...info,serviceItems:[...labels,...custom]};
+}
+
+export function countPersonnel(people: ReportInfo['personnelQualifications']): PersonnelCounts {
+  const counts = { siteSupervisor: 0, diver: 0, otherPersonnel: 0 };
+  for (const person of people) {
+    if (/SUPERVISOR|슈퍼바이저|감독/i.test(person.role)) counts.siteSupervisor++;
+    else if (/^OTHER$|기타/i.test(person.role)) counts.otherPersonnel++;
+    else counts.diver++;
+  }
+  return Object.fromEntries(Object.entries(counts).map(([key, value]) => [key, String(value)])) as unknown as PersonnelCounts;
 }
