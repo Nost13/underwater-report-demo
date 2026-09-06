@@ -96,12 +96,12 @@ export async function scanImages(root: DirectoryHandleLike): Promise<ScannedImag
   return images.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
 }
 
-export async function pickDirectory(mode: 'read' | 'readwrite'): Promise<DirectoryHandleLike> {
+export async function pickDirectory(mode: 'read' | 'readwrite', startIn?: DirectoryHandleLike): Promise<DirectoryHandleLike> {
   const picker = (
     globalThis as typeof globalThis & {
-      showDirectoryPicker?: (options: { mode: 'read' | 'readwrite' }) => Promise<DirectoryHandleLike>;
+      showDirectoryPicker?: (options: { mode: 'read' | 'readwrite'; startIn?: DirectoryHandleLike }) => Promise<DirectoryHandleLike>;
     }
   ).showDirectoryPicker;
   if (!picker) throw new Error('FILE_SYSTEM_ACCESS_UNAVAILABLE');
-  return picker({ mode });
+  return picker(startIn ? { mode, startIn } : { mode });
 }

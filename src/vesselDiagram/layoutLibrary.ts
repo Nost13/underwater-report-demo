@@ -3,6 +3,7 @@ import { DIAGRAM_HEIGHT, DIAGRAM_WIDTH, type HullCalibration, type VesselDiagram
 import { isValidCalibration, isValidRect, createDefaultHullMarkers, createDefaultNicheMarkers } from './geometry';
 import {bilgeQuantityFromSections,resolveMarkerIds} from './markers';
 import {validDiagram} from '../persistence/validateDiagram';
+import {normalizeDiagramShapes,normalizeMarkerShape} from './customMarkers';
 
 export type DiagramView = 'SIDE' | 'BOTTOM';
 export interface LayoutTarget { imo: string; vesselType: string; loa: number; breadth: number; view: DiagramView }
@@ -17,13 +18,15 @@ export const replaceDiagramImage = (config: VesselDiagramConfig, imageFile: File
 export function reconcileDiagramMarkers(config:VesselDiagramConfig,sections:ReportSection[],unconfirm=false):VesselDiagramConfig {
   const quantity=bilgeQuantityFromSections(sections);
   const merge=(existing:ZoneMarker[],defaults:ZoneMarker[])=>{
-    const retained=existing.filter(marker=>!marker.id.startsWith('bilge-keel-')||Number(marker.id.slice('bilge-keel-'.length))<=quantity);
-    return [...retained,...defaults.filter(marker=>!retained.some(item=>item.id===marker.id))];
+    const retained=existing.filter(marker=>marker.custom||!marker.id.startsWith('bilge-keel-')||Number(marker.id.slice('bilge-keel-'.length))<=quantity).map(normalizeMarkerShape);
+    return [...retained,...defaults.filter(marker=>!config.removedMarkerIds?.includes(marker.id)&&!retained.some(item=>item.id===marker.id))];
   };
   const hullMarkers=merge(config.hullMarkers,createDefaultHullMarkers(config.calibration));
   const nicheMarkers=merge(config.nicheMarkers,createDefaultNicheMarkers(config.calibration,quantity));
   const changed=hullMarkers.length!==config.hullMarkers.length||nicheMarkers.length!==config.nicheMarkers.length||hullMarkers.some((m,i)=>m!==config.hullMarkers[i])||nicheMarkers.some((m,i)=>m!==config.nicheMarkers[i]);
-  return {...config,hullMarkers,nicheMarkers,confirmed:unconfirm||changed?false:config.confirmed};
+  const markerIds=new Set([...hullMarkers,...nicheMarkers].map(marker=>marker.id));
+  const markerBindings=config.markerBindings?Object.fromEntries(Object.entries(config.markerBindings).map(([key,ids])=>[key,ids.filter(id=>markerIds.has(id))])):undefined;
+  return {...config,hullMarkers,nicheMarkers,markerBindings,confirmed:unconfirm||changed?false:config.confirmed};
 }
 export function viewForSection(config: VesselDiagramConfig, section: ReportSection): DiagramView {
   if(section.side==='BOTTOM'&&(config.useBottomView===true||(config.bottomView&&config.useBottomView!==false)))return 'BOTTOM';
@@ -37,7 +40,7 @@ export function diagramForSection(config: VesselDiagramConfig, section: ReportSe
 export function diagramConfirmed(config: VesselDiagramConfig | null | undefined, sections: ReportSection[]): boolean {
   if (!config) return false;
   return sections.length ? sections.every((section) => {
-    try { const view=diagramForSection(config, section);const markers=[...view.hullMarkers,...view.nicheMarkers];const ids=resolveMarkerIds(section);return view.confirmed&&isValidCalibration(view.calibration)&&ids.length>0&&ids.every(id=>markers.some(marker=>marker.id===id&&isValidRect(marker.rect))); } catch { return false; }
+    try { const view=diagramForSection(config, section);const markers=[...view.hullMarkers,...view.nicheMarkers];const ids=resolveMarkerIds(section,view);return view.confirmed&&isValidCalibration(view.calibration)&&ids.length>0&&ids.every(id=>markers.some(marker=>marker.id===id&&isValidRect(marker.rect))); } catch { return false; }
   }) : config.confirmed;
 }
 
@@ -119,5 +122,5 @@ export function validateLayoutRecords(value: unknown): LayoutRecord[] {
       || !(item.config.imageFile instanceof File) || !isValidCalibration(item.config.calibration) || !Array.isArray(item.config.hullMarkers) || !Array.isArray(item.config.nicheMarkers)
       || [...item.config.hullMarkers,...item.config.nicheMarkers].some((marker)=>!marker || typeof marker.id!=='string' || !['CIRCLE','ELLIPSE','RECTANGLE'].includes(marker.shape) || !isValidRect(marker.rect))) throw new Error('배치 기록 데이터가 올바르지 않습니다.');
   }
-  return value as LayoutRecord[];
+  return (value as LayoutRecord[]).map(record=>({...record,config:normalizeDiagramShapes(record.config)}));
 }

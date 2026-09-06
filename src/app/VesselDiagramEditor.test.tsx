@@ -84,6 +84,19 @@ function recordDraft(initial: VesselDiagramConfig, sections = [generalSection('A
 }
 
 describe('VesselDiagramEditor', () => {
+  it('retains custom markers, edited labels and scope links when automatic geometry is reset',()=>{
+    const draft=existingDraft();const section=generalSection('AFT');
+    const custom={id:'custom-hull',groupId:'custom',custom:true,label:'My Hull',shape:'RECTANGLE' as const,rect:{x:.2,y:.2,width:.1,height:.1}};
+    draft.hullMarkers.push(custom);draft.hullMarkers[0].label='Edited name';
+    draft.markerBindings={[section.id]:['custom-hull']};draft.removedMarkerIds=['aft-services'];
+    draft.nicheMarkers=draft.nicheMarkers.filter(marker=>marker.id!=='aft-services');
+    const latest=recordDraft(draft,[section]);vi.spyOn(window,'confirm').mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button',{name:/자동 배치 다시 적용/}));
+    expect(latest().hullMarkers).toContainEqual(custom);
+    expect(latest().hullMarkers[0].label).toBe('Edited name');
+    expect(latest().markerBindings).toEqual(draft.markerBindings);
+    expect(latest().nicheMarkers.some(marker=>marker.id==='aft-services')).toBe(false);
+  });
   it('keeps file selection, compact handles and a separate Word preview without mutating normalized geometry', async () => {
     const draft = existingDraft();
     const latest = recordDraft(draft);

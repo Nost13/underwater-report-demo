@@ -31,7 +31,8 @@ export interface WordExportInput {
   summaryTemplateUrl?: string;
   section6TemplateUrl?: string;
   section8TemplateUrl?: string;
-  vesselDiagram: VesselDiagramConfig;
+  vesselDiagram: VesselDiagramConfig | null;
+  allowIncomplete?: boolean;
   fileName?: string;
 }
 
@@ -403,6 +404,14 @@ interface PackagePart {
   placement?: 'base' | 'prepend' | 'append';
 }
 
+function clearVesselProfile(document: Document): void {
+  for (const profile of Array.from(document.getElementsByTagNameNS('*','docPr'))) {
+    if (profile.getAttribute('descr') === 'vessel_profile' || profile.getAttribute('name') === 'vessel_profile') {
+      closestElement(profile,'drawing')?.remove();
+    }
+  }
+}
+
 export function buildReportFileName(jobNo: string, vesselName: string): string {
   const clean = (value: string) => Array.from(value).filter((char) => char.charCodeAt(0) >= 32)
     .join('').replace(/[<>:"/\\|?*]/g, '').trim().replace(/[. ]+$/, '');
@@ -766,11 +775,12 @@ export async function writeTemplateReport(
   });
   const resize = dependencies.resize ?? resizeForReportSlot;
   const composeDiagram = dependencies.composeDiagram ?? composeVesselDiagram;
-  if(input.vesselDiagram?.confirmed)for(const section of input.sections){
+  const usableDiagram = diagramConfirmed(input.vesselDiagram,input.sections) ? input.vesselDiagram : null;
+  if(!input.allowIncomplete && input.vesselDiagram?.confirmed)for(const section of input.sections){
     const view=diagramForSection(input.vesselDiagram,section);
-    if(view.confirmed)assertDiagramMarkers(view,resolveMarkerIds(section),section);
+    if(view.confirmed)assertDiagramMarkers(view,resolveMarkerIds(section,view),section);
   }
-  if (!diagramConfirmed(input.vesselDiagram,input.sections)) throw new Error('VESSEL_DIAGRAM_UNCONFIRMED');
+  if (!usableDiagram && !input.allowIncomplete) throw new Error('VESSEL_DIAGRAM_UNCONFIRMED');
   const template = await fetchTemplate();
   const zip = await JSZip.loadAsync(template);
   const documentEntry = zip.file('word/document.xml');
@@ -778,7 +788,7 @@ export async function writeTemplateReport(
   const contentTypesEntry = zip.file('[Content_Types].xml');
   if (!documentEntry || !relationshipEntry || !contentTypesEntry) throw new Error('TEMPLATE_INVALID');
 
-  const pages = buildWordPhasePages(input.sections, input.photos, input.reportLabels, input.workPerformLabels);
+  const pages = buildWordPhasePages(input.sections, input.photos, input.reportLabels, input.workPerformLabels, input.allowIncomplete);
   if (!pages.length) throw new Error('NO_REPORT_PHOTOS');
   const templateXml = await documentEntry.async('text');
   const documentParts = splitTemplateDocument(templateXml);
@@ -802,9 +812,13 @@ export async function writeTemplateReport(
       '@FR': page.values.fr, '{{FT}}': page.values.ft, '{{FC}}': page.values.fc,
       '@OR': page.values.or, '{{OL}}': page.values.ol, '{{OT}}': page.values.ot,
     });
-    if (page.kind === 'first') {
-      const markerIds = resolveMarkerIds(page.section);
-      const viewConfig = diagramForSection(input.vesselDiagram,page.section);
+    if (page.kind === 'first' && !usableDiagram) {
+      clearVesselProfile(pageDocument);
+      removeLegacyZoneShapes(pageDocument);
+    }
+    if (page.kind === 'first' && usableDiagram) {
+      const viewConfig = diagramForSection(usableDiagram,page.section);
+      const markerIds = resolveMarkerIds(page.section,viewConfig);
       assertDiagramMarkers(viewConfig, markerIds, page.section);
       let diagram: Uint8Array;
       try {
@@ -845,7 +859,7 @@ export async function writeTemplateReport(
     const firstSlot = page.kind === 'first' ? 1 : 5;
     const usedSlots = new Set(page.photos.map((_, index) => firstSlot + index));
     for (let slot = 1; slot <= 10; slot += 1) {
-      if (!usedSlots.has(slot)) replaceText(pageDocument, { ['{{P' + slot + '}}']: 'N/A' });
+      if (!usedSlots.has(slot)) replaceText(pageDocument, { ['{{P' + slot + '}}']: input.allowIncomplete ? '' : 'N/A' });
     }
     trimTrailingEmptyParagraphs(pageDocument);
     renderedBodies.push(serializeFragment(pageDocument));

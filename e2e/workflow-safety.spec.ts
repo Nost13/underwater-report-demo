@@ -49,7 +49,13 @@ test('manual job → guarded diagram → photos and review → recover/archive �
  await page.getByRole('button',{name:'Niche 맞추기로 이동'}).click();
  await page.getByRole('button',{name:'선박 위치도 설정 완료'}).click();
  await expect(page.getByRole('heading',{name:'사진 폴더'})).toBeVisible();
- await page.getByRole('button',{name:'샘플 사진 7장 불러오기'}).click();await page.getByRole('button',{name:'Report Input으로',exact:true}).click();
+ await expect(page.getByRole('button',{name:'샘플 사진 7장 불러오기'})).toHaveCount(0);
+ await page.getByRole('button',{name:'Report Input으로',exact:true}).click();
+ for(const [phase,count]of [['BEFORE',3],['AFTER',4]] as const){
+  await page.getByRole('button',{name:`${phase} 새 사진 추가`,exact:true}).click();
+  const bytes=await readFile('e2e/fixtures/vessel-side.png');
+  await page.getByLabel('보고서 사진 추가 파일').setInputFiles(Array.from({length:count},(_,i)=>({name:`${phase}-${i+1}.png`,mimeType:'image/png',buffer:bytes})));
+ }
  await page.getByLabel('구역 기본 BEFORE fouling coverage').fill('15');
  await stage(page,7).click();await expect(page.getByRole('dialog',{name:'적용하지 않은 구역 기본값'})).toBeVisible();
  await page.getByRole('button',{name:'계속 편집'}).click();await expect(page.getByRole('heading',{name:'Report Input',exact:true})).toBeVisible();
@@ -68,6 +74,7 @@ test('manual job → guarded diagram → photos and review → recover/archive �
   await page.getByRole('dialog').getByRole('checkbox').nth(0).check();await page.getByRole('dialog').getByRole('checkbox').nth(1).check();await page.getByRole('button',{name:'선택 사진 사용'}).click();
  }
  await stage(page,2).click();await page.getByRole('button',{name:'불러온 사진 보관함에서 선택'}).click();await page.getByRole('dialog').getByRole('checkbox').first().check();await page.getByRole('button',{name:'선택 사진 사용'}).click();
+ await expect(page.getByText('사진을 읽을 수 없습니다. 다른 사진을 선택하세요.')).toHaveCount(0);
  for(const width of [1440,1024]){await page.setViewportSize({width,height:1000});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:`outputs/workflow-cover-${width}.png`,fullPage:true});}
  await page.setViewportSize({width:1440,height:1000});await stage(page,7).click();
  await page.getByRole('button',{name:'결과 문구 수정'}).click();await page.getByLabel('결과 제목').fill('QA CUSTOM OVERALL RESULT');await page.getByLabel('결과 내용').fill('Synthetic verification only. Recorded work and final condition were reviewed.');await page.getByRole('button',{name:'문구 저장'}).click();

@@ -13,7 +13,8 @@ const NICHE_MARKERS: Record<string, string[]> = {
 };
 const canonical = (component: string) => component.trim().toUpperCase();
 
-export function resolveMarkerIds(section: ReportSection): string[] {
+export function resolveMarkerIds(section: ReportSection, config?: VesselDiagramConfig): string[] {
+  if(config?.markerBindings && Object.hasOwn(config.markerBindings,section.id))return config.markerBindings[section.id];
   const component = canonical(section.component);
   if (section.area === 'GENERAL') return GENERAL_MARKERS[component] ? [GENERAL_MARKERS[component]] : [];
   if (component === 'BILGE KEEL') return [`bilge-keel-${Math.max(1, section.unit ?? 1)}`];
@@ -28,13 +29,14 @@ const groupFor = (id: string): MarkerGroupId => {
   return id as MarkerGroupId;
 };
 
-export function requiredMarkerGroups(sections: ReportSection[]): RequiredMarkerGroup[] {
+export function requiredMarkerGroups(sections: ReportSection[],config?:VesselDiagramConfig): RequiredMarkerGroup[] {
   const groups: RequiredMarkerGroup[] = [];
   const byId = new Map<MarkerGroupId, RequiredMarkerGroup>();
   for (const section of sections) {
-    const ids = resolveMarkerIds(section);
+    const ids = resolveMarkerIds(section,config);
     for (const markerId of ids) {
-      const id = groupFor(markerId);
+      const marker=config?[...config.hullMarkers,...config.nicheMarkers].find(item=>item.id===markerId):undefined;
+      const id = marker?.custom ? marker.groupId as MarkerGroupId : groupFor(markerId);
       let group = byId.get(id);
       if (!group) { group = { id, markerIds: [] }; byId.set(id, group); groups.push(group); }
       if (!group.markerIds.includes(markerId)) group.markerIds.push(markerId);
@@ -50,7 +52,7 @@ export function bilgeQuantityFromSections(sections: ReportSection[]): number {
 }
 
 export function markersForSection(config: VesselDiagramConfig, section: ReportSection): ZoneMarker[] {
-  const ids = new Set(resolveMarkerIds(section));
+  const ids = new Set(resolveMarkerIds(section,config));
   return [...config.hullMarkers, ...config.nicheMarkers].filter((marker) => ids.has(marker.id));
 }
 

@@ -96,6 +96,7 @@ export function buildWordPhasePages(
   photos: PhotoData[],
   reportLabels: ReportLabelMap = {},
   workPerformLabels: WorkPerformLabelMap = {},
+  includeEmpty = false,
 ): WordPhasePage[] {
   const pages: WordPhasePage[] = [];
   for (const section of orderSections(sections)) {
@@ -104,7 +105,7 @@ export function buildWordPhasePages(
       const phasePhotos = photos
         .filter((photo) => photo.reportUse && photo.sectionId === section.id && photo.phase === phase)
         .sort((left, right) => left.order - right.order);
-      for (let start = 0; start < phasePhotos.length;) {
+      for (let start = 0; start < Math.max(phasePhotos.length, includeEmpty ? 1 : 0);) {
         const kind = start === 0 ? 'first' : 'continuation';
         const capacity = kind === 'first' ? 4 : 6;
         pages.push({

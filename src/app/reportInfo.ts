@@ -23,6 +23,7 @@ export interface PersonnelCounts {
 }
 
 export interface ReportInfo {
+  personnelLibrary?: DiverQualification[];
   operationModes?: OperationModes;
   personnelCountModes?: Partial<Record<keyof PersonnelCounts, 'AUTO' | 'MANUAL'>>;
   overallResult?: OverallResultOverride;

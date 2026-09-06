@@ -73,6 +73,20 @@ async function fixtureTemplate(): Promise<ArrayBuffer> {
 }
 
 describe('template Word writer', () => {
+  it('exports incomplete phases without photos or unconfirmed vessel artwork only when opted in',async()=>{
+    const sections=createNicheSections({component:'Rope Guard',type:'SINGLE',quantity:1,service:'REMOVAL'});
+    const composeDiagram=vi.fn();
+    const result=await writeTemplateReport({vesselName:'QA',sections,photos:[],templateUrl:'fixture',vesselDiagram:null,allowIncomplete:true},
+      {fetchTemplate:fixtureTemplate,composeDiagram,download:()=>{}});
+    const zip=await JSZip.loadAsync(result.blob);
+    const xml=await zip.file('word/document.xml')!.async('text');
+    expect(result.pageCount).toBe(2);
+    expect(xml).toContain('ROPE GUARD');
+    expect(xml).not.toContain('vessel_profile');
+    expect(xml).not.toContain('zone_fwd');
+    expect(xml).not.toMatch(/\{\{P\d/);
+    expect(composeDiagram).not.toHaveBeenCalled();
+  });
   it('preserves operator work text literally and omits a separator for a blank phase', async () => {
     const section = createNicheSections({ component: 'Boss Cap', type: 'SINGLE', quantity: 1, service: 'CLEANING' })[0];
     const result = await writeTemplateReport({

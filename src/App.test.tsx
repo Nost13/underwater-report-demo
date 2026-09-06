@@ -109,6 +109,21 @@ function stageLabels() {
 }
 
 describe('desktop report workflow', () => {
+  it('allows incomplete export after explicit confirmation while condition editing stays locked',async()=>{
+    const user=userEvent.setup();const exporter=vi.fn(async()=>({skipped:[],pageCount:1,blob:new Blob()}));
+    const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
+    render(<App exporter={exporter}/>);await buildScope(user);
+    const rail=within(screen.getByRole('navigation',{name:'Report stages'}));
+    await user.click(rail.getByRole('button',{name:/Report Input$/}));
+    expect(screen.queryByRole('heading',{name:'Report Input'})).not.toBeInTheDocument();
+    await user.click(rail.getByRole('button',{name:/Word$/}));
+    expect(screen.getByRole('heading',{name:'Summary 확인'})).toBeVisible();
+    await user.click(screen.getByRole('button',{name:'최종 Word 준비'}));
+    const download=screen.getByRole('button',{name:'Word 보고서 다운로드'});
+    expect(download).toBeEnabled();await user.click(download);expect(exporter).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);await user.click(download);
+    await waitFor(()=>expect(exporter).toHaveBeenCalledWith(expect.objectContaining({allowIncomplete:true,vesselDiagram:null})));
+  });
   it('provides regenerated automatic scope from App before the Cover editor reads it', async () => {
     vi.stubGlobal('URL', class extends NativeURL {
       static createObjectURL = vi.fn(() => 'blob:preview');
@@ -205,7 +220,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('heading', { name: '선박 위치도 설정' })).toBeVisible();
   });
 
-  it('gates every downstream rail stage until final diagram save, retaining the draft across remounts', async () => {
+  it('gates condition entry until final diagram save, retaining the draft across remounts', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildScope(user);
@@ -216,7 +231,7 @@ describe('desktop report workflow', () => {
     await user.upload(screen.getByLabelText('선박 사이드뷰 이미지'), new File(['png'], 'vessel.png', { type: 'image/png' }));
     await user.click(screen.getByRole('button', { name: 'Niche 맞추기로 이동' }));
     const rail = within(screen.getByRole('navigation', { name: 'Report stages' }));
-    for (const name of [/사진 폴더$/, /Report Input$/, /Check \/ Preview$/, /Summary$/, /Word$/]) {
+    for (const name of [/사진 폴더$/, /Report Input$/, /Check \/ Preview$/]) {
       await user.click(rail.getByRole('button', { name }));
       expect(screen.getByRole('heading', { name: 'Niche 맞추기' })).toBeVisible();
     }
@@ -228,14 +243,14 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('heading', { name: '사진 폴더' })).toBeVisible();
   });
 
-  it('relocks every downstream rail stage when a saved diagram is edited', async () => {
+  it('relocks condition entry when a saved diagram is edited', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
     const rail = within(screen.getByRole('navigation', { name: 'Report stages' }));
     await user.click(rail.getByRole('button', { name: /Vessel Diagram$/ }));
     fireEvent.keyDown(screen.getByLabelText('AFT Hull 표식'), { key: 'ArrowRight' });
-    for (const name of [/사진 폴더$/, /Report Input$/, /Check \/ Preview$/, /Summary$/, /Word$/]) {
+    for (const name of [/사진 폴더$/, /Report Input$/, /Check \/ Preview$/]) {
       await user.click(rail.getByRole('button', { name }));
       expect(screen.getByRole('heading', { name: 'Hull 맞추기' })).toBeVisible();
     }
@@ -328,7 +343,8 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
 
     const schedule = await screen.findByLabelText('ChainPortal 운항 일정');
-    await user.click(within(schedule).getByRole('button',{name:/PNIT.*적용/}));
+    await user.selectOptions(within(schedule).getByLabelText('ChainPortal 일정 선택'),'0');
+    await user.click(within(schedule).getByRole('button',{name:'선택 일정 적용'}));
     expect(within(schedule).getByText('2026-09-04 08:30')).toBeVisible();
     expect(within(schedule).getByText('2026-09-05 20:00')).toBeVisible();
     expect(within(schedule).getByText('Busan / PNIT / 3')).toBeVisible();
@@ -361,7 +377,8 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
     await user.selectOptions(screen.getByLabelText('선박 조회 결과'), '9947158');
 
-    await user.click(await screen.findByRole('button',{name:/HJNC.*적용/}));
+    await user.selectOptions(await screen.findByLabelText('ChainPortal 일정 선택'),'0');
+    await user.click(screen.getByRole('button',{name:'선택 일정 적용'}));
     expect(await screen.findByText('Busan / HJNC / 2')).toBeVisible();
   });
 
@@ -375,7 +392,8 @@ describe('desktop report workflow', () => {
 
     await user.type(screen.getByLabelText('Vessel name / IMO number / Call Sign'), '9876543');
     await user.click(screen.getByRole('button', { name: 'Vessel 확인' }));
-    await user.click(await screen.findByRole('button',{name:/BCT.*적용/}));
+    await user.selectOptions(await screen.findByLabelText('ChainPortal 일정 선택'),'1');
+    await user.click(screen.getByRole('button',{name:'선택 일정 적용'}));
 
     expect(screen.getByText('Busan / BCT / 1')).toBeVisible();
     expect(screen.getByText('2026-09-12 06:00')).toBeVisible();
@@ -1295,7 +1313,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
     await user.click(screen.getByRole('button', { name: 'Word 준비' }));
     expect(screen.getByRole('heading', { name: 'Summary 확인' })).toBeVisible();
-    expect(screen.getByText('Detail 입력값에서 자동 작성된 Summary입니다.')).toBeVisible();
+    expect(screen.getByText('Detail 입력값에서 자동 작성됩니다. 실제 Scope에 있는 구역만 표시합니다.')).toBeVisible();
     await user.click(screen.getByRole('button', { name: '최종 Word 준비' }));
     await user.click(screen.getByRole('button', { name: 'Word 보고서 다운로드' }));
     expect(await screen.findByText('Word 보고서 다운로드가 완료되었습니다.')).toBeVisible();

@@ -84,7 +84,7 @@ export function createBilgeKeelMarkers(calibration: HullCalibration, quantity: n
   const gap = Math.min(0.008 * length, span / (count + 1));
   const width = (span - (count - 1) * gap) / count;
   const start = (calibration.sternX + calibration.bowX) / 2 - span / 2;
-  return Array.from({ length: count }, (_, i) => ({ id: `bilge-keel-${i + 1}`, groupId: 'bilge-keel', unit: i + 1, rect: clampRect({ x: start + i * (width + gap), y: calibration.hullTopY + 0.82 * (calibration.bottomY - calibration.hullTopY), width, height: 0.08 * (calibration.bottomY - calibration.hullTopY) }), shape: 'ELLIPSE' }));
+  return Array.from({ length: count }, (_, i) => ({ id: `bilge-keel-${i + 1}`, groupId: 'bilge-keel', unit: i + 1, rect: clampRect({ x: start + i * (width + gap), y: calibration.hullTopY + 0.82 * (calibration.bottomY - calibration.hullTopY), width, height: 0.08 * (calibration.bottomY - calibration.hullTopY) }), shape: 'RECTANGLE' }));
 }
 
 export function resetMarker(markerId: string, calibration: HullCalibration, bilgeQuantity: number): ZoneMarker | null {

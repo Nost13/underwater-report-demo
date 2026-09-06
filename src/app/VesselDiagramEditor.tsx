@@ -25,7 +25,9 @@ import {
   resetMarker,
   translateRect,
 } from '../vesselDiagram/geometry';
-import { bilgeQuantityFromSections, requiredMarkerGroups } from '../vesselDiagram/markers';
+import { bilgeQuantityFromSections, requiredMarkerGroups,resolveMarkerIds } from '../vesselDiagram/markers';
+import {PercentControl} from './PercentControl';
+import {MarkerManager} from './MarkerManager';
 import {
   DEFAULT_CALIBRATION,
   DIAGRAM_HEIGHT,
@@ -73,6 +75,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   transducer: 'Transducer',
   anode: 'Anode',
   'bilge-keel': 'Bilge keel',
+  custom: '추가 표식',
 };
 
 const markerGroup = (marker: ZoneMarker) => {
@@ -83,6 +86,7 @@ const markerGroup = (marker: ZoneMarker) => {
 };
 
 const markerName = (marker: ZoneMarker, displayNames = DISPLAY_NAMES) => {
+  if(marker.label)return marker.label;
   if (marker.id.startsWith('hull-')) return `${marker.id.slice(5).toUpperCase().replaceAll('-', ' ')} Hull`;
   if (marker.id.startsWith('transducer-')) return `Transducer ${marker.id.endsWith('-aft') ? 'AFT' : 'FWD'}`;
   if (marker.id.startsWith('anode-')) return `Anode ${marker.id.endsWith('-aft') ? 'AFT' : 'FWD'}`;
@@ -228,9 +232,10 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
     label: nameMarker(marker),
     rect: marker.rect,
   })));
-  const requiredGroups = requiredMarkerGroups(sections);
+  const requiredGroups = requiredMarkerGroups(sections,value??undefined);
   const canConfirm = Boolean(value && isValidCalibration(value.calibration)
     && allMarkers.every((marker) => isValidRect(marker.rect))
+    && sections.every(section=>resolveMarkerIds(section,value??undefined).length>0)
     && requiredGroups.every((group) => group.markerIds.every((id) => allMarkers.some((marker) => marker.id === id))));
 
   useEffect(() => {
@@ -372,7 +377,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
     if (!target) return;
     if (interaction.markerIds && interaction.startRects && interaction.groupBounds) {
       const startBounds = interaction.groupBounds;
-      const collection = interaction.id.startsWith('hull-') ? 'hullMarkers' : 'nicheMarkers';
+      const collection = value.hullMarkers.some(marker=>marker.id===interaction.id) ? 'hullMarkers' : 'nicheMarkers';
       if (interaction.kind === 'MOVE') {
         const moved = translateMarkerSelection(interaction.startRects, interaction.markerIds, delta);
         const movedById = new Map(moved.map((marker) => [marker.id, marker]));
@@ -408,7 +413,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
       : marker?.shape === 'CIRCLE'
         ? resizeCircleRect(target, interaction.edge!, delta)
         : resizeRect(target, interaction.edge!, delta);
-    const collection = interaction.id.startsWith('hull-') ? 'hullMarkers' : 'nicheMarkers';
+    const collection = value.hullMarkers.some(marker=>marker.id===interaction.id) ? 'hullMarkers' : 'nicheMarkers';
     replace({ [collection]: value[collection].map((marker) => marker.id === interaction.id ? { ...marker, rect: nextRect } : marker) });
   };
 
@@ -427,7 +432,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
     const amount = event.shiftKey ? 10 : 1;
     const deltaX = event.key === 'ArrowLeft' ? -amount / DIAGRAM_WIDTH : event.key === 'ArrowRight' ? amount / DIAGRAM_WIDTH : 0;
     const deltaY = event.key === 'ArrowUp' ? -amount / DIAGRAM_HEIGHT : event.key === 'ArrowDown' ? amount / DIAGRAM_HEIGHT : 0;
-    const collection = marker.id.startsWith('hull-') ? 'hullMarkers' : 'nicheMarkers';
+    const collection = value.hullMarkers.some(item=>item.id===marker.id) ? 'hullMarkers' : 'nicheMarkers';
     const selected = value[collection].filter((candidate) => selectedIds.includes(candidate.id));
     const moveGroup = selectedIds.includes(marker.id) && selected.length > 1;
     const moving = moveGroup ? selected : [marker];
@@ -443,7 +448,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
   const resetSelected = () => {
     if (!value) return;
     const defaults = (markers: ZoneMarker[]) => markers.map((marker) => selectedIds.includes(marker.id)
-      ? resetMarker(marker.id, value.calibration, bilgeQuantity) ?? marker
+      ? resetMarker(marker.id, value.calibration, bilgeQuantity) ? {...marker,rect:resetMarker(marker.id, value.calibration, bilgeQuantity)!.rect} : marker
       : marker);
     replace({ hullMarkers: defaults(value.hullMarkers), nicheMarkers: defaults(value.nicheMarkers) });
   };
@@ -452,14 +457,15 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
     if (!value || !selectedIds.length) return;
     const selectedGroups = new Set(allMarkers.filter((marker) => selectedIds.includes(marker.id)).map(markerGroup));
     const defaults = (markers: ZoneMarker[]) => markers.map((marker) => selectedGroups.has(markerGroup(marker))
-      ? resetMarker(marker.id, value.calibration, bilgeQuantity) ?? marker
+      ? resetMarker(marker.id, value.calibration, bilgeQuantity) ? {...marker,rect:resetMarker(marker.id, value.calibration, bilgeQuantity)!.rect} : marker
       : marker);
     replace({ hullMarkers: defaults(value.hullMarkers), nicheMarkers: defaults(value.nicheMarkers) });
   };
 
   const resetAll = () => {
     if (!value || !confirmNicheReset()) return;
-    replace({ hullMarkers: createDefaultHullMarkers(value.calibration), nicheMarkers: createDefaultNicheMarkers(value.calibration, bilgeQuantity) });
+    const reset = (markers: ZoneMarker[]) => markers.map(marker=> { const initial=resetMarker(marker.id,value.calibration,bilgeQuantity); return initial?{...marker,rect:initial.rect}:marker; });
+    replace({ hullMarkers: reset(value.hullMarkers), nicheMarkers: reset(value.nicheMarkers) });
   };
 
   const applyAlignment = (mode: MarkerAlignment) => {
@@ -542,11 +548,12 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
     />{value && <b>{value.imageName}</b>}</label>
     {value && step === 'HULL' && <fieldset className="diagram-image-controls"><legend>도면 크기·위치 맞추기 — 도형은 그대로 유지</legend>
       <label><input type="checkbox" checked={value.imageAspectLocked !== false} onChange={(event)=>replace({imageAspectLocked:event.target.checked})} />가로·세로 비율 유지</label>
-      {(['x','y','width','height'] as const).map((key)=><label key={key}>{({x:'도면 가로 위치',y:'도면 세로 위치',width:'도면 가로 크기',height:'도면 세로 크기'})[key]}<input type="range" aria-label={({x:'도면 가로 위치',y:'도면 세로 위치',width:'도면 가로 크기',height:'도면 세로 크기'})[key]} min={key==='x'||key==='y'?-.5:.1} max={key==='x'||key==='y'?.5:2} step="0.002" value={(value.imagePlacement??{x:0,y:0,width:1,height:1})[key]} onChange={(event)=>{
-        const current=value.imagePlacement??{x:0,y:0,width:1,height:1}; const next={...current,[key]:Number(event.target.value)};
+      {(['x','y','width','height'] as const).map((key)=><PercentControl key={key} label={({x:'도면 가로 위치',y:'도면 세로 위치',width:'도면 가로 크기',height:'도면 세로 크기'})[key]} min={key==='x'||key==='y'?-.5:.1} max={key==='x'||key==='y'?.5:2} value={(value.imagePlacement??{x:0,y:0,width:1,height:1})[key]} onChange={(amount)=>{
+        const current=value.imagePlacement??{x:0,y:0,width:1,height:1}; const next={...current,[key]:amount};
         if(value.imageAspectLocked!==false && (key==='width'||key==='height')) { const other=key==='width'?'height':'width'; next[other]=current[other]*next[key]/current[key]; }
+        if(next.width>4||next.height>4||next.width<=0||next.height<=0){setError('비율 유지 결과가 범위를 벗어납니다. 크기를 줄이거나 비율 유지를 해제하세요.');return;}
         replace({imagePlacement:next});
-      }}/><output>{Math.round((value.imagePlacement??{x:0,y:0,width:1,height:1})[key]*100)}%</output></label>)}
+      }}/>)}
     </fieldset>}
     {error && <p role="alert" className="diagram-error">{error}</p>}
     {value && <div className="diagram-editor-grid">
@@ -625,6 +632,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
         <p>선체와 선택한 표식이 Word에 들어갈 비율로 표시됩니다.</p>
         <VesselDiagramPreview config={value} markerIds={visibleSelectedIds} />
       </section>
+      <MarkerManager value={value} sections={sections} onChange={onChange} nameMarker={nameMarker}/>
     </div>}
     <footer className="diagram-editor-footer">
       <button type="button" className="ghost" onClick={onBack}>이전</button>

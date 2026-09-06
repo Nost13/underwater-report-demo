@@ -54,7 +54,7 @@ export function VesselDiagramWorkspace({value,onChange,sections,info,onBack,onNe
     }catch(reason){setError((reason as Error).message);return false;}finally{setBusy(false);}
   };
   const updateView=(next:VesselDiagramConfig)=>{
-    const adjusted=pending?{...next,calibration:pending.calibration,hullMarkers:pending.hullMarkers,nicheMarkers:pending.nicheMarkers,confirmed:false}:next;
+    const adjusted=pending?{...next,calibration:pending.calibration,hullMarkers:pending.hullMarkers,nicheMarkers:pending.nicheMarkers,markerBindings:pending.markerBindings,removedMarkerIds:pending.removedMarkerIds,confirmed:false}:next;
     if(pending)setPending(null);
     const combined=view==='SIDE'?{...adjusted,bottomView:value?.bottomView,useBottomView:value?.useBottomView,sectionViews:value?.sectionViews}
       :{...value!,bottomView:adjusted,useBottomView:true};

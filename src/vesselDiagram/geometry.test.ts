@@ -62,7 +62,7 @@ describe('vessel diagram geometry', () => {
     expect(createBilgeKeelMarkers({ sternX: 0.08, bowX: 0.92, hullTopY: 0.15, bottomY: 0.86 }, 3).map(({ id, unit }) => [id, unit])).toEqual([['bilge-keel-1', 1], ['bilge-keel-2', 2], ['bilge-keel-3', 3]]);
   });
 
-  it('creates component point markers as true circles while Bilge Keel stays elliptical', () => {
+  it('creates component point markers as true circles while Bilge Keel stays rectangular', () => {
     const markers = createDefaultNicheMarkers({ sternX: 0.1, bowX: 0.9, hullTopY: 0.2, bottomY: 0.8 }, 3);
     expect(markers).toHaveLength(12);
     const propeller = markers.find((marker) => marker.id === 'propeller-group')!;
@@ -76,7 +76,7 @@ describe('vessel diagram geometry', () => {
       Math.abs(marker.rect.width * DIAGRAM_WIDTH - 80) < 1e-8
       && Math.abs(marker.rect.height * DIAGRAM_HEIGHT - 80) < 1e-8
     ))).toBe(true);
-    expect(bilge.shape).toBe('ELLIPSE');
+    expect(bilge.shape).toBe('RECTANGLE');
   });
 
   it('normalizes invalid Bilge Keel quantities to one marker', () => {

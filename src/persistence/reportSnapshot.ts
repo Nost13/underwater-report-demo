@@ -8,6 +8,8 @@ import type { ScopeTarget, NicheType, ServiceKind, Phase } from '../domain/types
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
 import {validDiagram} from './validateDiagram';
 import {createGeneralTargets} from '../domain/structure';
+import { validatePersonnelLibrary } from '../app/personnelLibrary';
+import {normalizeDiagramShapes} from '../vesselDiagram/customMarkers';
 
 export interface ReportSnapshot {
   kind: 'uws-job'; version: 1; stage: number; imo: string; vessel: Vessel | null;
@@ -47,6 +49,8 @@ export function parseReportSnapshot(value: unknown): ReportSnapshot {
     || !Array.isArray(info.personnelQualifications) || !Array.isArray(info.serviceItems) || !info.serviceItems.every((item) => typeof item === 'string')
     || !object(info.readiness)) return fail();
   const defaults = emptyReportInfo();
+  if(info.personnelLibrary!==undefined) validatePersonnelLibrary(info.personnelLibrary);
+  if(info.personnelQualifications.some(person=>!object(person)||(person.id!==undefined&&(typeof person.id!=='string'||!person.id))))return fail();
   if(!optionalMap(info.operationModes,(mode)=>mode==='AUTO'||mode==='MANUAL')||!optionalMap(info.personnelCountModes,(mode)=>mode==='AUTO'||mode==='MANUAL'))return fail();
   if(info.overallResult!==undefined&&(!object(info.overallResult)||!['headline','narrative','sourceFingerprint'].every((key)=>typeof (info.overallResult as unknown as Record<string,unknown>)[key]==='string')))return fail();
   for (const group of ['vessel', 'operation', 'personnelCounts'] as const) {
@@ -115,5 +119,5 @@ export function parseReportSnapshot(value: unknown): ReportSnapshot {
         || marker.rect.width <= 0 || marker.rect.height <= 0 || !['CIRCLE', 'ELLIPSE', 'RECTANGLE'].includes(marker.shape)) return fail();
     }
   }
-  return input;
+  return {...input,vesselDiagram:input.vesselDiagram?normalizeDiagramShapes(input.vesselDiagram):null};
 }

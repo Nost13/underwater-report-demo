@@ -62,7 +62,7 @@ const rank = (values: readonly string[], value?: string) => {
   return index < 0 ? values.length : index;
 };
 
-const finalPhase = (section: ReportSection): Phase => {
+export const finalPhase = (section: ReportSection): Phase => {
   if (section.phases.includes('AFTER') && section.conditions.AFTER) return 'AFTER';
   if (section.phases.includes('CURRENT') && section.conditions.CURRENT) return 'CURRENT';
   return section.phases.find((phase) => section.conditions[phase]) ?? section.phases[0];

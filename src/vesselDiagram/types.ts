@@ -5,12 +5,14 @@ export type MarkerShape = 'RECTANGLE' | 'ELLIPSE' | 'CIRCLE';
 
 export interface NormalizedRect { x: number; y: number; width: number; height: number }
 export interface HullCalibration { sternX: number; bowX: number; hullTopY: number; bottomY: number }
-export interface ZoneMarker { id: string; groupId: string; unit?: number; rect: NormalizedRect; shape: MarkerShape }
+export interface ZoneMarker { id: string; groupId: string; unit?: number; rect: NormalizedRect; shape: MarkerShape; label?: string; custom?: boolean }
 export type MarkerGroupId =
   | 'hull' | 'propeller-group' | 'aft-services' | 'rudder-group' | 'fwd-services'
   | 'bulbous-bow' | 'transducer' | 'anode' | 'bilge-keel';
 export interface RequiredMarkerGroup { id: MarkerGroupId; markerIds: string[] }
 export interface VesselDiagramConfig {
+  markerBindings?: Record<string,string[]>;
+  removedMarkerIds?: string[];
   imageFile: File;
   imageName: string;
   calibration: HullCalibration;

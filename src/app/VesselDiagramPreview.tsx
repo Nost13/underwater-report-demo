@@ -52,8 +52,8 @@ export function VesselDiagramPreview({
   markerIds,
   compose = composeVesselDiagram,
 }: VesselDiagramPreviewProps) {
-  const markerKey = JSON.stringify(markerIds ?? (section ? resolveMarkerIds(section) : []));
   const viewConfig = section ? diagramForSection(config,section) : config;
+  const markerKey = JSON.stringify(markerIds ?? (section ? resolveMarkerIds(section,viewConfig) : []));
   const store = useMemo(() => createDiagramPreviewStore(viewConfig, JSON.parse(markerKey), compose), [viewConfig, markerKey, compose]);
   const { imageUrl, error } = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
 

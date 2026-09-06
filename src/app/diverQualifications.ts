@@ -1,4 +1,5 @@
 export interface DiverQualification {
+  id?: string;
   koreanName: string;
   englishName: string;
   birth: string;
@@ -76,16 +77,16 @@ export const DIVER_QUALIFICATIONS: readonly DiverQualification[] = SOURCE_ROWS.m
 
 const normalizeSearch = (value: string) => value.toLocaleLowerCase().replace(/[\s-]+/g, '');
 
-export function searchDiverQualifications(query: string): DiverQualification[] {
+export function searchDiverQualifications(query: string, source: readonly DiverQualification[] = DIVER_QUALIFICATIONS): DiverQualification[] {
   const normalized = normalizeSearch(query);
-  if (!normalized) return [...DIVER_QUALIFICATIONS];
-  const exact = DIVER_QUALIFICATIONS.filter((person) => [
+  if (!normalized) return [...source];
+  const exact = source.filter((person) => [
     person.koreanName,
     person.englishName,
     person.certificateNo,
   ].some((value) => normalizeSearch(value) === normalized));
   if (exact.length) return exact;
-  return DIVER_QUALIFICATIONS.filter((person) => normalizeSearch([
+  return source.filter((person) => normalizeSearch([
     person.koreanName,
     person.englishName,
     person.qualification,
