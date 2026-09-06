@@ -1,6 +1,7 @@
 import type { ServiceKind } from '../domain/types';
 import type { Vessel } from './demoData';
 import type { DiverQualification } from './diverQualifications';
+import { formatBerthingSide } from './berthingSide';
 
 export type ReadinessPhotoSlots = [File | null, File | null];
 
@@ -11,6 +12,12 @@ export interface ReadinessInfo {
   preparationNote: string;
   toolboxPhotos: ReadinessPhotoSlots;
   preparationPhotos: ReadinessPhotoSlots;
+}
+
+export interface PersonnelCounts {
+  siteSupervisor: string;
+  diver: string;
+  otherPersonnel: string;
 }
 
 export interface ReportInfo {
@@ -46,6 +53,7 @@ export interface ReportInfo {
     visibility: string;
     personnel: string;
   };
+  personnelCounts: PersonnelCounts;
   personnelQualifications: DiverQualification[];
   serviceItems: string[];
   readiness: ReadinessInfo;
@@ -63,6 +71,7 @@ export function emptyReportInfo(): ReportInfo {
   return {
     vessel: { name: '', imo: '', callSign: '', type: '', loa: '', breadth: '', gt: '', dwt: '', yearBuilt: '', ownerClient: '', jobNo: '' },
     operation: { eta: '', etd: '', workWindow: '', location: '', start: '', end: '', workingTime: '', position: '', draughtFwd: '', draughtMid: '', draughtAft: '', berthingSide: '', weather: '', knots: '', current: '', visibility: '', personnel: '' },
+    personnelCounts: { siteSupervisor: '', diver: '', otherPersonnel: '' },
     personnelQualifications: [],
     serviceItems: [],
     readiness: {
@@ -105,11 +114,12 @@ export function formatWorkingTime(start: string, end: string): string {
   return minutes === null ? '' : `${Math.floor(minutes / 60)} Hrs ${minutes % 60} Min`;
 }
 
-function positionFromBerthingSide(side: string): string {
-  const normalized = side.trim().toUpperCase();
-  if (normalized === 'P' || normalized === 'PORT' || normalized === 'PORT SIDE') return 'PORT SIDE';
-  if (normalized === 'S' || normalized === 'STBD' || normalized === 'STARBOARD' || normalized === 'STBD SIDE' || normalized === 'STARBOARD SIDE') return 'STBD SIDE';
-  return side.trim();
+export function composePersonnel(counts: PersonnelCounts): string {
+  return [
+    ['SITE SUPERVISOR', counts.siteSupervisor],
+    ['DIVER', counts.diver],
+    ['OTHER', counts.otherPersonnel],
+  ].filter(([, value]) => value.trim()).map(([label, value]) => `${label} : ${value.trim()}`).join(' / ');
 }
 
 export function deriveOperationValues(
@@ -117,6 +127,7 @@ export function deriveOperationValues(
   changedField?: keyof ReportInfo['operation'],
 ): ReportInfo['operation'] {
   const next = { ...operation };
+  next.berthingSide = formatBerthingSide(next.berthingSide);
   if (!changedField || changedField === 'eta' || changedField === 'etd') {
     const workWindow = formatWorkWindow(next.eta, next.etd);
     if (workWindow) next.workWindow = workWindow;
@@ -127,7 +138,7 @@ export function deriveOperationValues(
   }
   if (!changedField || changedField === 'location' || changedField === 'berthingSide') {
     const isAnchorage = /ANCHOR(?:AGE)?|묘박|정박지/i.test(next.location);
-    const position = positionFromBerthingSide(next.berthingSide);
+    const position = next.berthingSide;
     if (isAnchorage && position === next.position) next.position = '';
     else if (!isAnchorage && position) next.position = position;
   }

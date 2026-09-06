@@ -67,6 +67,38 @@ describe('Report Information', () => {
     }
   });
 
+  it('offers canonical berthing-side choices instead of a free-text abbreviation field', () => {
+    render(<Harness />);
+
+    const side = screen.getByLabelText('Berthing Side');
+    expect(side.tagName).toBe('SELECT');
+    expect(Array.from((side as unknown as HTMLSelectElement).options).map((option) => option.value))
+      .toEqual(['', 'PORT SIDE', 'STBD SIDE']);
+  });
+
+  it('composes editable personnel categories and re-synchronizes diver count from qualifications', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.type(screen.getByLabelText('Site Supervisor'), '1');
+    await user.type(screen.getByLabelText('Other Personnel'), '2');
+    await user.type(screen.getByLabelText('Diver search'), 'Kim-Dongu');
+    await user.click(screen.getByRole('button', { name: '김동우 선택' }));
+    expect(screen.getByLabelText('Diver')).toHaveValue('1');
+    expect(screen.getByLabelText('Personnel Deployed'))
+      .toHaveTextContent('SITE SUPERVISOR : 1 / DIVER : 1 / OTHER : 2');
+
+    await user.clear(screen.getByLabelText('Diver'));
+    await user.type(screen.getByLabelText('Diver'), '4');
+    expect(screen.getByLabelText('Personnel Deployed'))
+      .toHaveTextContent('SITE SUPERVISOR : 1 / DIVER : 4 / OTHER : 2');
+
+    await user.click(screen.getByRole('button', { name: '김동우 제외' }));
+    expect(screen.getByLabelText('Diver')).toHaveValue('0');
+    expect(screen.getByLabelText('Personnel Deployed'))
+      .toHaveTextContent('SITE SUPERVISOR : 1 / DIVER : 0 / OTHER : 2');
+  });
+
   it('searches the company-neutral diver database and selects personnel for Section 8', async () => {
     const user = userEvent.setup();
     render(<Harness />);
@@ -81,11 +113,12 @@ describe('Report Information', () => {
     const selected = screen.getByRole('table', { name: '선택한 자격 인원' });
     expect(within(selected).getByText('Kim Dongu')).toBeVisible();
     expect(within(selected).getByText('Technician Diver')).toBeVisible();
-    expect(screen.getByLabelText('Personnel Deployed')).toHaveValue('DIVER : 1');
+    expect(screen.getByLabelText('Personnel Deployed')).toHaveTextContent('DIVER : 1');
 
     await user.click(within(selected).getByRole('button', { name: '김동우 제외' }));
     expect(screen.queryByRole('table', { name: '선택한 자격 인원' })).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Personnel Deployed')).toHaveValue('');
+    expect(screen.getByLabelText('Diver')).toHaveValue('0');
+    expect(screen.getByLabelText('Personnel Deployed')).toHaveTextContent('DIVER : 0');
   });
 
   it('selects the first visible diver with Enter without submitting or adding a newline', async () => {
@@ -98,7 +131,7 @@ describe('Report Information', () => {
 
     expect(screen.getByRole('table', { name: '선택한 자격 인원' })).toHaveTextContent('Kim Dongu');
     expect(search).toHaveValue('');
-    expect(screen.getByLabelText('Personnel Deployed')).toHaveValue('DIVER : 1');
+    expect(screen.getByLabelText('Personnel Deployed')).toHaveTextContent('DIVER : 1');
   });
 
   it('leaves diver search unchanged when Enter has no visible result', async () => {

@@ -1,6 +1,6 @@
 import { useMemo, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react';
 import { DIVER_QUALIFICATIONS, searchDiverQualifications, type DiverQualification } from './diverQualifications';
-import { deriveOperationValues, type ReadinessPhotoSlots, type ReportInfo } from './reportInfo';
+import { composePersonnel, deriveOperationValues, type PersonnelCounts, type ReadinessPhotoSlots, type ReportInfo } from './reportInfo';
 
 interface ReportInformationProps {
   value: ReportInfo;
@@ -35,7 +35,12 @@ const vesselSiteFields: Array<[OperationField, string, string]> = [
   ['knots', 'Knots', 'knots'],
   ['current', 'Current', 'm/s'],
   ['visibility', 'Visibility', 'm'],
-  ['personnel', 'Personnel Deployed', '투입 인원'],
+];
+
+const personnelFields: Array<[keyof PersonnelCounts, string, string]> = [
+  ['siteSupervisor', 'Site Supervisor', '인원'],
+  ['diver', 'Diver', '인원'],
+  ['otherPersonnel', 'Other Personnel', '인원'],
 ];
 
 const readinessFields: Array<[ReadinessField, string, string]> = [
@@ -91,14 +96,23 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
     ...current,
     readiness: { ...current.readiness, [field]: photos },
   }));
-  const setPersonnel = (next: DiverQualification[]) => onChange((current) => ({
+  const setPersonnelCounts = (field: keyof PersonnelCounts, next: string) => onChange((current) => {
+    const personnelCounts = { ...current.personnelCounts, [field]: next };
+    return {
+      ...current,
+      personnelCounts,
+      operation: { ...current.operation, personnel: composePersonnel(personnelCounts) },
+    };
+  });
+  const setPersonnel = (next: DiverQualification[]) => onChange((current) => {
+    const personnelCounts = { ...current.personnelCounts, diver: String(next.length) };
+    return {
     ...current,
     personnelQualifications: next,
-    operation: {
-      ...current.operation,
-      personnel: next.length ? `DIVER : ${next.length}` : '',
-    },
-  }));
+      personnelCounts,
+      operation: { ...current.operation, personnel: composePersonnel(personnelCounts) },
+    };
+  });
   const addPersonnel = (person: DiverQualification) => {
     setPersonnel([...value.personnelQualifications, person]);
     setDiverSearch('');
@@ -107,15 +121,19 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
     value.personnelQualifications.filter((person) => person.certificateNo !== certificateNo),
   );
   const renderOperationField = ([field, label, placeholder]: [OperationField, string, string]) => (
-    <label className={field === 'personnel' ? 'field span-2' : 'field'} key={field}>
+    <label className="field" key={field}>
       <span>{label}</span>
-      <input
-        type={['eta', 'etd', 'start', 'end'].includes(field) ? 'datetime-local' : 'text'}
-        aria-label={label}
-        value={value.operation[field]}
-        placeholder={placeholder}
-        onChange={(event) => setOperation(field, event.target.value)}
-      />
+      {field === 'berthingSide'
+        ? <select aria-label={label} value={value.operation.berthingSide} onChange={(event) => setOperation(field, event.target.value)}>
+          <option value="">—</option><option value="PORT SIDE">PORT SIDE</option><option value="STBD SIDE">STBD SIDE</option>
+        </select>
+        : <input
+          type={['eta', 'etd', 'start', 'end'].includes(field) ? 'datetime-local' : 'text'}
+          aria-label={label}
+          value={value.operation[field]}
+          placeholder={placeholder}
+          onChange={(event) => setOperation(field, event.target.value)}
+        />}
     </label>
   );
   const renderReadinessPhotos = (
@@ -182,6 +200,12 @@ export function ReportInformation({ value, onChange, onBack, onNext }: ReportInf
         <fieldset className="operation-record-row" aria-label="OPERATION RECORD"><legend>OPERATION RECORD</legend>{recordFields.map(renderOperationField)}</fieldset>
       </div>
       <div className="report-information-grid operation-details-grid">{vesselSiteFields.map(renderOperationField)}</div>
+      <div className="personnel-counts">
+        {personnelFields.map(([field, label, placeholder]) => <label className="field" key={field}>
+          <span>{label}</span><input aria-label={label} value={value.personnelCounts[field]} placeholder={placeholder} onChange={(event) => setPersonnelCounts(field, event.target.value)} />
+        </label>)}
+        <output aria-label="Personnel Deployed">{value.operation.personnel}</output>
+      </div>
     </section>
     <section className="panel report-information-panel personnel-qualification-panel" aria-label="Personnel Qualifications">
       <header className="report-information-title"><span>03</span><div><h3>Personnel Qualifications</h3><p>SECTION 8 · 등록 인원 {DIVER_QUALIFICATIONS.length}명 · 회사 구분 없음</p></div></header>

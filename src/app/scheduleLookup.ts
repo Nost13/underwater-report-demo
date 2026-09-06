@@ -23,7 +23,7 @@ function mapSchedule(value: Partial<VesselSchedule>): VesselSchedule {
     terminal: text(value.terminal),
     berth: text(value.berth),
     carrier: text(value.carrier),
-    direction: text(value.direction),
+    direction: formatBerthingSide(text(value.direction)),
     port: text(value.port),
     eta: text(value.eta),
     etd: text(value.etd),
@@ -50,3 +50,4 @@ export async function lookupVesselSchedule(
     return [];
   }
 }
+import { formatBerthingSide } from './berthingSide';

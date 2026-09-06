@@ -60,6 +60,27 @@ describe('report information', () => {
     }).workingTime).toBe('2 Hrs 30 Min');
   });
 
+  it.each([
+    ['P', 'PORT SIDE'],
+    ['PORT', 'PORT SIDE'],
+    ['PORT SIDE', 'PORT SIDE'],
+    ['S', 'STBD SIDE'],
+    ['STBD', 'STBD SIDE'],
+    ['STARBOARD', 'STBD SIDE'],
+    ['STBD SIDE', 'STBD SIDE'],
+    ['STARBOARD SIDE', 'STBD SIDE'],
+    ['', ''],
+  ])('canonicalizes %s for editable berthing and derived position', (input, expected) => {
+    const operation = deriveOperationValues({
+      ...emptyReportInfo().operation,
+      location: 'Busan / PNIT / 3',
+      berthingSide: input,
+    }, 'berthingSide');
+
+    expect(operation.berthingSide).toBe(expected);
+    expect(operation.position).toBe(expected);
+  });
+
   it('adds the fixed one-hour allowance to the whole-hour work window', () => {
     expect(formatWorkWindow('2026-09-01T01:36', '2026-09-01T18:00'))
       .toBe('16 Hours + 1 Hrs');

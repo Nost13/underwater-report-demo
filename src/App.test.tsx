@@ -326,6 +326,7 @@ describe('desktop report workflow', () => {
     expect(within(schedule).getByText('2026-09-04 08:30')).toBeVisible();
     expect(within(schedule).getByText('2026-09-05 20:00')).toBeVisible();
     expect(within(schedule).getByText('Busan / PNIT / 3')).toBeVisible();
+    expect(within(schedule).getByText('PORT SIDE')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: '전체 적용' }));
     await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
@@ -333,7 +334,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByLabelText('ETA')).toHaveValue('2026-09-04T08:30');
     expect(screen.getByLabelText('ETD')).toHaveValue('2026-09-05T20:00');
     expect(screen.getByLabelText('Location')).toHaveValue('Busan / PNIT / 3');
-    expect(screen.getByLabelText('Berthing Side')).toHaveValue('PORT');
+    expect(screen.getByLabelText('Berthing Side')).toHaveValue('PORT SIDE');
     expect(screen.getByLabelText('Work Window')).toHaveValue('35 Hours + 1 Hrs');
     expect(screen.getByLabelText('Position')).toHaveValue('PORT SIDE');
   });
@@ -910,6 +911,36 @@ describe('desktop report workflow', () => {
     expect(screen.queryByLabelText('미배정 사진 배정')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '미배정 사진 0' })).toBeDisabled();
     expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveTextContent('image.jpg');
+  });
+
+  it('uses Korean niche labels, exposes keyboard help, and preserves enum values', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const type = screen.getByLabelText('Niche type') as unknown as HTMLSelectElement;
+    expect(Array.from(type.options).map((option) => [option.value, option.text]))
+      .toEqual([
+        ['SINGLE', '단일'],
+        ['SIDE', '좌우 구분'],
+        ['QUANTITY', '수량 구분'],
+        ['SIDE_QUANTITY', '좌우+수량 구분'],
+    ]);
+    const help = screen.getByRole('button', { name: 'Niche type 도움말' });
+    help.focus();
+    expect(help).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByText(/단일: 1개 Section/)).toBeVisible();
+  });
+
+  it('keeps locked-scope actions clearly sized and independently operable', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await verifyVessel(user);
+    await user.click(screen.getByRole('button', { name: '전체 적용' }));
+    await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
+
+    expect(screen.getByRole('button', { name: 'Report Information 입력' })).toHaveClass('scope-ready-action');
+    expect(screen.getByRole('button', { name: 'Scope 초기화' })).toHaveClass('scope-ready-action');
   });
 
   it('updates a supplemental caption and reorders photos inside the same phase by drag and drop', async () => {

@@ -1,6 +1,12 @@
 export type ServiceKind = 'INSPECTION' | 'CLEANING' | 'POLISHING' | 'REPAIR' | 'REMOVAL';
 export type Phase = 'CURRENT' | 'BEFORE' | 'AFTER';
 export type NicheType = 'SINGLE' | 'SIDE' | 'QUANTITY' | 'SIDE_QUANTITY';
+export const NICHE_TYPE_LABELS: Record<NicheType, string> = {
+  SINGLE: '단일',
+  SIDE: '좌우 구분',
+  QUANTITY: '수량 구분',
+  SIDE_QUANTITY: '좌우+수량 구분',
+};
 export type Side = 'PORT' | 'STBD' | 'BOTTOM';
 export type FoulingCoverage = number | null;
 export type FoulingType = '' | 'Clean / No Fouling' | 'Micro fouling' | 'Light Macro fouling' | 'Medium Macro Fouling' | 'Heavy Macro fouling' | 'Severe Macro Fouling';

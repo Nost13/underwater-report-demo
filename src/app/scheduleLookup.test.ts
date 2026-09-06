@@ -23,7 +23,7 @@ describe('ChainPortal vessel schedule lookup', () => {
       terminal: 'PNIT',
       berth: '3',
       carrier: 'MSC',
-      direction: 'PORT',
+      direction: 'PORT SIDE',
       port: 'Busan',
       eta: '2026-09-04T08:30',
       etd: '2026-09-05T20:00',

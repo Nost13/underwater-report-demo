@@ -81,6 +81,17 @@ describe('Section 1–4 template writer', () => {
     expect(cellAt(after, 0, 5, 1).textContent).toBe('US-CLS-2608007');
   });
 
+  it('writes only canonical berthing-side wording to the Section 1–4 vessel-and-site cell', async () => {
+    const { bytes, info } = await fixture();
+    info.operation.berthingSide = 'P';
+    const output = await JSZip.loadAsync(await fillSection14Template({ reportInfo: info, templateUrl: '' }, {
+      fetchTemplate: async () => bytes,
+    }));
+    const document = parse(await output.file('word/document.xml')!.async('text'));
+
+    expect(cellAt(document, 1, 5, 4).textContent).toBe('PORT SIDE');
+  });
+
   it('replaces only the four existing readiness media parts and preserves the rest of the package and geometry', async () => {
     const { original, bytes, info } = await fixture();
     const files = ['toolbox-1', 'toolbox-2', 'preparation-1', 'preparation-2'].map((name) => new File([name], `${name}.jpg`));

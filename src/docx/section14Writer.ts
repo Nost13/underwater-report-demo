@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import type { ReportInfo } from '../app/reportInfo';
+import { formatBerthingSide } from '../app/berthingSide';
 import { resizeForReportSlot } from '../browser/images';
 import { setCellLines, setElementTextPreservingRun } from './ooxmlText';
 
@@ -72,7 +73,7 @@ function fillOperationInfo(document: Document, info: ReportInfo): void {
   [operation.start, operation.end].forEach((value, index) => setCellLines(rowCells(table, 3)[index + 1], dateLines(value)));
   [operation.workWindow, operation.location].forEach((value, index) => setCell(table, 1, index + 3, value));
   [operation.workingTime, operation.position].forEach((value, index) => setCell(table, 3, index + 3, value));
-  [`FWD / ${operation.draughtFwd}`, `MID / ${operation.draughtMid}`, `AFT / ${operation.draughtAft}`, operation.berthingSide]
+  [`FWD / ${operation.draughtFwd}`, `MID / ${operation.draughtMid}`, `AFT / ${operation.draughtAft}`, formatBerthingSide(operation.berthingSide)]
     .forEach((value, index) => setCell(table, 5, index + 1, value.replace(/\s\/\s$/, '')));
   [operation.weather, operation.knots, operation.current, operation.visibility]
     .forEach((value, index) => setCell(table, 7, index + 1, value));

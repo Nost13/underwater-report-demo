@@ -142,6 +142,9 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .operation-record-row { min-width: 0; margin: 0; padding: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; border: 1px solid #cbd9dd; border-radius: 11px; background: #f8fbfb; }
 .operation-record-row legend { padding: 0 8px; color: var(--teal-700); font-size: var(--font-ui-xs); font-weight: 900; letter-spacing: .09em; }
 .operation-details-grid { margin-top: 14px; }
+.personnel-counts { margin-top: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: end; }
+.personnel-counts output { min-height: 34px; display: grid; align-content: center; gap: 2px; padding: 6px 9px; border: 1px solid #cbd9dd; border-radius: 8px; background: #f8fbfb; color: var(--navy-900); font-size: 10px; font-weight: 750; overflow-wrap: anywhere; }
+.personnel-counts output::before { content: 'Personnel Deployed'; color: #71858d; font-size: 8px; font-weight: 850; letter-spacing: .04em; }
 .readiness-photo-editors { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .readiness-photo-editor { min-width: 0; margin: 0; padding: 14px; border: 1px solid #cbd9dd; border-radius: 11px; background: #f8fbfb; }
 .readiness-photo-editor legend { padding: 0 8px; color: var(--navy-950); font-size: var(--font-ui-sm); font-weight: 900; }
@@ -234,6 +237,10 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .general-builder.restricted .mini-heading span { color: #72508e; }
 .niche-controls { display: grid; grid-template-columns: 1.2fr 1fr 108px minmax(150px, .8fr); gap: 6px; }
 .niche-controls select, .niche-controls input { min-width: 0; height: 34px; padding: 0 8px; font-size: 10px; }
+.niche-type-control { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 28px; gap: 4px; }
+.niche-type-control select { width: 100%; }
+.niche-type-help-button { width: 28px; height: 34px; padding: 0; border: 1px solid #b8d3d0; border-radius: 7px; background: #fff; color: var(--teal-700); font-weight: 900; }
+.niche-type-help { margin: 8px 0 0; padding: 8px 10px; border-radius: 7px; background: #f1f7f7; color: #48646d; font-size: 10px; line-height: 1.45; }
 .quantity-stepper { height: 34px; display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; border: 1px solid #ccd7dc; border-radius: 8px; background: #fff; overflow: hidden; }
 .quantity-stepper input { width: 100%; height: 32px; padding: 0 2px; border: 0; border-right: 1px solid #dce4e8; border-left: 1px solid #dce4e8; border-radius: 0; text-align: center; font-weight: 800; -moz-appearance: textfield; }
 .quantity-stepper input::-webkit-inner-spin-button, .quantity-stepper input::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
@@ -280,8 +287,8 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
 .scope-ready { margin-top: 9px; padding: 8px 11px; display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; border-radius: 7px; background: #eef8f6; color: #40615f; font-size: 10px; }
 .scope-ready b span { color: var(--teal-700); }
 .scope-ready em { font-style: normal; }
-.scope-ready > div { display: flex; align-items: center; gap: 3px; }
-.scope-ready button { min-height: 28px; padding: 0 7px; font-size: 9px; }
+.scope-ready > div { display: flex; align-items: center; gap: 6px; }
+.scope-ready .scope-ready-action { min-height: 38px; padding: 0 12px; font-size: 10px; white-space: nowrap; }
 
 .primary, .ghost, .text-button { min-height: 38px; padding: 0 16px; border-radius: 8px; font-size: 11px; font-weight: 750; }
 .primary { border: 1px solid var(--navy-900); background: var(--navy-900); color: #fff; box-shadow: 0 6px 16px rgba(10,42,54,.12); }
@@ -853,6 +860,7 @@ input, select { height: 40px; padding: 0 12px; border: 1px solid #ccd7dc; border
   .scope-grid { grid-template-columns: 1fr; }
   .cover-editor-grid { grid-template-columns: minmax(0, 1fr); }
   .report-information-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .personnel-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .operation-record-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .report-workspace { grid-template-columns: minmax(0, 1fr); }
   .report-workspace.unmatched-open { grid-template-columns: minmax(0, 1fr) 320px; }
