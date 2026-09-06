@@ -23,7 +23,16 @@ beforeEach(() => {
     static createObjectURL = vi.fn(() => { const url = 'blob:cover-' + ++id; active.add(url); return url; });
     static revokeObjectURL = vi.fn((url: string) => active.delete(url));
   });
-  vi.stubGlobal('PointerEvent', MouseEvent);
+  class PointerEventMock extends MouseEvent {
+    pointerId: number;
+    isPrimary: boolean;
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init);
+      this.pointerId = init.pointerId ?? 1;
+      this.isPrimary = init.isPrimary ?? true;
+    }
+  }
+  vi.stubGlobal('PointerEvent', PointerEventMock);
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 describe('Cover editor', () => {
@@ -73,6 +82,63 @@ describe('Cover editor', () => {
     fireEvent.pointerUp(banner);
     fireEvent.pointerMove(banner, { clientX: 100, clientY: 300 });
     expect(state().crop.focusX).toBe(0);
+  });
+  it('does not start a crop drag for a non-primary pointer', () => {
+    render(<Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'photo.jpg') }} />);
+    const banner = screen.getByLabelText('사진 초점 조정');
+    vi.spyOn(banner, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 400, height: 200 } as DOMRect);
+    fireEvent.pointerDown(banner, { pointerId: 2, isPrimary: false, clientX: 200, clientY: 100, button: 0 });
+    fireEvent.pointerMove(banner, { pointerId: 2, clientX: 240, clientY: 120 });
+    expect(banner).toHaveStyle({ cursor: 'grab' });
+    expect(state().crop).toEqual({ focusX: .5, focusY: .5, zoom: 1 });
+  });
+  it('keeps the original pointer drag active when a competing pointer goes down', () => {
+    render(<Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'photo.jpg') }} />);
+    const banner = screen.getByLabelText('사진 초점 조정');
+    vi.spyOn(banner, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 400, height: 200 } as DOMRect);
+    fireEvent.pointerDown(banner, { pointerId: 1, clientX: 200, clientY: 100, button: 0 });
+    fireEvent.pointerDown(banner, { pointerId: 2, clientX: 300, clientY: 100, button: 0 });
+    fireEvent.pointerMove(banner, { pointerId: 2, clientX: 340, clientY: 100 });
+    expect(state().crop).toEqual({ focusX: .5, focusY: .5, zoom: 1 });
+    expect(banner).toHaveStyle({ cursor: 'grabbing' });
+    fireEvent.pointerMove(banner, { pointerId: 1, clientX: 240, clientY: 120 });
+    expect(state().crop).toEqual({ focusX: .4, focusY: .4, zoom: 1 });
+  });
+  it('ignores non-active pointer termination while the captured pointer continues panning', () => {
+    render(<Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'photo.jpg') }} />);
+    const banner = screen.getByLabelText('사진 초점 조정');
+    vi.spyOn(banner, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 400, height: 200 } as DOMRect);
+    fireEvent.pointerDown(banner, { pointerId: 1, clientX: 200, clientY: 100, button: 0 });
+    fireEvent.pointerUp(banner, { pointerId: 2 });
+    fireEvent.pointerCancel(banner, { pointerId: 2 });
+    fireEvent.lostPointerCapture(banner, { pointerId: 2 });
+    expect(banner).toHaveStyle({ cursor: 'grabbing' });
+    fireEvent.pointerMove(banner, { pointerId: 1, clientX: 240, clientY: 120 });
+    expect(state().crop).toEqual({ focusX: .4, focusY: .4, zoom: 1 });
+  });
+  it('ends active cancel or lost capture and permits a new drag', () => {
+    render(<Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'photo.jpg') }} />);
+    const banner = screen.getByLabelText('사진 초점 조정');
+    vi.spyOn(banner, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 400, height: 200 } as DOMRect);
+    fireEvent.pointerDown(banner, { pointerId: 1, clientX: 200, clientY: 100, button: 0 });
+    fireEvent.pointerCancel(banner, { pointerId: 1 });
+    expect(banner).toHaveStyle({ cursor: 'grab' });
+    fireEvent.pointerDown(banner, { pointerId: 2, clientX: 200, clientY: 100, button: 0 });
+    fireEvent.pointerMove(banner, { pointerId: 2, clientX: 240, clientY: 120 });
+    expect(state().crop).toEqual({ focusX: .4, focusY: .4, zoom: 1 });
+    fireEvent.lostPointerCapture(banner, { pointerId: 2 });
+    expect(banner).toHaveStyle({ cursor: 'grab' });
+    fireEvent.pointerDown(banner, { pointerId: 3, clientX: 200, clientY: 100, button: 0 });
+    fireEvent.pointerMove(banner, { pointerId: 3, clientX: 240, clientY: 120 });
+    expect(state().crop).toMatchObject({ zoom: 1 });
+    expect(state().crop.focusX).toBeCloseTo(.3);
+    expect(state().crop.focusY).toBeCloseTo(.3);
+  });
+  it('uses the default cursor while no photo can be cropped', () => {
+    render(<Harness />);
+    const banner = screen.getByLabelText('사진 초점 조정');
+    expect(banner).toHaveAttribute('tabindex', '-1');
+    expect(banner).toHaveStyle({ cursor: 'auto' });
   });
   it('retains focus-visible arrow-key crop adjustments after pointer panning', () => {
     render(<Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'photo.jpg') }} />);

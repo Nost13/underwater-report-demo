@@ -76,7 +76,17 @@ export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onN
     };
     onChange({ ...scope, crop: nextCrop });
   };
-  const stopDrag = () => { dragging.current = null; setIsDragging(false); };
+  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!value.photoFile || event.button !== 0 || event.isPrimary === false || dragging.current) return;
+    dragging.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY };
+    setIsDragging(true);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const stopDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragging.current?.pointerId !== event.pointerId) return;
+    dragging.current = null;
+    setIsDragging(false);
+  };
   return <section className="workspace cover-workspace">
     <header className="page-heading"><div><p className="step-kicker">STEP 03</p><h2>Cover</h2><p>표지 사진과 작업 내용을 확인하세요.</p></div></header>
     <div className="cover-editor-grid">
@@ -100,8 +110,8 @@ export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onN
         <article className="cover-a4" aria-label="A4 표지 미리보기">
           <header className="cover-paper-header"><strong>UNDERWATER SERVICE REPORT</strong><dl><div><dt>REPORT NO</dt><dd>{linked.reportNo}</dd></div><div><dt>DATE OF ISSUE</dt><dd>{value.issueDate}</dd></div></dl></header>
           <div className="cover-photo-banner" aria-label="사진 초점 조정" role="group" tabIndex={value.photoFile ? 0 : -1}
-            style={{ aspectRatio: `${COVER_PHOTO_SIZE.width} / ${COVER_PHOTO_SIZE.height}`, cursor: isDragging ? 'grabbing' : 'grab' }}
-            onPointerDown={(event) => { if (!value.photoFile || event.button !== 0) return; dragging.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY }; setIsDragging(true); event.currentTarget.setPointerCapture?.(event.pointerId); }}
+            style={{ aspectRatio: `${COVER_PHOTO_SIZE.width} / ${COVER_PHOTO_SIZE.height}`, cursor: value.photoFile ? isDragging ? 'grabbing' : 'grab' : 'auto' }}
+            onPointerDown={startDrag}
             onPointerMove={pan}
             onPointerUp={stopDrag} onPointerCancel={stopDrag} onLostPointerCapture={stopDrag}
             onKeyDown={(event) => {
