@@ -26,11 +26,17 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify({ matches: [vesselFixture] }),
     });
   });
+  await page.route('https://marine-ops-dashboard.vercel.app/api/chainportal**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ matches: [] }) });
+  });
 });
 
 async function completeVesselDiagram(page: Page, filePath = 'e2e/fixtures/vessel-side.png') {
   await page.getByRole('button', { name: 'Report Information 입력' }).click();
-  await page.getByRole('button', { name: '선박 위치도 설정으로' }).click();
+  await page.getByRole('button', { name: '커버 설정으로' }).click();
+  await expect(page.getByRole('heading', { name: 'Cover' })).toBeVisible();
+  await page.getByRole('button', { name: '다음' }).click();
+  await expect(page.getByRole('heading', { name: '선박 위치도 설정' })).toBeVisible();
   await page.getByLabel('선박 사이드뷰 이미지').setInputFiles(filePath);
   await page.getByRole('button', { name: 'Niche 맞추기로 이동' }).click();
   await page.getByRole('button', { name: '선박 위치도 설정 완료' }).click();
@@ -210,10 +216,10 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   const directoryInput = page.locator('input[type="file"][webkitdirectory]');
   await expect(directoryInput).toHaveAttribute('webkitdirectory', '');
   await directoryInput.setInputFiles('e2e/manual-fixture');
-  await expect(page.getByLabel('사진 입력 진행 상태')).toContainText('UNMATCHED');
+  await expect(page.getByLabel('사진 입력 진행 상태')).toContainText('미배정 사진 1장');
   await page.getByRole('button', { name: 'Report Input으로' }).click();
   await page.getByRole('button', { name: 'AFTER 불러온 사진 선택' }).click();
-  await expect(page.getByLabel('UNMATCHED 사진 배정')).toBeVisible();
+  await expect(page.getByLabel('미배정 사진 배정')).toBeVisible();
   await expect(page.locator('.assignment-target')).toContainText('AFTER');
   await expect(page.locator('.report-workspace')).toHaveClass(/unmatched-open/);
   const beforePanel = page.locator('.phase-panel.before');
@@ -221,14 +227,14 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   const drawerThumb = await page.locator('.unmatched-thumb').boundingBox();
   expect(drawerThumb).not.toBeNull();
   expect((drawerThumb?.width ?? 0) / (drawerThumb?.height ?? 1)).toBeCloseTo(1.6, 1);
-  await page.getByRole('button', { name: 'UNMATCHED 닫기' }).click();
+  await page.getByRole('button', { name: '미배정 사진 닫기' }).click();
   await expect(page.locator('.report-workspace')).not.toHaveClass(/unmatched-open/);
   const beforeWidthWithoutDrawer = (await beforePanel.boundingBox())?.width ?? 0;
   expect(beforeWidthWithoutDrawer).toBeGreaterThan(beforeWidthWithDrawer);
   await page.getByRole('button', { name: 'AFTER 불러온 사진 선택' }).click();
   await expect(page.locator('.assignment-target')).toContainText('AFTER');
   await page.getByRole('button', { name: 'manual.jpg 사진 배정' }).click();
-  await expect(page.getByRole('button', { name: 'UNMATCHED 0' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '미배정 사진 0' })).toBeDisabled();
   await expect(page.locator('.page-badge b')).toHaveText('1P');
   await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
 
@@ -240,7 +246,7 @@ test('the unified photo input assigns UNMATCHED photos to the clicked phase, mov
   await page.getByRole('button', { name: 'CLEANING/GENERAL/FWD/STBD Section 열기' }).click();
   await expect(page.locator('.page-badge b')).toHaveText('1P');
   await expect(page.locator('.phase-panel.after')).toContainText('manual.jpg');
-  await page.getByRole('button', { name: 'manual.jpg 삭제' }).click();
+  await page.getByRole('button', { name: 'manual.jpg 미배정으로 이동' }).click();
   await expect(page.locator('.phase-panel.after')).not.toContainText('manual.jpg');
   await page.getByRole('button', { name: 'AFTER 새 사진 추가' }).click();
   await page.locator('input[type="file"]:not([webkitdirectory])').setInputFiles('e2e/fixtures/manual.jpg');
@@ -330,7 +336,10 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   await page.getByRole('button', { name: '전체 적용' }).click();
   await page.getByRole('button', { name: /Scope 만들기$/ }).click();
   await page.getByRole('button', { name: 'Report Information 입력' }).click();
-  await page.getByRole('button', { name: '선박 위치도 설정으로' }).click();
+  await page.getByRole('button', { name: '커버 설정으로' }).click();
+  await expect(page.getByRole('heading', { name: 'Cover' })).toBeVisible();
+  await page.getByRole('button', { name: '다음' }).click();
+  await expect(page.getByRole('heading', { name: '선박 위치도 설정' })).toBeVisible();
   await page.getByLabel('선박 사이드뷰 이미지').setInputFiles('e2e/fixtures/vessel-side.png');
 
   const workspace = page.locator('.workspace').filter({ has: page.locator('.vessel-diagram-editor') });
@@ -393,11 +402,14 @@ test('vessel diagram receives real guide, marker, resize, and keyboard input at 
   expect(handleBox).not.toBeNull();
   expect(handleBox!.width).toBeCloseTo(24, 0);
   expect(handleBox!.height).toBeCloseTo(24, 0);
-  expect(await resizeHandle.evaluate((node) => getComputedStyle(node, '::after').width)).toBe('6px');
-  expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.className, {
+  expect(await resizeHandle.evaluate((node) => getComputedStyle(node, '::after').width)).toBe('4px');
+  expect(await page.evaluate(({ x, y }) => {
+    const target = document.elementFromPoint(x, y);
+    return target?.classList.contains('marker-handle') && target.classList.contains('se');
+  }, {
     x: handleBox!.x + handleBox!.width / 2,
     y: handleBox!.y + handleBox!.height / 2,
-  })).toContain('marker-handle se');
+  })).toBe(true);
   await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
   await page.mouse.down();
   await page.mouse.move(handleBox!.x + handleBox!.width / 2 + 20, handleBox!.y + handleBox!.height / 2 + 8, { steps: 4 });
@@ -472,7 +484,7 @@ test('linked and Bilge markers produce preview-identical flattened Word PNGs', a
 
   const addNiche = async (component: string, type: string, quantity: number) => {
     await page.getByLabel('Niche component').selectOption(component);
-    await page.getByLabel('Niche type').selectOption(type);
+    await page.getByLabel('Niche type', { exact: true }).selectOption(type);
     await page.getByLabel('Quantity').fill(String(quantity));
     await page.getByRole('button', { name: /Scope 추가$/ }).click();
   };
@@ -543,6 +555,9 @@ test('linked and Bilge markers produce preview-identical flattened Word PNGs', a
   await page.screenshot({ path: 'e2e/vessel-preview-parity-1440.png', fullPage: true });
 
   await page.getByRole('button', { name: 'Word 준비' }).click();
+  await expect(page.getByRole('heading', { name: 'Summary 확인' })).toBeVisible();
+  await page.getByRole('button', { name: '최종 Word 준비' }).click();
+  await expect(page.locator('.export-doc')).toContainText('전체 보고서');
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Word 보고서 다운로드' }).click();
   const download = await downloadPromise;
@@ -639,7 +654,9 @@ test('complete 1440px flow covers preview, QA focus, repagination, and Word down
   await expect(page.getByLabel('전체 Report Preview')).toBeVisible();
   await expect(page.locator('.report-page')).toHaveCount(1);
   await page.getByRole('button', { name: 'Word 준비' }).click();
-  await expect(page.locator('.export-doc')).toContainText('Detail Service Record 템플릿');
+  await expect(page.getByRole('heading', { name: 'Summary 확인' })).toBeVisible();
+  await page.getByRole('button', { name: '최종 Word 준비' }).click();
+  await expect(page.locator('.export-doc')).toContainText('전체 보고서');
   const exportButton = page.getByRole('button', { name: 'Word 보고서 다운로드' });
   const downloadPromise = page.waitForEvent('download');
   await exportButton.click();
