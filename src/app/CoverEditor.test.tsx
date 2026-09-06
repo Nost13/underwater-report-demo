@@ -38,7 +38,7 @@ describe('Cover editor', () => {
   });
 
   it('selects, replaces and clears its own photo with no leaked URLs under StrictMode', () => {
-    const view = render(<StrictMode><Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'first.jpg') }} /></StrictMode>);
+    const view = render(<StrictMode><Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'first.jpg'), crop: { focusX: .2, focusY: .8, zoom: 2 } }} /></StrictMode>);
     expect(active.size).toBe(1);
     const currentUrl = [...active][0];
     fireEvent.change(screen.getByLabelText('Date of Issue'), { target: { value: '2027-01-02' } });
@@ -48,6 +48,7 @@ describe('Cover editor', () => {
     fireEvent.change(picker, { target: { files: [new File(['b'], 'second.jpg', { type: 'image/jpeg' })] } });
     expect(screen.getByAltText('표지 사진 미리보기')).toHaveAttribute('src', [...active][0]);
     expect(active.size).toBe(1);
+    expect(state().crop).toEqual({ focusX: .5, focusY: .5, zoom: 1 });
     fireEvent.click(screen.getByRole('button', { name: '사진 비우기' }));
     expect(screen.queryByAltText('표지 사진 미리보기')).not.toBeInTheDocument();
     expect(active.size).toBe(0);
@@ -55,18 +56,35 @@ describe('Cover editor', () => {
     view.unmount();
     expect(active.size).toBe(0);
   });
-  it('updates zoom and clamps pointer focus outside the fixed banner', () => {
+  it('updates zoom and pans the visible photo with pointer deltas, clamped to crop bounds', () => {
     render(<Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'photo.jpg') }} />);
-    fireEvent.change(screen.getByLabelText('사진 확대'), { target: { value: '2' } });
+    const zoom = screen.getByLabelText('사진 확대');
+    expect(zoom).toHaveAttribute('min', '1');
+    expect(zoom).toHaveAttribute('max', '3');
+    fireEvent.change(zoom, { target: { value: '2' } });
     expect(state().crop.zoom).toBe(2);
     const banner = screen.getByLabelText('사진 초점 조정');
     vi.spyOn(banner, 'getBoundingClientRect').mockReturnValue({ left: 100, top: 100, width: 400, height: 200 } as DOMRect);
     fireEvent.pointerDown(banner, { clientX: 300, clientY: 200, button: 0 });
-    fireEvent.pointerMove(banner, { clientX: 900, clientY: -100 });
-    expect(state().crop).toEqual({ focusX: 1, focusY: 0, zoom: 2 });
+    fireEvent.pointerMove(banner, { clientX: 340, clientY: 220 });
+    expect(state().crop).toEqual({ focusX: .4, focusY: .4, zoom: 2 });
+    fireEvent.pointerMove(banner, { clientX: 900, clientY: 1_000 });
+    expect(state().crop).toEqual({ focusX: 0, focusY: 0, zoom: 2 });
     fireEvent.pointerUp(banner);
     fireEvent.pointerMove(banner, { clientX: 100, clientY: 300 });
-    expect(state().crop.focusX).toBe(1);
+    expect(state().crop.focusX).toBe(0);
+  });
+  it('retains focus-visible arrow-key crop adjustments after pointer panning', () => {
+    render(<Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'photo.jpg') }} />);
+    const banner = screen.getByLabelText('사진 초점 조정');
+    expect(banner).toHaveAttribute('tabindex', '0');
+    expect(banner).toHaveStyle({ cursor: 'grab' });
+    fireEvent.pointerDown(banner, { clientX: 200, clientY: 100, button: 0 });
+    expect(banner).toHaveStyle({ cursor: 'grabbing' });
+    fireEvent.pointerUp(banner);
+    fireEvent.keyDown(banner, { key: 'ArrowRight' });
+    fireEvent.keyDown(banner, { key: 'ArrowDown' });
+    expect(state().crop).toEqual({ focusX: .52, focusY: .52, zoom: 1 });
   });
   it('keeps manual scope until explicit regeneration and edits issue date', () => {
     render(<Harness />);
@@ -78,7 +96,7 @@ describe('Cover editor', () => {
     fireEvent.click(screen.getByRole('button', { name: '자동 내용 다시 적용' }));
     expect(state()).toMatchObject({ scopeMode: 'AUTO', scopeTitle: 'Removal of Rope', scopeDescription: 'Removal: Rope' });
   });
-  it('positions the zoomed preview at the saved source rectangle including clamped edges', () => {
+  it('positions the zoomed preview at the saved source rectangle after clamped panning', () => {
     render(<Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'photo.jpg'), crop: { focusX: .5, focusY: .5, zoom: 2 } }} />);
     const image = screen.getByAltText('표지 사진 미리보기');
     Object.defineProperties(image, { naturalWidth: { value: 1200 }, naturalHeight: { value: 800 } });
@@ -86,8 +104,9 @@ describe('Cover editor', () => {
     expect(image).toHaveStyle({ objectPosition: '50% 50%', transformOrigin: '50% 50%', transform: 'scale(2)' });
     const banner = screen.getByLabelText('사진 초점 조정');
     vi.spyOn(banner, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 400, height: 200 } as DOMRect);
-    fireEvent.pointerDown(banner, { clientX: 400, clientY: 0, button: 0 });
-    expect(image).toHaveStyle({ objectPosition: '100% 0%', transformOrigin: '100% 0%', transform: 'scale(2)' });
+    fireEvent.pointerDown(banner, { clientX: 200, clientY: 100, button: 0 });
+    fireEvent.pointerMove(banner, { clientX: 600, clientY: 300 });
+    expect(image).toHaveStyle({ objectPosition: '0% 0%', transformOrigin: '0% 0%', transform: 'scale(2)' });
   });
   it('shows linked values and keeps a fixed A4 preview with blank missing metadata', () => {
     const edit = vi.fn();

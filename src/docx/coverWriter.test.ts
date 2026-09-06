@@ -68,7 +68,7 @@ describe('supplied cover template writer', () => {
     expect(elements(types, 'Override').find((node) => node.getAttribute('PartName') === '/word/media/image3.jpeg')?.getAttribute('ContentType')).toBe('image/png');
   });
 
-  it('replaces only the largest floating picture with renderer bytes and forwards the saved crop', async () => {
+  it('replaces only the largest floating picture with renderer bytes and forwards the saved panned crop', async () => {
     const { bytes, input } = await fixture();
     const rendered = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 99]);
     input.coverInfo.photoFile = new File(['photo'], 'cover.png', { type: 'image/png' });
@@ -76,7 +76,7 @@ describe('supplied cover template writer', () => {
     const renderPhoto = vi.fn(async () => rendered);
     const zip = await JSZip.loadAsync(await fillCoverTemplate(input, { fetchTemplate: async () => bytes, renderPhoto }));
     expect(await zip.file('word/media/image3.jpeg')!.async('uint8array')).toEqual(rendered);
-    expect(renderPhoto).toHaveBeenCalledWith(input.coverInfo.photoFile, input.coverInfo.crop, { width: 3026, height: 1551, cropInsets: { top: .15821, bottom: .15821 } });
+    expect(renderPhoto).toHaveBeenCalledWith(input.coverInfo.photoFile, { focusX: 0.3, focusY: 0.7, zoom: 1.8 }, { width: 3026, height: 1551, cropInsets: { top: .15821, bottom: .15821 } });
   });
 
   it('uses an opaque white PNG when the photo is missing, without browser image APIs or the source sample', async () => {

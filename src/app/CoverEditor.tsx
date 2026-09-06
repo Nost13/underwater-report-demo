@@ -39,7 +39,8 @@ export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onN
   const url = usePhotoUrl(value.photoFile);
   const [dimensions, setDimensions] = useState<{ url: string; width: number; height: number } | null>(null);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const dragging = useRef<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragging = useRef<{ pointerId: number; clientX: number; clientY: number } | null>(null);
   const linked = linkedCoverValues(reportInfo);
   const scope = syncGeneratedCoverScope(value, sections);
   const metadata = [
@@ -57,15 +58,25 @@ export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onN
     imageStyle.objectPosition = `${x}% ${y}%`;
     imageStyle.transformOrigin = `${x}% ${y}%`;
   }
-  const focus = (event: PointerEvent<HTMLDivElement>) => {
+  const pan = (event: PointerEvent<HTMLDivElement>) => {
+    const activeDrag = dragging.current;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
     const bounds = event.currentTarget.getBoundingClientRect();
+    const deltaX = event.clientX - activeDrag.clientX;
+    const deltaY = event.clientY - activeDrag.clientY;
+    activeDrag.clientX = event.clientX;
+    activeDrag.clientY = event.clientY;
     if (!bounds.width || !bounds.height) return;
-    onChange({ ...scope, crop: { ...value.crop,
-      focusX: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
-      focusY: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
-    } });
+    // Moving the visible image right/down means shifting the saved source crop
+    // left/up.
+    const nextCrop = {
+      ...value.crop,
+      focusX: Math.max(0, Math.min(1, value.crop.focusX - deltaX / bounds.width)),
+      focusY: Math.max(0, Math.min(1, value.crop.focusY - deltaY / bounds.height)),
+    };
+    onChange({ ...scope, crop: nextCrop });
   };
-  const stopDrag = () => { dragging.current = null; };
+  const stopDrag = () => { dragging.current = null; setIsDragging(false); };
   return <section className="workspace cover-workspace">
     <header className="page-heading"><div><p className="step-kicker">STEP 03</p><h2>Cover</h2><p>표지 사진과 작업 내용을 확인하세요.</p></div></header>
     <div className="cover-editor-grid">
@@ -89,9 +100,9 @@ export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onN
         <article className="cover-a4" aria-label="A4 표지 미리보기">
           <header className="cover-paper-header"><strong>UNDERWATER SERVICE REPORT</strong><dl><div><dt>REPORT NO</dt><dd>{linked.reportNo}</dd></div><div><dt>DATE OF ISSUE</dt><dd>{value.issueDate}</dd></div></dl></header>
           <div className="cover-photo-banner" aria-label="사진 초점 조정" role="group" tabIndex={value.photoFile ? 0 : -1}
-            style={{ aspectRatio: `${COVER_PHOTO_SIZE.width} / ${COVER_PHOTO_SIZE.height}` }}
-            onPointerDown={(event) => { if (!value.photoFile || event.button !== 0) return; dragging.current = event.pointerId; event.currentTarget.setPointerCapture?.(event.pointerId); focus(event); }}
-            onPointerMove={(event) => { if (dragging.current === event.pointerId) focus(event); }}
+            style={{ aspectRatio: `${COVER_PHOTO_SIZE.width} / ${COVER_PHOTO_SIZE.height}`, cursor: isDragging ? 'grabbing' : 'grab' }}
+            onPointerDown={(event) => { if (!value.photoFile || event.button !== 0) return; dragging.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY }; setIsDragging(true); event.currentTarget.setPointerCapture?.(event.pointerId); }}
+            onPointerMove={pan}
             onPointerUp={stopDrag} onPointerCancel={stopDrag} onLostPointerCapture={stopDrag}
             onKeyDown={(event) => {
               const movement: Record<string, [number, number]> = { ArrowLeft: [-.02, 0], ArrowRight: [.02, 0], ArrowUp: [0, -.02], ArrowDown: [0, .02] };
