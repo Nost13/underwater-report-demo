@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEMO_VESSELS } from './demoData';
-import { deriveOperationValues, emptyReportInfo, formatWorkingTime, formatWorkWindow, reportInfoForScopes, reportInfoFromVessel } from './reportInfo';
+import { composePersonnel, deriveOperationValues, emptyReportInfo, formatWorkingTime, formatWorkWindow, reportInfoForScopes, reportInfoFromVessel } from './reportInfo';
 
 describe('report information', () => {
   it('prefills Word fields from the selected IMO record', () => {
@@ -98,6 +98,17 @@ describe('report information', () => {
       toolboxPhotos: [null, null],
       preparationPhotos: [null, null],
     });
+  });
+
+  it.each([
+    [{ siteSupervisor: '  ', diver: ' 2 ', otherPersonnel: '\t' }, 'DIVER : 2'],
+    [{ siteSupervisor: ' Chief ', diver: ' ', otherPersonnel: ' Deckhand ' }, 'SITE SUPERVISOR : Chief / OTHER : Deckhand'],
+    [{ siteSupervisor: ' ', diver: '\t', otherPersonnel: '  ' }, ''],
+  ])('omits empty personnel categories without dangling separators', (counts, expected) => {
+    const personnel = composePersonnel(counts);
+
+    expect(personnel).toBe(expected);
+    expect(personnel).not.toMatch(/(^\s*\/|\/\s*$|\/\s*\/)/);
   });
 
   it('preserves manually entered derived values when either time pair is invalid', () => {

@@ -52,6 +52,37 @@ async function buildGeneralScope(page: Page) {
   await completeVesselDiagram(page);
 }
 
+test('keeps locked-scope actions usable without horizontal overflow at 1024px', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 1000 });
+  await page.goto('./');
+  await page.waitForLoadState('networkidle');
+  await page.getByLabel('Vessel name / IMO number / Call Sign').fill('9876543');
+  await page.getByRole('button', { name: 'Vessel 확인' }).click();
+  await page.getByRole('button', { name: '전체 적용' }).click();
+  await page.getByRole('button', { name: /Scope 만들기$/ }).click();
+
+  const reportInformation = page.getByRole('button', { name: 'Report Information 입력', exact: true });
+  const resetScope = page.getByRole('button', { name: 'Scope 초기화', exact: true });
+  for (const action of [reportInformation, resetScope]) {
+    await expect(action).toBeVisible();
+    expect((await action.boundingBox())?.height).toBeGreaterThanOrEqual(38);
+  }
+  await expect.poll(() => page.evaluate(() => (
+    document.documentElement.scrollWidth <= window.innerWidth
+    && document.body.scrollWidth <= window.innerWidth
+    && document.querySelector('.app-shell')!.scrollWidth <= window.innerWidth
+  ))).toBe(true);
+
+  await resetScope.click();
+  await expect(page.locator('.scope-ready')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Cleaning 작업 선택' })).toBeEnabled();
+
+  await page.getByRole('button', { name: '전체 적용' }).click();
+  await page.getByRole('button', { name: /Scope 만들기$/ }).click();
+  await reportInformation.click();
+  await expect(page.getByRole('heading', { name: 'Report Information' })).toBeVisible();
+});
+
 test('Polishing prepares Propeller and can add matching Fin Blades at 1440px', async ({ page }) => {
   await page.goto('./');
   await page.waitForLoadState('networkidle');
