@@ -5,6 +5,7 @@ import { RATING_FILLS } from './ratingPalette';
 import { buildOverallResult } from '../summary/overallResult';
 import type { ReportState } from '../app/reportState';
 import type { OverallResultOverride } from '../app/reportInfo';
+import {leftAlignParagraphs} from './ooxmlText';
 
 const WORD_NAMESPACE = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
@@ -168,6 +169,7 @@ function fillOverallResult(document: Document, headline: string, narrative: stri
   if (rows.length < 2) throw new Error('SUMMARY_RESULT_TABLE_NOT_FOUND');
   setCellText(directCells(rows[0])[0], headline);
   setCellText(directCells(rows[1])[0], narrative);
+  leftAlignParagraphs(table, true);
 }
 
 function overviewCategory(text: string): string | null {

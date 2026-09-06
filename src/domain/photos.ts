@@ -19,14 +19,13 @@ export function photoFolderContext(relativePath: string): string {
 
 export function composePhotoCaption(
   base: string,
-  phase: Phase,
+  _phase: Phase,
   supplemental: string,
 ): string[] {
-  const phaseLabel = phase[0] + phase.slice(1).toLowerCase();
   const supplementalText = supplemental.trim();
   return supplementalText
-    ? [base, phaseLabel, supplementalText]
-    : [base, phaseLabel];
+    ? [base, supplementalText]
+    : [base];
 }
 
 export function sectionDirectorySegments(section: ReportSection): string[] {

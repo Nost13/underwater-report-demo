@@ -1424,9 +1424,9 @@ describe('desktop report workflow', () => {
   });
 
   it.each([
-    { base: '', main: 'HULL CLEANING', phase: '', supplemental: '', caption: 'Before', work: 'WORK PERFORMEDHULL CLEANING' },
-    { base: '  ', main: '  ', phase: 'Arrival', supplemental: '  ', caption: 'Before', work: 'WORK PERFORMEDARRIVAL' },
-    { base: '  ', main: '  ', phase: '  ', supplemental: ' Port inlet ', caption: 'Before | Port inlet', work: 'WORK PERFORMED' },
+    { base: '', main: 'HULL CLEANING', phase: '', supplemental: '', caption: '', work: 'WORK PERFORMEDHULL CLEANING' },
+    { base: '  ', main: '  ', phase: 'Arrival', supplemental: '  ', caption: '', work: 'WORK PERFORMEDARRIVAL' },
+    { base: '  ', main: '  ', phase: '  ', supplemental: ' Port inlet ', caption: 'Port inlet', work: 'WORK PERFORMED' },
   ])('omits blank preview parts without dangling separators ($work, $caption)', async ({ base, main, phase, supplemental, caption, work }) => {
     const user = userEvent.setup();
     const { container } = render(<App />);

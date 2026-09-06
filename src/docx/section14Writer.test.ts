@@ -23,6 +23,18 @@ async function fixture(jobNo = 'US-CLS-2608007') {
 }
 
 describe('Section 1–4 template writer', () => {
+  it('left-aligns every General and Operation paragraph and groups only GT/DWT digits', async () => {
+    const {bytes,info}=await fixture();
+    info.vessel.gt='91023';info.vessel.dwt='126073';info.vessel.imo='9289099';
+    const zip=await JSZip.loadAsync(await fillSection14Template({reportInfo:info,templateUrl:''},{fetchTemplate:async()=>bytes}));
+    const document=parse(await zip.file('word/document.xml')!.async('text'));
+    for(const table of elements(document,'tbl').slice(0,2))for(const paragraph of elements(table,'p')){
+      expect(elements(paragraph,'jc')[0]?.getAttribute('w:val')).toBe('left');
+    }
+    expect(cellAt(document,0,3,3).textContent).toBe('91,023');
+    expect(cellAt(document,0,3,4).textContent).toBe('126,073');
+    expect(cellAt(document,0,1,1).textContent).toBe('9289099');
+  });
   it('fills the vessel, operation, service, and readiness cells without changing the footer', async () => {
     const bytes = await readFile(templatePath);
     const original = await JSZip.loadAsync(bytes);

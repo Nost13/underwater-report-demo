@@ -26,7 +26,7 @@ test('manual job → guarded diagram → photos and review → recover/archive �
  await page.getByRole('button',{name:/Scope 만들기$/}).click();
  await stage(page,5).click();await expect(page.getByRole('heading',{name:'Vessel / Scope'})).toBeVisible();
  await page.getByRole('button',{name:'Report Information 입력',exact:true}).click();
- for(const[key,value]of Object.entries({jobNo:'QA-2609001',callSign:'TEST',ownerClient:'SYNTHETIC QA'}))await page.getByLabel(`보고서 ${key}`).fill(value);
+ for(const[key,value]of Object.entries({jobNo:'QA-2609001',callSign:'TEST',ownerClient:'SYNTHETIC QA',gt:'91023',dwt:'126073'}))await page.getByLabel(`보고서 ${key}`).fill(value);
  await page.getByLabel('ETA',{exact:true}).fill('2026-09-01T01:36');await page.getByLabel('ETD',{exact:true}).fill('2026-09-01T18:00');
  await expect(page.getByLabel('Work Window',{exact:true})).toHaveValue('16 Hours + 1 Hrs');
  await page.getByLabel('Start',{exact:true}).fill('2026-09-01T15:35');await page.getByLabel('End',{exact:true}).fill('2026-09-01T16:24');
@@ -41,6 +41,8 @@ test('manual job → guarded diagram → photos and review → recover/archive �
  await page.getByRole('button',{name:'커버 설정으로',exact:true}).click();await page.getByRole('button',{name:'다음',exact:true}).click();
  await page.getByLabel('선박 사이드뷰 이미지').setInputFiles('e2e/fixtures/vessel-side.png');
  await page.getByRole('button',{name:'Niche 맞추기로 이동'}).click();
+ await expect(page.getByAltText('선박 위치도 미리보기')).toBeVisible();
+ await page.getByAltText('선박 위치도 미리보기').screenshot({path:'outputs/word-location-preview.png'});
  await expect.poll(async()=> (await savedJob(page))?.markers?.length).toBeGreaterThan(0);
  const beforeMarkers=(await savedJob(page))!.markers;
  await page.getByLabel('선박 사이드뷰 이미지').setInputFiles('e2e/fixtures/manual.jpg');
@@ -84,6 +86,20 @@ test('manual job → guarded diagram → photos and review → recover/archive �
  expect(download.suggestedFilename()).toBe('QA-2609001_QA SYNTHETIC VESSEL_Underwater service report(Detail).docx');
  await download.saveAs('outputs/workflow-complete.docx');
  const zip=await JSZip.loadAsync(await readFile('outputs/workflow-complete.docx'));const xml=await zip.file('word/document.xml')!.async('string');
+ expect(xml).toContain('91,023');expect(xml).toContain('126,073');
+ const paragraphs=await page.evaluate(text=>{
+  const doc=new DOMParser().parseFromString(text,'application/xml');
+  return Array.from(doc.getElementsByTagNameNS('*','p')).map(p=>{
+   const cell=p.parentElement;const row=cell?.parentElement;const imageRow=row?.previousElementSibling;
+   const cellIndex=cell&&row?Array.from(row.children).filter(c=>c.localName==='tc').indexOf(cell):-1;
+   const imageCell=imageRow?.localName==='tr'?Array.from(imageRow.children).filter(c=>c.localName==='tc')[cellIndex]:undefined;
+   const photoCaption=Array.from(imageCell?.getElementsByTagNameNS('*','docPr')??[]).some(d=>d.getAttribute('name')?.startsWith('Report photo '));
+   return {text:p.textContent,photoCaption,jc:p.getElementsByTagNameNS('*','jc')[0]?.getAttribute('w:val'),line:p.getElementsByTagNameNS('*','spacing')[0]?.getAttribute('w:line')};
+  });
+ },xml);
+ const captions=paragraphs.filter(p=>p.photoCaption&&p.text==='Rope Guard');expect(captions.length).toBe(7);
+ expect(paragraphs.some(p=>p.text==='Rope Guard | Before'||p.text==='Rope Guard | After')).toBe(false);
+ for(const p of paragraphs.filter(p=>p.text==='QA CUSTOM OVERALL RESULT'||p.text?.startsWith('Synthetic verification only.'))){expect(p.jc).toBe('left');expect(p.line).toBe('240');}
  expect(xml).toContain('QA CUSTOM OVERALL RESULT');expect(xml).toContain('Synthetic verification only.');expect(xml).toContain('0 Hrs 49 Min');expect(xml).toContain('16 Hours + 1 Hrs');expect(xml).toContain('STBD SIDE');expect(xml).not.toMatch(/\{\{[A-Z_]+\}\}/);
  await expect.poll(async()=> (await savedJob(page))?.photos.every(p=>p.isFile&&p.size>0&&p.sectionId)).toBe(true);
  const saved=(await savedJob(page))!;await page.reload();await page.getByRole('button',{name:'이어서 작성',exact:true}).click();

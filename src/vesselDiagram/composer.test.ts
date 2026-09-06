@@ -124,7 +124,7 @@ describe('vessel diagram composer', () => {
         } };
       },
     });
-    expect(encoded).toEqual([[1600, 381]]);
+    expect(encoded).toEqual([[1600, 295]]);
     const output = contexts.at(-1)!;
     const image = output.drawImage.mock.calls[0];
     // The crop removes the large source top/bottom whitespace; axes share one scale.
@@ -145,7 +145,7 @@ describe('vessel diagram composer', () => {
       expect(x - rx - output.lineWidth / 2).toBeGreaterThan(0);
       expect(x + rx + output.lineWidth / 2).toBeLessThan(1600);
       expect(y - ry - output.lineWidth / 2).toBeGreaterThan(0);
-      expect(y + ry + output.lineWidth / 2).toBeLessThan(381);
+      expect(y + ry + output.lineWidth / 2).toBeLessThan(295);
     }
     expect(output.ellipse.mock.calls[0][0]).toBeLessThan(output.ellipse.mock.calls[1][0]);
     expect({ calibration: config.calibration, nicheMarkers: config.nicheMarkers }).toEqual(original);
@@ -193,7 +193,7 @@ describe('vessel diagram composer', () => {
     expect(calls.slice(0, 4)).toEqual(['canvas:2048x488', 'fillStyle:#ffffff', 'fill:white', 'image']);
     expect(calls).toContain('fillStyle:rgba(230, 64, 64, 0.32)');
     expect(calls).toContain('strokeStyle:#d83b3b');
-    expect(calls).toContain('canvas:1600x381');
+    expect(calls).toContain('canvas:1600x295');
     const centers = calls.filter((call) => call.startsWith('ellipse:')).map((call) => Number(call.split(':')[1]));
     expect(centers[0]).toBeLessThan(centers[1]);
     expect(calls.filter((call) => call.startsWith('ellipse:'))).toHaveLength(2);

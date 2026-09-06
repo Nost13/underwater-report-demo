@@ -1,5 +1,29 @@
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
+const PARAGRAPH_PROPERTY_ORDER = 'pStyle keepNext keepLines pageBreakBefore framePr widowControl numPr suppressLineNumbers pBdr shd tabs suppressAutoHyphens kinsoku wordWrap overflowPunct topLinePunct autoSpaceDE autoSpaceDN bidi adjustRightInd snapToGrid spacing ind contextualSpacing mirrorIndents suppressOverlap jc textDirection textAlignment textboxTightWrap outlineLvl divId cnfStyle rPr sectPr pPrChange'.split(' ');
+
+export function setParagraphProperties(paragraph: Element, values: Record<string,Record<string,string>>): void {
+  let properties = children(paragraph,'pPr')[0];
+  if(!properties){properties=paragraph.ownerDocument.createElementNS(WORD_NS,'w:pPr');paragraph.insertBefore(properties,paragraph.firstChild);}
+  for(const [name,attributes] of Object.entries(values)){
+    const node=children(properties,name)[0]??paragraph.ownerDocument.createElementNS(WORD_NS,`w:${name}`);
+    for(const [key,value] of Object.entries(attributes))node.setAttributeNS(WORD_NS,`w:${key}`,value);
+    node.remove();
+    const after=Array.from(properties.children).find(child=>PARAGRAPH_PROPERTY_ORDER.indexOf(child.localName)>PARAGRAPH_PROPERTY_ORDER.indexOf(name));
+    properties.insertBefore(node,after??null);
+  }
+}
+
+/** Override inherited justification only in the requested report content. */
+export function leftAlignParagraphs(element: Element, singleSpacing = false): void {
+  const paragraphs = element.localName === 'p' ? [element] : Array.from(element.getElementsByTagNameNS(WORD_NS, 'p'));
+  for (const paragraph of paragraphs) {
+    setParagraphProperties(paragraph,{jc:{val:'left'}});
+    if (singleSpacing) {
+      setParagraphProperties(paragraph,{spacing:{line:'240',lineRule:'auto'},snapToGrid:{val:'0'}});
+    }
+  }
+}
 
 function children(element: Element, name: string): Element[] {
   return Array.from(element.children).filter((child) => child.namespaceURI === WORD_NS && child.localName === name);

@@ -35,6 +35,28 @@ const vesselDiagram = (): VesselDiagramConfig => ({
 const composeDiagram = async (_config: VesselDiagramConfig, ids: string[]) => new TextEncoder().encode(ids.join(','));
 
 describe('bundled Detail report template', () => {
+  it('fills the fixed location cell with a matching undistorted image frame',async()=>{
+    const section=createNicheSections({component:'Rope Guard',type:'SINGLE',quantity:1,service:'INSPECTION'})[0];
+    const result=await writeTemplateReport({vesselName:'QA',sections:[section],photos:[],templateUrl:'',vesselDiagram:vesselDiagram(),allowIncomplete:true},
+      {fetchTemplate:async()=>readFile(templatePath),composeDiagram,download:()=>{}});
+    const xml=await(await JSZip.loadAsync(result.blob)).file('word/document.xml')!.async('text');
+    const document=new DOMParser().parseFromString(xml,'application/xml');
+    const profile=Array.from(document.getElementsByTagNameNS('*','docPr')).find(node=>node.getAttribute('descr')==='vessel_profile')!;
+    const extent=profile.parentElement!.getElementsByTagNameNS('*','extent')[0];
+    expect(Number(extent.getAttribute('cx'))).toBeGreaterThan(6500000);
+    expect(Number(extent.getAttribute('cx'))/Number(extent.getAttribute('cy'))).toBeCloseTo(1600/295,4);
+    let cell:Element=profile;while(cell.localName!=='tc')cell=cell.parentElement!;
+    expect(cell.getElementsByTagNameNS('*','tcW')[0].getAttribute('w:w')).toBe('10473');
+    const height=cell.parentElement!.getElementsByTagNameNS('*','trHeight')[0];
+    expect(height.getAttribute('w:val')).toBe('1997');
+    expect(height.getAttribute('w:hRule')).toBe('exact');
+    const cellProperties=Array.from(cell.children)[0];
+    const names=Array.from(cellProperties.children).map(node=>node.localName);
+    expect(names.indexOf('tcMar')).toBeLessThan(names.indexOf('vAlign'));
+    const pictureExtent=profile.parentElement!.getElementsByTagNameNS('*','xfrm')[0].getElementsByTagNameNS('*','ext')[0];
+    expect(pictureExtent.getAttribute('cx')).toBe(extent.getAttribute('cx'));
+    expect(pictureExtent.getAttribute('cy')).toBe(extent.getAttribute('cy'));
+  });
   it('keeps first drawing IDs and assigns unused IDs only to later duplicates in a complete multi-component report', async () => {
     const names = ['cover', 'section1_4_template', 'summary_template', 'section6_template', 'Detail_report_template', 'section8_template'];
     const bytes = await Promise.all(names.map((name) => readFile(`public/templates/${name}.docx`)));
@@ -260,11 +282,11 @@ describe('bundled Detail report template', () => {
     expect(serialize(elements(main, 'rPr')[0])).toBe(serialize(valueRPr));
     const captions = elements(document, 'p').filter((p) => p.textContent?.startsWith('Sea Chest'));
     expect(captions.map((p) => p.textContent)).toEqual([
-      'Sea Chest | Before', 'Sea Chest | Before | Port inlet', 'Sea Chest | Before', 'Sea Chest | Before', 'Sea Chest | Before | Continuation',
+      'Sea Chest', 'Sea Chest | Port inlet', 'Sea Chest', 'Sea Chest', 'Sea Chest | Continuation',
     ]);
     for (const p of [work, ...captions]) {
       const separators = elements(p, 'r').filter((r) => r.textContent === ' | ');
-      expect(separators.length).toBeGreaterThan(0);
+      expect(separators.length).toBe(p.textContent?.includes(' | ') ? 1 : 0);
       for (const separator of separators) expect(elements(separator, 'position')[0]?.getAttribute('w:val')).toBe('2');
     }
     for (const [index, caption] of captions.entries()) {
@@ -278,7 +300,8 @@ describe('bundled Detail report template', () => {
     }
     // Five photos exercise both source page patterns; all fixed table geometry survives.
     for (const name of ['tblPr', 'tblGrid', 'trPr', 'tcW', 'sectPr']) {
-      expect(elements(document, name).map(serialize)).toEqual(elements(source, name).map(serialize));
+      const geometry=(doc:Document)=>elements(doc,name).map(node=>{const clone=node.cloneNode(true) as Element;elements(clone,'trHeight').filter(h=>h.getAttribute('w:val')==='1997').forEach(h=>h.removeAttribute('w:hRule'));return serialize(clone);});
+      expect(geometry(document)).toEqual(geometry(source));
     }
     const photosDrawn = elements(document, 'inline').filter((inline) => elements(inline, 'docPr')[0]?.getAttribute('name')?.startsWith('Report photo'));
     expect(photosDrawn).toHaveLength(5);
@@ -521,7 +544,7 @@ describe('bundled Detail report template', () => {
     expect(result.pageCount).toBe(4);
     for (let index = 1; index <= 4; index += 1) {
       expect(relationships).toContain(`Id="rIdVesselDiagram${index}"`);
-      expect(await output.file(`word/media/vessel-diagram-${index}.png`)!.async('text')).toBe('1600x381');
+      expect(await output.file(`word/media/vessel-diagram-${index}.png`)!.async('text')).toBe('1600x295');
     }
     expect(composedSelections).toEqual([
       ['bilge-keel-2'], ['anode-aft', 'anode-fwd'], ['transducer-aft', 'transducer-fwd'], ['propeller-group'],
@@ -534,7 +557,8 @@ describe('bundled Detail report template', () => {
         return [extent?.getAttribute('cx'), extent?.getAttribute('cy')];
       });
     expect(outputExtents).toHaveLength(4);
-    expect(outputExtents).toEqual(Array.from({ length: 4 }, () => sourceExtent));
+    expect(outputExtents).toEqual(Array.from({ length: 4 }, () => ['6599555','1216793']));
+    expect(Number(outputExtents[0][0])).toBeGreaterThan(Number(sourceExtent[0]));
     for (const font of sourceFonts) expect(xml).toContain(`w:ascii="${font}"`);
     for (const width of sourceTableWidths) expect(xml).toContain(`w:w="${width}"`);
     expect(text.indexOf('1. GENERAL INFORMATION')).toBeLessThan(text.indexOf('7. DETAILED SERVICE RECORD'));

@@ -60,15 +60,14 @@ describe('photo matching and captions', () => {
     expect(photoFolderContext('image.jpg')).toBe('선택한 폴더 바로 아래');
   });
 
-  it('composes base and title-case phase caption parts without blank supplemental text', () => {
-    expect(composePhotoCaption('Sea Chest', 'BEFORE', '')).toEqual(['Sea Chest', 'Before']);
-    expect(composePhotoCaption('Sea Chest', 'CURRENT', '   ')).toEqual(['Sea Chest', 'Current']);
+  it('omits automatic phase labels and empty supplemental text from photo captions', () => {
+    expect(composePhotoCaption('Sea Chest', 'BEFORE', '')).toEqual(['Sea Chest']);
+    expect(composePhotoCaption('Sea Chest', 'CURRENT', '   ')).toEqual(['Sea Chest']);
   });
 
   it('appends trimmed supplemental caption text', () => {
     expect(composePhotoCaption('Sea Chest', 'AFTER', '  Port inlet  ')).toEqual([
       'Sea Chest',
-      'After',
       'Port inlet',
     ]);
   });

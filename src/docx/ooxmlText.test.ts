@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { setCellLines, setElementTextPreservingRun, setSeparatedRuns } from './ooxmlText';
+import { leftAlignParagraphs, setCellLines, setElementTextPreservingRun, setSeparatedRuns } from './ooxmlText';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const properties = '<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:b/><w:sz w:val="18"/><w:lang w:eastAsia="ko-KR"/></w:rPr>';
@@ -8,6 +8,11 @@ const xml = (element: Element) => new XMLSerializer().serializeToString(element)
 const runProperties = (element: Element) => Array.from(element.getElementsByTagNameNS(W, 'r')).map((run) => xml(run.getElementsByTagNameNS(W, 'rPr')[0]));
 
 describe('template-preserving OOXML text', () => {
+  it('orders single-spaced left alignment before the retained paragraph run properties',()=>{
+    const cell=parse(`<w:p><w:pPr><w:spacing w:line="360"/><w:ind w:left="0"/><w:jc w:val="both"/>${properties}</w:pPr><w:r><w:t>Text</w:t></w:r></w:p>`);
+    leftAlignParagraphs(cell,true);
+    expect(Array.from(cell.getElementsByTagNameNS(W,'pPr')[0].children).map(node=>node.localName)).toEqual(['snapToGrid','spacing','ind','jc','rPr']);
+  });
   it('replaces split text while retaining every existing run property and bookmark', () => {
     const cell = parse(`<w:p><w:bookmarkStart w:id="1" w:name="value"/><w:r>${properties}<w:t>Old</w:t></w:r><w:r>${properties}<w:t> value</w:t></w:r><w:bookmarkEnd w:id="1"/></w:p>`);
     const before = runProperties(cell);

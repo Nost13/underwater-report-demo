@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 import type { ReportInfo } from '../app/reportInfo';
 import { formatBerthingSide } from '../app/berthingSide';
 import { resizeForReportSlot } from '../browser/images';
-import { setCellLines, setElementTextPreservingRun } from './ooxmlText';
+import { leftAlignParagraphs, setCellLines, setElementTextPreservingRun } from './ooxmlText';
 
 const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 // Opaque 4:3 white JPEG, replacing sample photos even when no browser canvas is needed.
@@ -60,10 +60,17 @@ function fillGeneralInfo(document: Document, info: ReportInfo): void {
   const table = tableByHeading(document, 'VESSEL NAME');
   const { vessel } = info;
   [vessel.name, vessel.imo, vessel.callSign].forEach((value, index) => setCell(table, 1, index, value));
-  [vessel.type, vessel.loa, vessel.breadth, vessel.gt, vessel.dwt, vessel.yearBuilt]
+  const grouped = (value: string) => {
+    const numeric = value.trim().replaceAll(',', '');
+    if (!/^\d+(?:\.\d+)?$/.test(numeric)) return value;
+    const [integer, decimal] = numeric.split('.');
+    return integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (decimal === undefined ? '' : `.${decimal}`);
+  };
+  [vessel.type, vessel.loa, vessel.breadth, grouped(vessel.gt), grouped(vessel.dwt), vessel.yearBuilt]
     .forEach((value, index) => setCell(table, 3, index, value));
   setCell(table, 5, 0, vessel.ownerClient);
   setCell(table, 5, 1, vessel.jobNo);
+  leftAlignParagraphs(table);
 }
 
 function fillOperationInfo(document: Document, info: ReportInfo): void {
@@ -78,6 +85,7 @@ function fillOperationInfo(document: Document, info: ReportInfo): void {
   [operation.weather, operation.knots, operation.current, operation.visibility]
     .forEach((value, index) => setCell(table, 7, index + 1, value));
   setCell(table, 8, 1, operation.personnel);
+  leftAlignParagraphs(table);
 }
 
 function fillServiceItems(document: Document, info: ReportInfo): void {

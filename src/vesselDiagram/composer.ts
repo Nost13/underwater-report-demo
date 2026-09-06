@@ -8,7 +8,8 @@ import { isValidRect } from './geometry';
 
 // Word output dimensions are independent of the editor's saved coordinate space.
 export const WORD_DIAGRAM_WIDTH = 1600;
-export const WORD_DIAGRAM_HEIGHT = 381;
+// 10473 x 1997 twip location cell, with 2pt clearance on each edge.
+export const WORD_DIAGRAM_HEIGHT = 295;
 
 export interface PixelRect {
   x: number;

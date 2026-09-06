@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { resizeForReportSlot } from '../browser/images';
 import { composePhotoCaption } from '../domain/photos';
-import { setSeparatedRuns } from './ooxmlText';
+import { setParagraphProperties, setSeparatedRuns } from './ooxmlText';
 import { buildWordPhasePages } from './reportModel';
 import { RATING_FILLS } from './ratingPalette';
 import { fillSection14Template, type Section14WriterDependencies } from './section14Writer';
@@ -12,7 +12,7 @@ import type { ReportInfo } from '../app/reportInfo';
 import type { DiverQualification } from '../app/diverQualifications';
 import type { PhotoData, ReportLabelMap, ReportSection, WorkPerformLabelMap } from '../domain/types';
 import type { VesselDiagramConfig } from '../vesselDiagram/types';
-import { composeVesselDiagram, type ComposeDependencies } from '../vesselDiagram/composer';
+import { composeVesselDiagram, WORD_DIAGRAM_WIDTH, WORD_DIAGRAM_HEIGHT, type ComposeDependencies } from '../vesselDiagram/composer';
 import { resolveMarkerIds } from '../vesselDiagram/markers';
 import { diagramConfirmed, diagramForSection } from '../vesselDiagram/layoutLibrary';
 
@@ -341,6 +341,43 @@ function replaceVesselProfile(document: Document, relationshipId: string): void 
     if (attribute.localName === 'embed') blip.removeAttributeNode(attribute);
   }
   blip.setAttribute('r:embed', relationshipId);
+  const cell = drawing ? closestElement(drawing, 'tc') : null;
+  const row = cell ? closestElement(cell, 'tr') : null;
+  const cellWidth = cell?.getElementsByTagNameNS('*', 'tcW')[0];
+  const rowHeight = row?.getElementsByTagNameNS('*', 'trHeight')[0];
+  const widthTwips = Number(cellWidth?.getAttribute('w:w'));
+  const heightTwips = Number(rowHeight?.getAttribute('w:val'));
+  if (!drawing || !cell || !rowHeight || !Number.isFinite(widthTwips) || !Number.isFinite(heightTwips)
+    || cellWidth?.getAttribute('w:type') !== 'dxa' || widthTwips <= 80 || heightTwips <= 80) return;
+  // Leave 2pt per edge, preserve the shared raster aspect ratio and never grow the row.
+  const width = Math.round(Math.min(widthTwips - 80, (heightTwips - 80) * WORD_DIAGRAM_WIDTH / WORD_DIAGRAM_HEIGHT) * 635);
+  const height = Math.round(width * WORD_DIAGRAM_HEIGHT / WORD_DIAGRAM_WIDTH);
+  for (const extent of [...Array.from(drawing.getElementsByTagNameNS('*', 'extent')), ...Array.from(drawing.getElementsByTagNameNS('*', 'xfrm')).flatMap(xfrm => directChildren(xfrm,'ext'))]) {
+    extent.setAttribute('cx', String(width)); extent.setAttribute('cy', String(height));
+  }
+  const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  rowHeight.setAttributeNS(ns, 'w:hRule', 'exact');
+  const properties = directChildren(cell, 'tcPr')[0];
+  if (properties) {
+    directChildren(properties, 'tcMar').forEach(node => node.remove());
+    const margins = document.createElementNS(ns, 'w:tcMar');
+    for (const side of ['top','left','bottom','right']) {
+      const margin = document.createElementNS(ns, `w:${side}`);
+      margin.setAttributeNS(ns, 'w:w', '0'); margin.setAttributeNS(ns, 'w:type', 'dxa'); margins.appendChild(margin);
+    }
+    properties.insertBefore(margins, Array.from(properties.children).find(node=>['textDirection','tcFitText','vAlign','hideMark','headers','cellIns','cellDel','cellMerge','tcPrChange'].includes(node.localName))??null);
+  }
+  const paragraph = closestElement(drawing, 'p');
+  if (paragraph) {
+    setParagraphProperties(paragraph,{spacing:{before:'0',after:'0',line:'240',lineRule:'auto'},ind:{left:'0',right:'0',firstLine:'0'},jc:{val:'center'},snapToGrid:{val:'0'}});
+    // Inline drawing baseline must not add a normal-size text descender to the fixed row.
+    const run = closestElement(drawing,'r');
+    if (run) {
+      let rPr=directChildren(run,'rPr')[0];
+      if(!rPr){rPr=document.createElementNS(ns,'w:rPr');run.insertBefore(rPr,run.firstChild);}
+      for(const name of ['sz','szCs']){directChildren(rPr,name).forEach(node=>node.remove());const size=document.createElementNS(ns,`w:${name}`);size.setAttributeNS(ns,'w:val','2');rPr.appendChild(size);}
+    }
+  }
 }
 
 function hasLegacyZoneDescription(description: string | null): boolean {

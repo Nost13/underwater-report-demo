@@ -69,8 +69,8 @@ describe('VesselDiagramPreview', () => {
     render(<VesselDiagramPreview config={config} section={section('Transducer')} markerIds={['transducer-fwd']} compose={compose} />);
     const image = await screen.findByRole('img', { name: '선박 위치도 미리보기' });
     expect(image).toHaveAttribute('width', '1600');
-    expect(image).toHaveAttribute('height', '381');
-    expect(image.parentElement).toHaveStyle({ aspectRatio: '1600 / 381' });
+    expect(image).toHaveAttribute('height', '295');
+    expect(image.parentElement).toHaveStyle({ aspectRatio: '1600 / 295' });
     expect(compose).toHaveBeenCalledWith(config, ['transducer-fwd']);
   });
 

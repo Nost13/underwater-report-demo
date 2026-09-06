@@ -35,6 +35,14 @@ async function fill(sections: ReportSection[], transform?: (document: Document) 
 }
 
 describe('bundled Summary template', () => {
+  it('left-aligns result title and narrative with single line spacing', async () => {
+    const {document}=await fill([]);
+    for(const paragraph of nodes(tables(document)[0],'p')){
+      expect(nodes(paragraph,'jc')[0]?.getAttribute('w:val')).toBe('left');
+      expect(nodes(paragraph,'spacing')[0]?.getAttribute('w:line')).toBe('240');
+      expect(nodes(paragraph,'spacing')[0]?.getAttribute('w:lineRule')).toBe('auto');
+    }
+  });
   it('fills final Detail values while retaining blank fixed Finding Matrix rows and template styles', async () => {
     const templateBytes = await readFile('public/templates/summary_template.docx');
     const source = await JSZip.loadAsync(templateBytes);
@@ -146,6 +154,9 @@ describe('bundled Summary template', () => {
     for (const name of ['tblPr', 'tblGrid', 'trPr', 'tcPr', 'pPr', 'rPr', 'sectPr']) {
       const properties = (doc: Document) => nodes(doc, name).map((property) => {
         const clone = property.cloneNode(true) as Element;
+        if(name==='pPr' && tables(doc)[0].contains(property)){
+          for(const changed of ['jc','spacing','snapToGrid'])nodes(clone,changed).forEach(node=>node.remove());
+        }
         nodes(clone, 'shd').forEach((node) => node.remove());
         nodes(clone, 'left').forEach((node) => node.removeAttribute('w:color'));
         return serialize(clone);
