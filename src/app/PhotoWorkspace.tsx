@@ -1,4 +1,4 @@
-import {useState,useId,type Dispatch,type ReactNode,type CSSProperties} from 'react';
+import {useState,useId,type Dispatch,type ReactNode} from 'react';
 import type {Phase,PhotoData,ReportSection} from '../domain/types';
 import type {ReportAction,ReportState} from './reportState';
 import {ConditionEditor} from './ConditionEditor';
@@ -7,6 +7,7 @@ import {conciseSectionLabel} from './reportLabels';
 import {defaultWorkPerformed,workPerformLabelKey} from './workPerformLabels';
 import {type InsertionEdge} from './photoInsertion';
 import {Modal} from './Modal';
+import {PhotoExplorer,PhotoPaneSplitter,photoPaneStyle} from './PhotoExplorer';
 import {OriginalPhoto} from './OriginalPhoto';
 import {photoFolderContext} from '../domain/photos';
 import './PhotoWorkspace.css';
@@ -20,8 +21,7 @@ const phaseName:Record<Phase,string>={BEFORE:'작업 전',AFTER:'작업 후',CUR
 export function PhotoWorkspace(props:PhotoWorkspaceProps){
  const {report,section,dispatch,renderThumb}=props;
  const phase=section.phases.includes(props.phase)?props.phase:section.phases[0];
- const [columns,setColumns]=useState(3);
- const [libraryColumns,setLibraryColumns]=useState(2);
+ const [libraryWidth,setLibraryWidth]=useState(34);
  // Keyed inner workspace resets transient selections when changing section or phase.
  return <div className="photo-workbench">
 <nav className="photo-phase-tabs" role="tablist" aria-label="사진 단계">
@@ -30,10 +30,10 @@ export function PhotoWorkspace(props:PhotoWorkspaceProps){
 <b>{report.photos.filter(photo=>photo.sectionId===section.id&&photo.phase===p&&photo.reportUse).length}장</b>
 </button>)}
  </nav>
-<PhotoStage key={`${section.id}:${phase}`} {...props} phase={phase} renderThumb={renderThumb} dispatch={dispatch} columns={columns} setColumns={setColumns} libraryColumns={libraryColumns} setLibraryColumns={setLibraryColumns}/>
+<PhotoStage key={`${section.id}:${phase}`} {...props} phase={phase} renderThumb={renderThumb} dispatch={dispatch} libraryWidth={libraryWidth} setLibraryWidth={setLibraryWidth}/>
 </div>;
 }
-function PhotoStage({report,section,phase,dispatch,onPhase,onSection,onAddPhotos,onOpenLibrary,renderThumb,columns,setColumns,libraryColumns,setLibraryColumns}:PhotoWorkspaceProps & {columns:number;setColumns:(n:number)=>void;libraryColumns:number;setLibraryColumns:(n:number)=>void}){
+function PhotoStage({report,section,phase,dispatch,onPhase,onSection,onAddPhotos,onOpenLibrary,renderThumb,libraryWidth,setLibraryWidth}:PhotoWorkspaceProps & {libraryWidth:number;setLibraryWidth:(n:number)=>void}){
  const orderHelpId=useId();
  const [selected,setSelected]=useState<string[]>([]);
  const [librarySelected,setLibrarySelected]=useState<string[]>([]);
@@ -44,6 +44,7 @@ function PhotoStage({report,section,phase,dispatch,onPhase,onSection,onAddPhotos
  const [moveSection,setMoveSection]=useState(section.id);
  const [movePhase,setMovePhase]=useState<Phase>(phase);
  const [dragged,setDragged]=useState<string|null>(null);
+ const [libraryDragged,setLibraryDragged]=useState<string[]>([]);
  const [drop,setDrop]=useState<{id:string;edge:InsertionEdge}|null>(null);
  const [conditionOpen,setConditionOpen]=useState(false);
  const photos=report.photos.filter(p=>p.sectionId===section.id&&p.phase===phase).sort((a,b)=>a.order-b.order);
@@ -86,8 +87,10 @@ function PhotoStage({report,section,phase,dispatch,onPhase,onSection,onAddPhotos
  const previousSection=report.sections[report.sections.findIndex(s=>s.id===section.id)-1];
  const previousCondition=previousSection?.service===section.service?previousSection.conditions[phase]:undefined;
  const editPhoto=(id:string)=>{setEditingId(id);setSideTab('EDIT');};
- return <div className="photo-stage-layout">
-<section className="photo-stage-main selected" aria-label={`${phase} 사진 갤러리`}>
+ return <div className="photo-stage-layout" style={photoPaneStyle(libraryWidth)}>
+<section className={`photo-stage-main selected${libraryDragged.length?' library-drop-ready':''}`} aria-label={`${phase} 사진 갤러리`}
+ onDragOver={event=>{if(libraryDragged.length)event.preventDefault();}}
+ onDrop={event=>{if(libraryDragged.length){event.preventDefault();dispatch({type:'ASSIGN_PHOTOS',photoIds:libraryDragged,sectionId:section.id,phase});setLibraryDragged([]);setLibrarySelected([]);}}}>
   <div className="work-perform-editor">
 <span>WORK PERFORMED</span>{(['main','phase'] as const).map(field=>
 <label key={field}>
@@ -118,7 +121,7 @@ function PhotoStage({report,section,phase,dispatch,onPhase,onSection,onAddPhotos
 </div>
 </div>
    {conditionOpen&&<ConditionEditor ariaPrefix={phase} condition={condition} onPatch={patch=>dispatch({type:'UPDATE_CONDITION',sectionId:section.id,phase,patch})}/>}
-   {source==='OVERRIDE'&&<button type="button" className="condition-revert" aria-label={`${phase} 기본값으로 되돌리기`} onClick={()=>dispatch({type:'REVERT_CONDITION_TO_GROUP',sectionId:section.id,phase})}>부위 기본값으로 되돌리기</button>}
+   {conditionOpen&&source==='OVERRIDE'&&<button type="button" className="condition-revert" aria-label={`${phase} 기본값으로 되돌리기`} onClick={()=>dispatch({type:'REVERT_CONDITION_TO_GROUP',sectionId:section.id,phase})}>부위 기본값으로 되돌리기</button>}
   </section>
   <div className="photo-quick-actions">
 <span>{reviewed?'✓ 컨디션 확인 완료':valid?'입력됨 · 확인 전':'컨디션 미입력'}</span>
@@ -129,11 +132,7 @@ function PhotoStage({report,section,phase,dispatch,onPhase,onSection,onAddPhotos
 <label>
 <input type="checkbox" aria-label="현재 단계 사진 전체 선택" checked={photos.length>0&&selectedIds.length===photos.length} onChange={e=>setSelected(e.target.checked?photos.map(p=>p.id):[])}/> 전체 선택 <small>{photos.filter(p=>p.reportUse).length}장 보고서 사용</small>
 </label>
-<label>사진 크기 <select aria-label="사진 크기" value={columns} onChange={e=>setColumns(Number(e.target.value))}>
-<option value="3">크게 · 3열</option>
-<option value="4">작게 · 4열</option>
-</select>
-</label>
+<small className="photo-explorer-help">빈 곳 드래그: 범위 선택 · Ctrl / Shift: 추가·범위 선택</small>
 </div>
   <div className="photo-batch-actions">
 <strong>{selectedIds.length?`${selectedIds.length}장 선택`:'사진을 선택해 주세요'}</strong>
@@ -144,8 +143,8 @@ function PhotoStage({report,section,phase,dispatch,onPhase,onSection,onAddPhotos
 <button type="button" disabled={!selectedIds.length} onClick={()=>setSelected([])}>선택 해제</button>
 </div>
   <span id={orderHelpId} className="visually-hidden">같은 단계에서 화살표 키로 이동, Home 처음, End 마지막으로 이동합니다.</span>
-  <div className="workbench-photo-grid" style={{'--photo-cols':columns} as CSSProperties}>{photos.map((photo,index)=>
-<article key={photo.id} aria-label={`${photo.file.name} 사진`} draggable onDragStart={()=>setDragged(photo.id)} onDragEnd={clearDrag} onDragOver={e=>{if(!dragged||draggedIds.includes(photo.id))return;e.preventDefault();const r=e.currentTarget.getBoundingClientRect();setDrop({id:photo.id,edge:e.clientX>r.left+r.width/2?'AFTER':'BEFORE'});}} onDrop={e=>{e.preventDefault();if(dragged&&drop?.id===photo.id)dropBlock(photo.id,drop.edge);clearDrag();}} className={`workbench-photo${dragged===photo.id?' dragging':''}${selectedIds.includes(photo.id)?' picked':''}${photo.reportUse?'':' excluded'}${drop?.id===photo.id?` drop-target insert-${drop.edge.toLowerCase()}`:''}`}>
+  <PhotoExplorer className="workbench-photo-grid" label="현재 단계 사진 목록" ids={photos.map(p=>p.id)} selected={selectedIds} onSelect={setSelected}>{photos.map((photo,index)=>
+<article data-photo-id={photo.id} key={photo.id} aria-label={`${photo.file.name} 사진`} draggable onDragStart={()=>setDragged(photo.id)} onDragEnd={clearDrag} onDragOver={e=>{if(!dragged||draggedIds.includes(photo.id))return;e.preventDefault();const r=e.currentTarget.getBoundingClientRect();setDrop({id:photo.id,edge:e.clientX>r.left+r.width/2?'AFTER':'BEFORE'});}} onDrop={e=>{e.preventDefault();if(dragged&&drop?.id===photo.id)dropBlock(photo.id,drop.edge);clearDrag();}} className={`workbench-photo${dragged===photo.id?' dragging':''}${selectedIds.includes(photo.id)?' picked':''}${photo.reportUse?'':' excluded'}${drop?.id===photo.id?` drop-target insert-${drop.edge.toLowerCase()}`:''}`}>
    <div className="workbench-image">
 <button type="button" className="photo-open" aria-label={`${photo.file.name} 사진 편집`} onClick={()=>editPhoto(photo.id)}>{renderThumb(photo)}</button>
 <label className="photo-pick">
@@ -155,7 +154,7 @@ function PhotoStage({report,section,phase,dispatch,onPhase,onSection,onAddPhotos
 <span className="photo-number">{String(index+1).padStart(2,'0')}</span>{!photo.reportUse&&<span className="photo-excluded">보고서 제외</span>}</div>
 <b className="photo-filename" title={photo.file.name}>{photo.file.name}</b>
 <small>{conciseSectionLabel(section)} · {phaseName[phase]}</small>{photo.captionText&&<p aria-label={`${photo.file.name} 캡션 미리보기`}>{photo.captionText}</p>}<button type="button" className="photo-order-key" aria-label={`${photo.file.name} 순서 이동`} aria-keyshortcuts="ArrowLeft ArrowUp ArrowRight ArrowDown Home End" aria-describedby={orderHelpId} title="화살표 키로 이동 · Home 처음 · End 마지막" onKeyDown={e=>{const directions:Record<string,'PREVIOUS'|'NEXT'|'FIRST'|'LAST'>={ArrowLeft:'PREVIOUS',ArrowUp:'PREVIOUS',ArrowRight:'NEXT',ArrowDown:'NEXT',Home:'FIRST',End:'LAST'};if(directions[e.key]){e.preventDefault();reorder(photo.id,directions[e.key]);}}}>↔ 순서</button>
-  </article>)}</div>
+  </article>)}</PhotoExplorer>
   {!photos.length&&<div className="workbench-empty">
 <b>{phaseName[phase]} 사진이 없습니다.</b>
 <p>오른쪽에서 사진을 선택해 배정하거나 새 사진을 추가하세요.</p>
@@ -163,6 +162,7 @@ function PhotoStage({report,section,phase,dispatch,onPhase,onSection,onAddPhotos
 </div>}
   <div className={`workbench-drop-end${dragged?' drop-target':''}`} role="button" aria-label={`${phase} 사진 맨 뒤로 이동`} onDragOver={e=>{if(dragged)e.preventDefault();}} onDrop={e=>{e.preventDefault();if(dragged)dropBlock(null);clearDrag();}}>사진 사이에 놓으면 해당 순서로 이동 · 여기에 놓으면 맨 뒤로 이동</div>
  </section>
+<PhotoPaneSplitter width={libraryWidth} onChange={setLibraryWidth}/>
 <aside className="photo-tools">
 <nav role="tablist" aria-label="사진 도구">
 <button type="button" role="tab" aria-selected={sideTab==='LIBRARY'} onClick={()=>setSideTab('LIBRARY')}>미배정 사진 {unmatched.length}</button>
@@ -171,23 +171,22 @@ function PhotoStage({report,section,phase,dispatch,onPhase,onSection,onAddPhotos
  {sideTab==='LIBRARY'?<div className="photo-library">
 <div className="photo-library-target">배정할 위치 <b>{conciseSectionLabel(section)} · {phaseName[phase]}</b>
 </div>
-<label className="library-density">사진 배열 <select aria-label="미배정 사진 배열" value={libraryColumns} onChange={e=>setLibraryColumns(Number(e.target.value))}>{[2,3,4].map(n=>
-<option value={n} key={n}>{n}열</option>)}</select>
-</label>
+<p className="photo-explorer-help">경계를 끌어 크기 조절 · 빈 곳 드래그로 여러 장 선택</p>
 <label className="library-select-all">
 <input type="checkbox" checked={unmatched.length>0&&libraryIds.length===unmatched.length} onChange={e=>setLibrarySelected(e.target.checked?unmatched.map(p=>p.id):[])}/> 전체 선택 <small>{libraryIds.length}장 선택</small>
 </label>
-<div className="workbench-library-grid" aria-label="미배정 사진 목록" style={{'--library-cols':libraryColumns} as CSSProperties}>{unmatched.map(photo=>
-<article key={photo.id}>
+<PhotoExplorer className="workbench-library-grid" label="미배정 사진 목록" ids={unmatched.map(p=>p.id)} selected={libraryIds} onSelect={setLibrarySelected}>{unmatched.map(photo=>
+<article key={photo.id} data-photo-id={photo.id} className={libraryIds.includes(photo.id)?'picked':''} draggable onDragStart={()=>setLibraryDragged(libraryIds.includes(photo.id)?libraryIds:[photo.id])} onDragEnd={()=>setLibraryDragged([])}>
 <div className="workbench-image">
-<button type="button" className="photo-open" aria-label={`${photo.file.name} 미배정 미리보기`} onClick={()=>setViewer(photo.id)}>{renderThumb(photo)}</button>
+<button type="button" className="photo-open" aria-label={`${photo.file.name} 미배정 미리보기`} onDoubleClick={()=>setViewer(photo.id)}>{renderThumb(photo)}</button>
 <label className="photo-pick">
 <input type="checkbox" aria-label={`${photo.file.name} 미배정 선택`} checked={libraryIds.includes(photo.id)} onChange={()=>setLibrarySelected(toggle(libraryIds,photo.id))}/>
 </label>
+<button type="button" className="photo-zoom" aria-label={`${photo.file.name} 미배정 확대`} onClick={()=>setViewer(photo.id)}>⛶</button>
 </div>
 <b className="photo-filename" title={photo.file.name}>{photo.file.name}</b>
 <small>{photoFolderContext(photo.relativePath)}</small>
-</article>)}</div>{!unmatched.length&&<p>미배정 사진이 없습니다.</p>}<div className="photo-library-footer">
+</article>)}</PhotoExplorer>{!unmatched.length&&<p>미배정 사진이 없습니다.</p>}<div className="photo-library-footer">
 <button type="button" className="primary" disabled={!libraryIds.length} onClick={()=>{dispatch({type:'ASSIGN_PHOTOS',photoIds:libraryIds,sectionId:section.id,phase});setLibrarySelected([]);}}>선택한 {libraryIds.length}장 배정</button>
 <button type="button" aria-label={`${phase} 내 사진 추가`} onClick={()=>onAddPhotos(section.id,phase)}>＋ 내 사진 추가</button>
 <button type="button" onClick={onOpenLibrary}>전체 사진 보관함</button>

@@ -7,6 +7,46 @@ import {initialReportState,reportReducer} from './reportState';
 import {createGeneralSections} from '../domain/structure';
 import type {Phase} from '../domain/types';
 afterEach(()=>vi.restoreAllMocks());
+it('resizes the photo panes with keyboard and removes fixed column controls',()=>{
+ render(<Harness/>);
+ const splitter=screen.getByRole('separator',{name:'사진 영역 너비 조절'});
+ const before=Number(splitter.getAttribute('aria-valuenow'));
+ fireEvent.keyDown(splitter,{key:'ArrowLeft'});
+ expect(Number(splitter.getAttribute('aria-valuenow'))).toBeGreaterThan(before);
+ expect(screen.queryByLabelText('미배정 사진 배열')).not.toBeInTheDocument();
+ expect(screen.queryByLabelText('사진 크기')).not.toBeInTheDocument();
+});
+it('selects gallery cards using click and Ctrl without losing checkbox support',()=>{
+ render(<Harness/>);
+ fireEvent.click(screen.getByRole('button',{name:'one.jpg 사진 편집'}));
+ fireEvent.click(screen.getByRole('button',{name:'two.jpg 사진 편집'}),{ctrlKey:true});
+ expect(screen.getByLabelText('one.jpg 사진 선택')).toBeChecked();
+ expect(screen.getByLabelText('two.jpg 사진 선택')).toBeChecked();
+});
+it('assigns library photos by dragging them into the active gallery',()=>{
+ render(<Harness/>);
+ const libraryCard=screen.getByLabelText('three.jpg 미배정 선택').closest('article')!;
+ fireEvent.dragStart(libraryCard);
+ fireEvent.dragOver(screen.getByLabelText('BEFORE 사진 갤러리'));
+ fireEvent.drop(screen.getByLabelText('BEFORE 사진 갤러리'));
+ expect(screen.queryByLabelText('three.jpg 미배정 선택')).not.toBeInTheDocument();
+ expect(screen.getByLabelText('three.jpg 사진 선택')).toBeVisible();
+});
+it('selects photos inside a dragged rectangle, not those outside it',()=>{
+ vi.stubGlobal('PointerEvent',MouseEvent);
+ render(<Harness/>);
+ const grid=screen.getByLabelText('현재 단계 사진 목록');
+ vi.spyOn(grid,'getBoundingClientRect').mockReturnValue({left:0,top:0,right:400,bottom:200,width:400,height:200,x:0,y:0,toJSON(){}} as DOMRect);
+ for(const [index,card] of within(grid).getAllByRole('article').entries()){
+  vi.spyOn(card,'getBoundingClientRect').mockReturnValue({left:10+index*180,top:10,right:170+index*180,bottom:160,width:160,height:150,x:0,y:0,toJSON(){}} as DOMRect);
+ }
+ fireEvent.pointerDown(grid,{clientX:1,clientY:1,button:0});
+ fireEvent.pointerMove(grid,{clientX:175,clientY:170,button:0});
+ fireEvent.pointerUp(grid,{clientX:175,clientY:170,button:0});
+ expect(screen.getByLabelText('one.jpg 사진 선택')).toBeChecked();
+ expect(screen.getByLabelText('two.jpg 사진 선택')).not.toBeChecked();
+ vi.unstubAllGlobals();
+});
 
 function Harness({inspection=false}:{inspection?:boolean}){
  const [report,dispatch]=useReducer(reportReducer,undefined,()=>{
@@ -44,14 +84,13 @@ it('uses current only for inspection',()=>{
  expect(screen.getByRole('tab',{name:/현재 CURRENT/})).toBeVisible();
  expect(screen.queryByRole('tab',{name:/작업 후/})).not.toBeInTheDocument();
 });
-it('bulk assigns library selections to the active phase and can set four library columns',()=>{
+it('bulk assigns library selections to the active phase with automatic columns',()=>{
  render(<Harness/>);
  fireEvent.click(screen.getByRole('tab',{name:/작업 후/}));
  fireEvent.click(screen.getByLabelText('three.jpg 미배정 선택'));
  fireEvent.click(screen.getByRole('button',{name:'선택한 1장 배정'}));
  expect(within(screen.getByLabelText('AFTER 사진 갤러리')).getByText('three.jpg')).toBeVisible();
- fireEvent.change(screen.getByLabelText('미배정 사진 배열'),{target:{value:'4'}});
- expect(screen.getByLabelText('미배정 사진 목록')).toHaveStyle({'--library-cols':'4'});
+ expect(screen.queryByLabelText('미배정 사진 배열')).not.toBeInTheDocument();
 });
 it('opens sidebar editing, saves captions, excludes and unassigns without deleting photos',()=>{
  render(<Harness/>);

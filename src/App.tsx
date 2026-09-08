@@ -52,7 +52,7 @@ import {
   removeTargetService,
   toggleTargetService,
 } from './domain/structure';
-import type { WordExportInput, WordExportResult } from './docx/templateWriter';
+import { writeTemplateReport, buildReportFileName, type WordExportInput, type WordExportResult } from './docx/templateWriter';
 import {
   NICHE_TYPE_LABELS,
   type NicheType,
@@ -166,7 +166,6 @@ function photoRecords(
 type WordExporter = (input: WordExportInput) => Promise<WordExportResult>;
 
 const loadWordExporter: WordExporter = async (input) => {
-  const { writeTemplateReport } = await import('./docx/templateWriter');
   return writeTemplateReport(input, {
     resizeReadinessPhoto: resizeForReportSlot,
     download: (blob, fileName) => {
@@ -583,7 +582,6 @@ export default function App({
     setDiagramExportError(null);
     setStatus('사진을 순차 처리하여 Word 보고서를 만드는 중입니다…');
     try {
-      const { buildReportFileName } = await import('./docx/templateWriter');
       const result = await exporter({
         vesselName: reportInfo.vessel.name || scopeMeta?.vesselName || 'UNDERWATER REPORT',
         sections: report.sections,
@@ -618,7 +616,8 @@ export default function App({
         const reason = diagramFailure[1] === 'VESSEL_MARKER_NOT_FOUND' ? '필수 표식이 없습니다' : '이미지를 만들지 못했습니다';
         setDiagramExportError(`선박 위치도 — ${sectionLabel}: ${reason}. 선박 위치도 설정에서 이미지와 해당 구역 표식을 확인한 뒤 다시 저장하고 다운로드하세요.`);
       } else {
-        setStatus('Word 보고서를 만들지 못했습니다. 사진 형식과 브라우저 다운로드 권한을 확인하세요.');
+        const reason = error instanceof Error ? error.message : String(error);
+        setStatus(`Word 생성 실패 · ${reason.slice(0, 240) || '알 수 없는 오류' }`);
       }
     } finally {
       setIsExporting(false);

@@ -331,7 +331,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByText('vessel.png')).toBeVisible();
   });
 
-  it('retains the generic export advice for unrelated failures', async () => {
+  it('retains the actual export error instead of blaming photos for every failure', async () => {
     vi.spyOn(reportQa,'checkReport').mockReturnValue([]);
     const user = userEvent.setup();
     render(<App exporter={async () => { throw new Error('DOWNLOAD_FAILED'); }} />);
@@ -340,7 +340,7 @@ describe('desktop report workflow', () => {
     expect(screen.getByRole('heading', { name: 'Summary 확인' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: '최종 Word 준비' }));
     await user.click(screen.getByRole('button', { name: 'Word 보고서 다운로드' }));
-    expect(await screen.findByText('Word 보고서를 만들지 못했습니다. 사진 형식과 브라우저 다운로드 권한을 확인하세요.')).toBeVisible();
+    expect(await screen.findByText('Word 생성 실패 · DOWNLOAD_FAILED')).toBeVisible();
     expect(screen.queryByRole('button', { name: '선박 위치도 설정으로 돌아가기' })).not.toBeInTheDocument();
   });
 
