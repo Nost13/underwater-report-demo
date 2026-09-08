@@ -111,7 +111,7 @@ function scopeEntries(sections: ReportSection[]): Array<{ service: ServiceKind; 
   return entries;
 }
 
-export function coverScopeGroups(sections: ReportSection[]): Array<{key:string;title:string}> {
+export function coverScopeGroups(sections: ReportSection[]): Array<{key:string;title:string;supporting?:boolean}> {
   const unique=new Map<string,{key:string;title:string}>();
   for(const entry of scopeEntries(sections)) {
     const section=sections[entry.index];
@@ -119,14 +119,18 @@ export function coverScopeGroups(sections: ReportSection[]): Array<{key:string;t
     const key=section.area==='GENERAL'?`${entry.service}|GENERAL`:`${entry.service}|NICHE|${entry.component.toUpperCase()}`;
     if(!unique.has(key))unique.set(key,{key,title:`${component} ${SERVICE_REPORT_LABELS[entry.service]}`});
   }
-  return [...unique.values()];
+  const groups=[...unique.values()];
+  const main=groups.find(group=>group.key==='POLISHING|NICHE|PROPELLER BLADE');
+  if(!main)return groups;
+  const supporting=new Set(['POLISHING|NICHE|BOSS CAP','POLISHING|NICHE|FIN BLADE','INSPECTION|NICHE|ROPE GUARD']);
+  return [{...main,title:'Propeller Polishing'},...groups.filter(group=>group!==main).map(group=>({...group,supporting:supporting.has(group.key)}))];
 }
 
 function generatedScope(cover:CoverInfo,sections:ReportSection[]): Pick<CoverInfo,'scopeTitle'|'scopeDescription'> {
   const groups=coverScopeGroups(sections);
   const endings:Record<string,string>={ROV:'using an ROV',DIVER:'by divers',BOTH:'using an ROV and by divers'};
   return {
-    scopeTitle:groups.map(group=>group.title).join(' / '),
+    scopeTitle:groups.filter(group=>!group.supporting).map(group=>group.title).join(' / '),
     scopeDescription:groups.flatMap(group=>{
       const ending=endings[cover.scopePerformers?.[group.key]??''];
       const subject=group.title.charAt(0)+group.title.slice(1).toLowerCase();

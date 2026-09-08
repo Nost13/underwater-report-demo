@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Modal } from './Modal';
 import { pickDirectory, type DirectoryHandleLike, type FileHandleLike } from '../browser/directory';
 
 export function FolderContents({ root, onClose }: { root: DirectoryHandleLike; onClose: () => void }) {
@@ -20,7 +22,7 @@ export function FolderContents({ root, onClose }: { root: DirectoryHandleLike; o
     })();
     return () => { active = false; };
   }, [current]);
-  return <div className="modal-backdrop"><section className="folder-browser" role="dialog" aria-modal="true" aria-label="생성한 폴더 확인">
+  return createPortal(<Modal label="생성한 폴더 확인" onClose={onClose}><section className="folder-browser">
     <h2>생성한 폴더 확인</h2><p>{path.map((entry) => entry.name).join(' > ')}</p>
     <div className="editor-dialog-actions"><button type="button" disabled={path.length === 1} onClick={() => navigate(path.slice(0, -1))}>상위 폴더</button>
       <button type="button" onClick={async () => { try { await pickDirectory('read', current); } catch (reason) { if (!(reason instanceof DOMException && reason.name === 'AbortError')) setError('이 브라우저에서는 폴더 선택창을 열 수 없습니다. 아래 목록에서 확인해주세요.'); } }}>이 위치에서 폴더 선택창 열기</button><button type="button" onClick={onClose}>닫기</button></div>
@@ -28,5 +30,5 @@ export function FolderContents({ root, onClose }: { root: DirectoryHandleLike; o
     {loading && <p role="status">폴더를 읽는 중…</p>}{error && <p role="alert">{error}</p>}
     <ul className="folder-entries">{entries.map((entry) => <li key={entry.name}>{entry.kind === 'directory' ? <button type="button" aria-label={`${entry.name} 폴더 열기`} onClick={() => navigate([...path, entry])}>▸ {entry.name}</button> : <span>{entry.name}</span>}</li>)}</ul>
     {!loading && !error && entries.length === 0 && <p>빈 폴더입니다.</p>}
-  </section></div>;
+  </section></Modal>, document.body);
 }

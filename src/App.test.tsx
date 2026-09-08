@@ -63,6 +63,14 @@ async function buildScope(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
 }
 
+it('does not offer an imported photo library before photos are imported',async()=>{
+ const user=userEvent.setup();render(<App/>);await buildScope(user);
+ await user.click(screen.getByRole('button',{name:'Report Information 입력'}));
+ expect(screen.queryAllByRole('button',{name:'불러온 사진 보관함에서 선택'})).toHaveLength(0);
+ await user.click(screen.getByRole('button',{name:'커버 설정으로'}));
+ expect(screen.queryAllByRole('button',{name:'불러온 사진 보관함에서 선택'})).toHaveLength(0);
+});
+
 async function completeVesselDiagram(user: ReturnType<typeof userEvent.setup>) {
   vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ width: 1200, height: 320, close: vi.fn() })));
   await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
@@ -394,8 +402,11 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: '전체 적용' }));
     await user.click(screen.getByRole('button', { name: /Scope 만들기$/ }));
     await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
-    expect(screen.getByLabelText('ETA')).toHaveValue('2026-09-04T08:30');
-    expect(screen.getByLabelText('ETD')).toHaveValue('2026-09-05T20:00');
+    expect(screen.getByLabelText('ETA')).toHaveValue('2026-09-04');
+    expect(screen.getByLabelText('ETA 시 (24시간)')).toHaveValue('08');
+    expect(screen.getByLabelText('ETA 분')).toHaveValue('30');
+    expect(screen.getByLabelText('ETD')).toHaveValue('2026-09-05');
+    expect(screen.getByLabelText('ETD 시 (24시간)')).toHaveValue('20');
     expect(screen.getByLabelText('Location')).toHaveValue('Busan / PNIT / 3');
     expect(screen.getByLabelText('Berthing Side')).toHaveValue('PORT SIDE');
     expect(screen.getByLabelText('Work Window')).toHaveValue('35 Hours + 1 Hrs');

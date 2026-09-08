@@ -670,10 +670,10 @@ export default function App({
         onPhotos={() => setStage(1)}
       />}
 
-      {stage === 1 && <ReportInformation value={reportInfo} onChange={setReportInfo} onOpenLibrary={openLibrary} onBack={() => setStage(0)} onNext={() => setStage(2)} />}
+      {stage === 1 && <ReportInformation value={reportInfo} onChange={setReportInfo} onOpenLibrary={report.photos.length ? openLibrary : undefined} onBack={() => setStage(0)} onNext={() => setStage(2)} />}
 
       {stage === 2 && <CoverEditor
-        onOpenLibrary={openLibrary}
+        onOpenLibrary={report.photos.length ? openLibrary : undefined}
         value={coverInfo} onChange={setCoverInfo} reportInfo={reportInfo} sections={report.sections}
         onBack={() => setStage(1)} onNext={() => setStage(3)} onEditReportInfo={() => setStage(1)}
       />}

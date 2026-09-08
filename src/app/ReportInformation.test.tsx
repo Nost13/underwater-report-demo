@@ -4,6 +4,7 @@ import { Profiler, StrictMode, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { emptyReportInfo, type ReportInfo } from './reportInfo';
 import { ReportInformation } from './ReportInformation';
+import {readFileSync} from 'node:fs';
 
 function Harness() {
   const [value, setValue] = useState<ReportInfo>(() => emptyReportInfo());
@@ -11,6 +12,29 @@ function Harness() {
 }
 
 describe('Report Information', () => {
+  it('aligns the 24-hour controls with adjacent operation inputs',()=>{
+    const {unmount}=render(<><style>{readFileSync('src/styles.css','utf8')+readFileSync('src/editing.css','utf8')}</style><Harness/></>);
+    const date=screen.getByLabelText('ETA');
+    expect(getComputedStyle(date.parentElement!).gridRow).toBe(getComputedStyle(screen.getByLabelText('Work Window')).gridRow);
+    expect(getComputedStyle(date).minHeight).toBe('50px');
+    expect(getComputedStyle(screen.getByLabelText('Personnel Deployed')).minHeight).toBe(getComputedStyle(screen.getByLabelText('Other Personnel')).minHeight);
+    unmount();
+  });
+  it('offers every hour in 24-hour notation and preserves dates when clearing or changing time', () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByLabelText('ETA'),{target:{value:'2026-09-09'}});
+    const hours=screen.getByLabelText('ETA 시 (24시간)');
+    expect(within(hours).getAllByRole('option').map(o=>o.textContent)).toEqual(Array.from({length:24},(_,i)=>String(i).padStart(2,'0')));
+    fireEvent.change(hours,{target:{value:'23'}});
+    fireEvent.change(screen.getByLabelText('ETA 분'),{target:{value:'59'}});
+    expect(hours).toHaveValue('23');
+    fireEvent.change(screen.getByLabelText('ETD'),{target:{value:'2026-09-10'}});
+    fireEvent.change(screen.getByLabelText('ETD 분'),{target:{value:'59'}});
+    expect(screen.getByLabelText('Work Window')).toHaveValue('1 Hours + 1 Hrs');
+    fireEvent.change(screen.getByLabelText('ETA'),{target:{value:''}});
+    expect(screen.getByLabelText('ETA')).toHaveValue('');
+    expect(hours).toBeDisabled();
+  });
   it('shows every Section 1–4 operational and readiness input', () => {
     render(<Harness />);
 
@@ -38,16 +62,24 @@ describe('Report Information', () => {
     const user = userEvent.setup();
     render(<Harness />);
 
-    await user.type(screen.getByLabelText('ETA'), '2026-09-01T01:36');
-    await user.type(screen.getByLabelText('ETD'), '2026-09-01T18:00');
+    fireEvent.change(screen.getByLabelText('ETA'),{target:{value:'2026-09-01'}});
+    fireEvent.change(screen.getByLabelText('ETA 시 (24시간)'),{target:{value:'01'}});
+    fireEvent.change(screen.getByLabelText('ETA 분'),{target:{value:'36'}});
+    fireEvent.change(screen.getByLabelText('ETD'),{target:{value:'2026-09-01'}});
+    fireEvent.change(screen.getByLabelText('ETD 시 (24시간)'),{target:{value:'18'}});
+    fireEvent.change(screen.getByLabelText('ETD 분'),{target:{value:'00'}});
     expect(screen.getByLabelText('Work Window')).toHaveValue('16 Hours + 1 Hrs');
 
     await user.clear(screen.getByLabelText('Work Window'));
     await user.type(screen.getByLabelText('Work Window'), 'CUSTOM WINDOW');
     expect(screen.getByLabelText('Work Window')).toHaveValue('CUSTOM WINDOW');
 
-    await user.type(screen.getByLabelText('Start'), '2026-09-01T03:00');
-    await user.type(screen.getByLabelText('End'), '2026-09-01T03:49');
+    fireEvent.change(screen.getByLabelText('Start'),{target:{value:'2026-09-01'}});
+    fireEvent.change(screen.getByLabelText('Start 시 (24시간)'),{target:{value:'03'}});
+    fireEvent.change(screen.getByLabelText('Start 분'),{target:{value:'00'}});
+    fireEvent.change(screen.getByLabelText('End'),{target:{value:'2026-09-01'}});
+    fireEvent.change(screen.getByLabelText('End 시 (24시간)'),{target:{value:'03'}});
+    fireEvent.change(screen.getByLabelText('End 분'),{target:{value:'49'}});
     expect(screen.getByLabelText('Working Time')).toHaveValue('0 Hrs 49 Min');
   });
 
@@ -63,7 +95,7 @@ describe('Report Information', () => {
       expect(within(record).getByLabelText(label)).toBeVisible();
     }
     for (const label of ['ETA', 'ETD', 'Start', 'End']) {
-      expect(screen.getByLabelText(label)).toHaveAttribute('type', 'datetime-local');
+      expect(screen.getByLabelText(label)).toHaveAttribute('type', 'date');
     }
   });
 

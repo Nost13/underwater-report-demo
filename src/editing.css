@@ -14,12 +14,12 @@
 @media(max-width:650px) { .vessel-manual-grid { grid-template-columns: minmax(0,1fr); } }
 .report-information-workspace { max-width: 1680px; }
 .report-information-workspace .field>span { font-size: 14px; line-height: 1.5; }
-.report-information-workspace .field>input,.report-information-workspace .field>select { min-height: 50px; font-size: 16px; }
+.report-information-workspace .field>input,.report-information-workspace .field>select,.report-information-workspace .date-time-24 input,.report-information-workspace .date-time-24 select { min-height: 50px; font-size: 16px; }
 .report-information-title h3 { font-size: 21px; }
 .report-information-title p { font-size: 13px; line-height: 1.5; }
 .operation-record-row { align-items: stretch; gap: 20px; padding: 20px; }
 .operation-record-row .operation-field { display: grid; grid-template-rows: auto 1fr auto; gap: 8px; align-content: stretch; }
-.operation-record-row .operation-field>input,.operation-record-row .operation-field>select { grid-row: 3; width: 100%; }
+.operation-record-row .operation-field>input,.operation-record-row .operation-field>select,.operation-record-row .operation-field>.date-time-24 { grid-row: 3; width: 100%; }
 .operation-record-row .operation-field>span:nth-child(2) { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
 .operation-field button { min-height: 44px; padding: 8px 12px; border: 1px solid #b3cbd0; border-radius: 8px; background: white; color: #123d4b; font-size: 14px; }
 .scope-ready { grid-template-columns: minmax(120px,1fr) auto; padding: 16px; gap: 8px 20px; }
@@ -73,7 +73,7 @@
 .photo-row.drop-target::after { content:""; position:absolute; top:0; bottom:0; width:5px; background:#007c78; border-radius:3px; z-index:3; }
 .photo-row.insert-before::after { left:-9px; }
 .photo-row.insert-after::after { right:-9px; }
-.folder-browser { background:white; padding:28px; border-radius:18px; width:min(850px,92vw); max-height:88vh; overflow:auto; }
+.folder-browser { background:white; min-width:0; overflow-wrap:anywhere; }
 .folder-entries { list-style:none; padding:0; }
 .folder-entries li { padding:8px; border-bottom:1px solid #e1eaed; }
 .folder-entries button { text-align:left; min-height:42px; width:100%; background:#edf7f6; color:#075f59; border:1px solid #bdd9d7; border-radius:6px; }

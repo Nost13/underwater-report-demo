@@ -5,6 +5,23 @@ import {PersonnelRegistration,usePersonnelLibrary} from './PersonnelRegistration
 import type { OpenPhotoLibrary } from './PhotoLibraryPicker';
 import { composePersonnel, countPersonnel, deriveOperationValues, type PersonnelCounts, type ReadinessPhotoSlots, type ReportInfo } from './reportInfo';
 
+function DateTime24({label,value,onChange}:{label:string;value:string;onChange:(value:string)=>void}) {
+  const [date='',time='00:00']=value.split('T');
+  const [hour='00',minute='00']=time.split(':');
+  return <div className="date-time-24">
+    <input type="date" aria-label={label} value={date} onChange={event=>onChange(event.target.value ? `${event.target.value}T${hour}:${minute}` : '')}/>
+    <div className="time-24-controls">
+      <select aria-label={`${label} 시 (24시간)`} value={hour} disabled={!date} onChange={event=>onChange(`${date}T${event.target.value}:${minute}`)}>
+        {Array.from({length:24},(_,index)=>String(index).padStart(2,'0')).map(value=><option key={value}>{value}</option>)}
+      </select>
+      <span aria-hidden="true">:</span>
+      <select aria-label={`${label} 분`} value={minute} disabled={!date} onChange={event=>onChange(`${date}T${hour}:${event.target.value}`)}>
+        {Array.from({length:60},(_,index)=>String(index).padStart(2,'0')).map(value=><option key={value}>{value}</option>)}
+      </select>
+    </div>
+  </div>;
+}
+
 interface ReportInformationProps {
   onOpenLibrary?:OpenPhotoLibrary;
   value: ReportInfo;
@@ -132,21 +149,23 @@ export function ReportInformation({ value, onChange, onBack, onNext,onOpenLibrar
     value.personnelQualifications.filter((person) => personnelKey(person) !== id),
   );
   const renderOperationField = ([field, label, placeholder]: [OperationField, string, string]) => (
-    <label className="field operation-field" key={field}>
+    <div className="field operation-field" key={field}>
       <span>{label}</span>
       {(['workWindow','workingTime','position'] as const).filter((key) => key === field).map((key) => <span key={key}><small>{value.operationModes?.[key] === 'MANUAL' ? '수동 입력 유지' : '자동 계산'}</small><button type="button" aria-label={`${label} 자동값 다시 적용`} onClick={(event) => { event.preventDefault(); onChange((current) => { const operationModes = {...current.operationModes,[key]:'AUTO' as const}; return {...current,operationModes,operation:deriveOperationValues(current.operation,undefined,operationModes)}; }); }}>자동값 다시 적용</button></span>)}
       {field === 'berthingSide'
         ? <select aria-label={label} value={value.operation.berthingSide} onChange={(event) => setOperation(field, event.target.value)}>
           <option value="">—</option><option value="PORT SIDE">PORT SIDE</option><option value="STBD SIDE">STBD SIDE</option>
         </select>
+        : ['eta', 'etd', 'start', 'end'].includes(field)
+        ? <DateTime24 label={label} value={value.operation[field]} onChange={(next)=>setOperation(field,next)}/>
         : <input
-          type={['eta', 'etd', 'start', 'end'].includes(field) ? 'datetime-local' : 'text'}
+          type="text"
           aria-label={label}
           value={value.operation[field]}
           placeholder={placeholder}
           onChange={(event) => setOperation(field, event.target.value)}
         />}
-    </label>
+    </div>
   );
   const renderReadinessPhotos = (
     section: 'Toolbox' | 'Preparation',
@@ -219,7 +238,7 @@ export function ReportInformation({ value, onChange, onBack, onNext,onOpenLibrar
         {personnelFields.map(([field, label, placeholder]) => <label className="field" key={field}>
           <span>{label}</span><input aria-label={label} value={value.personnelCounts[field]} placeholder={placeholder} onChange={(event) => setPersonnelCounts(field, event.target.value)} />
         </label>)}
-        <output aria-label="Personnel Deployed">{value.operation.personnel}</output>
+        <div className="field"><span>Personnel Deployed</span><output aria-label="Personnel Deployed">{value.operation.personnel || '—'}</output></div>
         <button type="button" onClick={() => onChange((current) => { const personnelCounts = countPersonnel(current.personnelQualifications); return {...current,personnelCounts,personnelCountModes:{},operation:{...current.operation,personnel:composePersonnel(personnelCounts)}}; })}>역할별 등록 인원으로 자동 계산</button>
       </div>
     </section>
