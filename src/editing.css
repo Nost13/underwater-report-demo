@@ -1,4 +1,17 @@
 /* Larger editing controls; report-page typography is deliberately unchanged. */
+.diagram-mode-tabs { position: sticky; top: 0; z-index: 15; display: flex; gap: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid #bdd3d8; border-radius: 10px; background: #fff; box-shadow: 0 3px 10px #103b4a12; }
+.diagram-mode-tabs button { flex: 1; min-height: 46px; border: 1px solid #adcbd1; border-radius: 8px; background: #fff; color: #153c49; font-size: 15px; font-weight: 700; }
+.diagram-mode-tabs button[aria-selected=true] { background: #087c79; border-color: #087c79; color: white; }
+.cover-performers { border: 1px solid #bfd4d9; border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.cover-performers legend { font-weight: 700; font-size: 15px; }
+.cover-performers select { width: 100%; min-width: 0; font-size: 14px; }
+.cover-performers p { font-size: 13px; line-height: 1.6; margin: 0; }
+.vessel-manual-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin: 12px 0 20px; min-width: 0; max-width: 100%; }
+.vessel-manual-grid > .field { min-width: 0; }
+.vessel-manual-grid > .field:first-child { grid-column: 1 / -1; }
+.vessel-manual-grid .field > input { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; min-height: 48px; font-size: 16px; }
+.vessel-manual-grid .field > span { font-size: 14px; line-height: 1.5; }
+@media(max-width:650px) { .vessel-manual-grid { grid-template-columns: minmax(0,1fr); } }
 .report-information-workspace { max-width: 1680px; }
 .report-information-workspace .field>span { font-size: 14px; line-height: 1.5; }
 .report-information-workspace .field>input,.report-information-workspace .field>select { min-height: 50px; font-size: 16px; }

@@ -8,6 +8,16 @@ import type { ReportSection } from '../domain/types';
 
 const section: ReportSection = { id: 'rope', targetId: 'rope', area: 'NICHE', component: 'Rope', service: 'REMOVAL', phases: ['BEFORE', 'AFTER'], conditions: {} };
 const info = emptyReportInfo();
+it('selects performers for automatic descriptions without overwriting manual wording',()=>{
+ render(<Harness/>);
+ fireEvent.change(screen.getByLabelText('Rope Removal 수행 주체'),{target:{value:'ROV'}});
+ expect(screen.getByLabelText('Scope of Work description')).toHaveValue('Rope removal was carried out using an ROV.');
+ fireEvent.change(screen.getByLabelText('Scope of Work description'),{target:{value:'Manual wording'}});
+ fireEvent.change(screen.getByLabelText('Rope Removal 수행 주체'),{target:{value:'DIVER'}});
+ expect(screen.getByLabelText('Scope of Work description')).toHaveValue('Manual wording');
+ fireEvent.click(screen.getByRole('button',{name:'자동 내용 다시 적용'}));
+ expect(screen.getByLabelText('Scope of Work description')).toHaveValue('Rope removal was carried out by divers.');
+});
 info.vessel.name = 'VESSEL TEST';
 info.vessel.jobNo = 'Us-2609';
 function Harness({ initial = createCoverInfo() }: { initial?: CoverInfo }) {
@@ -160,7 +170,7 @@ describe('Cover editor', () => {
     fireEvent.change(screen.getByLabelText('Date of Issue'), { target: { value: '2026-09-04' } });
     expect(state().issueDate).toBe('2026-09-04');
     fireEvent.click(screen.getByRole('button', { name: '자동 내용 다시 적용' }));
-    expect(state()).toMatchObject({ scopeMode: 'AUTO', scopeTitle: 'Removal of Rope', scopeDescription: 'Removal: Rope' });
+    expect(state()).toMatchObject({ scopeMode: 'AUTO', scopeTitle: 'Rope Removal', scopeDescription: '' });
   });
   it('positions the zoomed preview at the saved source rectangle after clamped panning', () => {
     render(<Harness initial={{ ...createCoverInfo(), photoFile: new File(['a'], 'photo.jpg'), crop: { focusX: .5, focusY: .5, zoom: 2 } }} />);

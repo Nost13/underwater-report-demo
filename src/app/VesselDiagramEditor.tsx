@@ -247,6 +247,10 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
   }, [value?.imageFile]);
 
   useEffect(() => () => {
+    uploadVersionRef.current += 1;
+  }, []);
+
+  useEffect(() => () => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
   }, [imageUrl]);
 
@@ -278,6 +282,7 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
       const imagePlacement = {x:fit.x/DIAGRAM_WIDTH,y:fit.y/DIAGRAM_HEIGHT,width:fit.width/DIAGRAM_WIDTH,height:fit.height/DIAGRAM_HEIGHT};
       onChange(value ? { ...replaceDiagramImage(value,file), imagePlacement:value.imagePlacement ?? imagePlacement } : { ...newDraft(file, sections), imagePlacement });
     } catch {
+      if (uploadVersion !== uploadVersionRef.current) return;
       setError('PNG 또는 JPG 선박 이미지를 확인할 수 없습니다.');
     }
   };
@@ -540,6 +545,10 @@ export function VesselDiagramEditor({ sections, value, onChange, onBack, onNext,
       <div><p className="step-kicker">VESSEL DIAGRAM</p><h2>{step === 'HULL' ? 'Hull 맞추기' : 'Niche 맞추기'}</h2></div>
       <p>이미지는 이 브라우저에서만 사용됩니다.</p>
     </header>
+    <nav className="diagram-mode-tabs" role="tablist" aria-label="위치도 맞추기 모드">
+      <button type="button" role="tab" aria-selected={step==='HULL'} onClick={()=>setStep('HULL')}>Hull 맞추기</button>
+      <button type="button" role="tab" aria-selected={step==='NICHE'} disabled={!value||!isValidCalibration(value.calibration)} onClick={()=>setStep('NICHE')}>Niche 맞추기</button>
+    </nav>
     <label className="diagram-upload"><span>선박 {viewLabel} 이미지</span><input
       aria-label={`선박 ${viewLabel} 이미지`}
       type="file"

@@ -38,7 +38,7 @@ export function diagramForSection(config: VesselDiagramConfig, section: ReportSe
   return config.bottomView;
 }
 export function diagramConfirmed(config: VesselDiagramConfig | null | undefined, sections: ReportSection[]): boolean {
-  if (!config) return false;
+    if (!config || config.sideViewPending) return false;
   return sections.length ? sections.every((section) => {
     try { const view=diagramForSection(config, section);const markers=[...view.hullMarkers,...view.nicheMarkers];const ids=resolveMarkerIds(section,view);return view.confirmed&&isValidCalibration(view.calibration)&&ids.length>0&&ids.every(id=>markers.some(marker=>marker.id===id&&isValidRect(marker.rect))); } catch { return false; }
   }) : config.confirmed;

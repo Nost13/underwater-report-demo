@@ -6,7 +6,7 @@ export type ConditionPatch = {
   observed?: Partial<Condition['observed']>;
 };
 
-export type ConditionSource = 'GROUP' | 'OVERRIDE';
+export type ConditionSource = 'GROUP' | 'MATRIX' | 'OVERRIDE';
 export type ConditionDefaults = Record<string, Partial<Record<Phase, Condition>>>;
 export type ConditionSources = Record<
   string,

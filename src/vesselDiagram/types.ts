@@ -11,6 +11,8 @@ export type MarkerGroupId =
   | 'bulbous-bow' | 'transducer' | 'anode' | 'bilge-keel';
 export interface RequiredMarkerGroup { id: MarkerGroupId; markerIds: string[] }
 export interface VesselDiagramConfig {
+  /** The root holds the uploaded bottom draft until a side image is provided. */
+  sideViewPending?: boolean;
   markerBindings?: Record<string,string[]>;
   removedMarkerIds?: string[];
   imageFile: File;

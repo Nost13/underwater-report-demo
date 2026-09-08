@@ -115,10 +115,11 @@ describe('supplied cover template writer', () => {
     const { bytes, original, input } = await fixture();
     input.sections = [{ id: 'one', area: 'NICHE', component: 'SEA CHEST', service: 'REMOVAL', phases: [] }] as unknown as ReportSection[];
     input.coverInfo.scopeMode = 'AUTO';
+    input.coverInfo.scopePerformers = {'REMOVAL|NICHE|SEA CHEST':'DIVER'};
     const auto = await JSZip.loadAsync(await fillCoverTemplate(input, { fetchTemplate: async () => bytes }));
     const autoDoc = parse(await auto.file('word/document.xml')!.async('text'));
-    expect(text(paragraph(autoDoc, '153C7F6D')[0])).toBe('Removal of SEA CHEST');
-    expect(text(paragraph(autoDoc, '769FEDD6')[0])).toBe('Removal: SEA CHEST');
+    expect(text(paragraph(autoDoc, '153C7F6D')[0])).toBe('Sea Chest Removal');
+    expect(text(paragraph(autoDoc, '769FEDD6')[0])).toBe('Sea chest removal was carried out by divers.');
     input.coverInfo.scopeMode = 'MANUAL';
     input.coverInfo.scopeDescription = 'First line\nSecond line';
     const manual = await JSZip.loadAsync(await fillCoverTemplate(input, { fetchTemplate: async () => bytes }));

@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import type { WordExportInput } from './docx/templateWriter';
 import * as reportQa from './domain/qa';
+import { readFileSync } from 'node:fs';
+
+const editingStyles = readFileSync('src/editing.css', 'utf8');
 
 const NativeURL = globalThis.URL;
 
@@ -102,6 +105,44 @@ async function selectReportSection(
   await user.click(within(picker).getByRole('button', { name }));
 }
 
+it('connects the post-diagram matrix to detail editing without changing the stage order', async () => {
+  const user=userEvent.setup();
+  render(<App/>);
+  await buildScope(user);
+  expect(screen.queryByRole('region',{name:'컨디션 입력 매트릭스'})).not.toBeInTheDocument();
+  await completeVesselDiagram(user);
+  const matrix=screen.getByRole('region',{name:'컨디션 입력 매트릭스'});
+  fireEvent.click(within(matrix).getByLabelText('현재 목록 전체 선택'));
+  fireEvent.click(within(matrix).getByRole('button',{name:'선택 구역 일괄 입력'}));
+  const dialog=screen.getByRole('dialog',{name:'선택 구역 컨디션 일괄 입력'});
+  fireEvent.change(within(dialog).getByLabelText('일괄 입력 fouling coverage'),{target:{value:'10'}});
+  fireEvent.click(within(dialog).getByRole('button',{name:'선택 구역에 적용'}));
+  await user.click(screen.getByRole('button',{name:'Report Input으로'}));
+  await user.click(screen.getByRole('button',{name:'컨디션 수정'}));
+  expect(screen.getByLabelText('BEFORE fouling coverage')).toHaveValue(10);
+  expect(screen.getByText('매트릭스 입력')).toBeVisible();
+  fireEvent.change(screen.getByLabelText('BEFORE fouling coverage'),{target:{value:'30'}});
+  await user.click(screen.getByRole('button',{name:'컨디션 매트릭스 열기'}));
+  const row=screen.getByRole('group',{name:'CLEANING/GENERAL/FWD/PORT BEFORE 컨디션'});
+  expect(within(row).getByLabelText(/fouling coverage/)).toHaveValue(30);
+  expect(within(row).getByText('개별 수정 보호')).toBeVisible();
+  expect(stageLabels()).toEqual(['Vessel / Scope','Report Information','Cover','Vessel Diagram','사진 폴더','Report Input','Check / Preview','Summary','Word']);
+});
+
+it('constrains manual vessel fields to their grid tracks and gives the name its own row',()=>{
+  render(<><style>{editingStyles}</style><App/></>);
+  fireEvent.click(screen.getByRole('button',{name:'조회 없이 선박 정보 직접 입력'}));
+  for(const key of ['name','imo','type','loa','breadth']) {
+    const input=screen.getByLabelText(`직접 입력 ${key}`);
+    expect(getComputedStyle(input).width).toBe('100%');
+    expect(getComputedStyle(input).minWidth).toBe('0px');
+    expect(getComputedStyle(input.parentElement!).minWidth).toBe('0px');
+  }
+  expect(getComputedStyle(screen.getByLabelText('직접 입력 name').parentElement!).gridColumn).toBe('1 / -1');
+  fireEvent.change(screen.getByLabelText('직접 입력 name'),{target:{value:'MSC GENERAL IV'}});
+  expect(screen.getByLabelText('직접 입력 name')).toHaveValue('MSC GENERAL IV');
+});
+
 function stageLabels() {
   return within(screen.getByRole('navigation', { name: 'Report stages' }))
     .getAllByRole('button')
@@ -144,7 +185,7 @@ describe('desktop report workflow', () => {
     await buildScope(user);
     await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
     await user.click(screen.getByRole('button', { name: '커버 설정으로' }));
-    expect(screen.getByLabelText('App cover scope')).toHaveTextContent('Cleaning of FWD & FWD-MID & MID & MID-AFT & AFT');
+    expect(screen.getByLabelText('App cover scope')).toHaveTextContent('General Cleaning');
 
     await user.click(screen.getByRole('button', { name: 'Vessel / Scope' }));
     await user.click(screen.getByRole('button', { name: 'Scope 초기화' }));
@@ -153,7 +194,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: '전체 적용' }));
     await user.click(screen.getByRole('button', { name: /Inspection Scope 만들기$/ }));
     await user.click(within(screen.getByRole('navigation', { name: 'Report stages' })).getByRole('button', { name: /Cover$/ }));
-    expect(screen.getByLabelText('App cover scope')).toHaveTextContent('Inspection of FWD & FWD-MID & MID & MID-AFT & AFT');
+    expect(screen.getByLabelText('App cover scope')).toHaveTextContent('General Inspection');
 
     vi.doUnmock('./app/CoverEditor');
   });
@@ -171,7 +212,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Report Information 입력' }));
     await user.click(screen.getByRole('button', { name: '커버 설정으로' }));
     expect(screen.getByRole('heading', { name: 'Cover' })).toBeVisible();
-    expect(screen.getByLabelText('Scope of Work title')).toHaveValue('Cleaning of FWD & FWD-MID & MID & MID-AFT & AFT');
+    expect(screen.getByLabelText('Scope of Work title')).toHaveValue('General Cleaning');
 
     await user.click(screen.getByRole('button', { name: '이전' }));
     expect(screen.getByRole('heading', { name: 'Report Information' })).toBeVisible();
@@ -188,7 +229,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: '전체 적용' }));
     await user.click(screen.getByRole('button', { name: /Inspection Scope 만들기$/ }));
     await user.click(within(screen.getByRole('navigation', { name: 'Report stages' })).getByRole('button', { name: /Cover$/ }));
-    expect(screen.getByLabelText('Scope of Work title')).toHaveValue('Inspection of FWD & FWD-MID & MID & MID-AFT & AFT');
+    expect(screen.getByLabelText('Scope of Work title')).toHaveValue('General Inspection');
 
     await user.clear(screen.getByLabelText('Scope of Work title'));
     await user.type(screen.getByLabelText('Scope of Work title'), 'Manual cover scope');
@@ -720,6 +761,8 @@ describe('desktop report workflow', () => {
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByRole('tab', { name: /작업 후 AFTER/ }));
+    await user.click(screen.getByRole('button',{name:'컨디션 수정'}));
     expect(screen.getByRole('heading', { name: 'Report Input' })).toBeVisible();
     expect(screen.getByLabelText('AFTER fouling coverage')).toHaveValue(0);
     expect(screen.getByLabelText('AFTER fouling rating')).toHaveTextContent('R0');
@@ -733,6 +776,7 @@ describe('desktop report workflow', () => {
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByRole('button',{name:'컨디션 수정'}));
 
     const coverage = screen.getByLabelText('BEFORE fouling coverage');
     await user.type(coverage, '37');
@@ -748,6 +792,8 @@ describe('desktop report workflow', () => {
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByText(/구역 기본값 · 현재 구역 점검/));
+    await user.click(screen.getByRole('button',{name:'컨디션 수정'}));
 
     const groupCoverage = screen.getByLabelText('구역 기본 BEFORE fouling coverage');
     await user.clear(groupCoverage);
@@ -758,6 +804,7 @@ describe('desktop report workflow', () => {
       .toBeVisible();
 
     await user.click(screen.getByRole('button', { name: '다음 Section' }));
+    await user.click(screen.getByRole('button',{name:'컨디션 수정'}));
     const childCoverage = screen.getByLabelText('BEFORE fouling coverage');
     expect(childCoverage).toHaveValue(15);
     await user.clear(childCoverage);
@@ -770,6 +817,7 @@ describe('desktop report workflow', () => {
     await user.type(screen.getByLabelText('구역 기본 BEFORE fouling coverage'), '20');
     await user.click(screen.getByRole('button', { name: 'BEFORE 기본값 적용' }));
     await user.click(screen.getByRole('button', { name: '다음 Section' }));
+    await user.click(screen.getByRole('button',{name:'컨디션 수정'}));
     expect(screen.getByLabelText('BEFORE fouling coverage')).toHaveValue(40);
 
     await user.click(screen.getByRole('button', { name: 'BEFORE 기본값으로 되돌리기' }));
@@ -785,52 +833,35 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
     expect(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' })).toBeVisible();
+    await user.click(screen.getByRole('tab', { name: /작업 후 AFTER/ }));
     expect(screen.getByRole('button', { name: 'AFTER 새 사진 추가' })).toBeVisible();
   });
 
-  it('uses a phase-colored header target and Condition edits do not change it', async () => {
+  it('keeps the selected phase when its condition changes', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
-
-    const before = screen.getByRole('button', { name: 'BEFORE 현재 사진 배정 위치' });
-    expect(before).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByLabelText('BEFORE 사진 갤러리')).toHaveClass('selected');
-
-    await user.clear(screen.getByLabelText('AFTER fouling coverage'));
-    await user.type(screen.getByLabelText('AFTER fouling coverage'), '4');
-    expect(before).toHaveAttribute('aria-pressed', 'true');
-
-    await user.click(screen.getByRole('button', { name: 'AFTER 이곳에 사진 배정' }));
-    expect(screen.getByRole('button', { name: 'AFTER 현재 사진 배정 위치' }))
-      .toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveClass('selected');
+    await user.click(screen.getByRole('tab', { name: /작업 후 AFTER/ }));
+    await user.click(screen.getByRole('button',{name:'컨디션 수정'}));
+    await user.type(screen.getByLabelText('AFTER fouling coverage'),'4');
+    expect(screen.getByRole('tab',{name:/작업 후 AFTER/})).toHaveAttribute('aria-selected','true');
+    expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFTER');
   });
 
-  it('selects a photo target from the Phase background without hijacking nested controls', async () => {
+  it('keeps phase selection stable when editing work labels and slime', async () => {
     const user = userEvent.setup();
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
-
-    const afterPanel = screen.getByLabelText('AFTER 사진 갤러리');
-    await user.click(afterPanel);
-    expect(afterPanel).toHaveClass('selected');
-    expect(screen.getByRole('button', { name: 'AFTER 현재 사진 배정 위치' }))
-      .toHaveAttribute('aria-pressed', 'true');
-
-    await user.click(screen.getByLabelText('BEFORE fouling coverage'));
-    expect(afterPanel).toHaveClass('selected');
-    expect(screen.getByRole('button', { name: 'BEFORE 이곳에 사진 배정' }))
-      .toHaveAttribute('aria-pressed', 'false');
-
-    const beforePanel = screen.getByLabelText('BEFORE 사진 갤러리');
-    await user.type(within(beforePanel).getByLabelText('BEFORE fouling coverage'), '10');
-    await user.click(within(beforePanel).getByText('Slime Only'));
-    expect(afterPanel).toHaveClass('selected');
-    expect(screen.getByRole('button', { name: 'BEFORE 이곳에 사진 배정' }))
-      .toHaveAttribute('aria-pressed', 'false');
+    await user.click(screen.getByRole('button',{name:'컨디션 수정'}));
+    await user.type(screen.getByLabelText('BEFORE fouling coverage'),'10');
+    await user.click(screen.getByLabelText('BEFORE Slime Only'));
+    await user.type(screen.getByLabelText('BEFORE 단계 문구'),' Arrival');
+    expect(screen.getByRole('tab',{name:/작업 전 BEFORE/})).toHaveAttribute('aria-selected','true');
+    await user.click(screen.getByRole('tab', { name: /작업 후 AFTER/ }));
+    expect(screen.queryByLabelText('BEFORE 단계 문구')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('AFTER 단계 문구')).toHaveValue('AFTER');
   });
 
   it('shows only the active Section issues beside the group Condition and focuses their Phase', async () => {
@@ -838,6 +869,7 @@ describe('desktop report workflow', () => {
     render(<App />);
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
+    await user.click(screen.getByText(/구역 기본값 · 현재 구역 점검/));
 
     const sectionCheck = screen.getByLabelText('현재 Section 점검');
     expect(sectionCheck).not.toHaveAttribute('aria-live');
@@ -888,7 +920,7 @@ describe('desktop report workflow', () => {
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
-    await user.click(screen.getByRole('button', { name: 'AFTER 이곳에 사진 배정' }));
+    await user.click(screen.getByRole('tab', { name: /작업 후 AFTER/ }));
     expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFTER');
 
     await user.click(screen.getByRole('button', { name: '다음 Section' }));
@@ -903,7 +935,7 @@ describe('desktop report workflow', () => {
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
-    await user.click(screen.getByRole('button', { name: 'AFTER 이곳에 사진 배정' }));
+    await user.click(screen.getByRole('tab', { name: /작업 후 AFTER/ }));
     await user.click(screen.getByRole('button', {
       name: 'CLEANING/GENERAL/FWD/PORT Section 열기',
     }));
@@ -925,16 +957,11 @@ describe('desktop report workflow', () => {
     await user.upload(input, photo);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
 
-    expect(screen.queryByLabelText('미배정 사진 배정')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '미배정 사진 1' })).toBeEnabled();
-    await user.click(screen.getByRole('button', { name: 'AFTER 불러온 사진 선택' }));
-    expect(screen.getByLabelText('미배정 사진 배정')).toBeVisible();
-    expect(screen.getByLabelText('현재 사진 배정 위치')).toHaveTextContent('AFTER');
+    await user.click(screen.getByRole('tab', { name: /작업 후 AFTER/ }));
     expect(screen.getByRole('img', { name: 'image.jpg' })).toBeVisible();
     expect(screen.getByText('2 > 3')).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'image.jpg 사진 배정' }));
-    expect(screen.queryByLabelText('미배정 사진 배정')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '미배정 사진 0' })).toBeDisabled();
+    await user.click(screen.getByLabelText('image.jpg 미배정 선택'));
+    await user.click(screen.getByRole('button',{name:'선택한 1장 배정'}));
     expect(screen.getByLabelText('AFTER 사진 갤러리')).toHaveTextContent('image.jpg');
   });
 
@@ -981,6 +1008,7 @@ describe('desktop report workflow', () => {
       new File(['three'], 'p3.jpg', { type: 'image/jpeg' }),
     ]);
 
+    await user.click(screen.getByRole('button',{name:'p1.jpg 사진 편집'}));
     await user.type(screen.getByLabelText('p1.jpg 추가 캡션'), 'Port inlet');
     expect(screen.getByLabelText('p1.jpg 캡션 미리보기')).toHaveTextContent('Port inlet');
 
@@ -1060,23 +1088,21 @@ describe('desktop report workflow', () => {
     await buildCleaningGeneral(user);
     await user.click(screen.getByRole('button', { name: 'Report Input으로' }));
     for (const phase of ['BEFORE', 'AFTER'] as const) {
+      await user.click(screen.getByRole('tab',{name:phase==='BEFORE'?/작업 전 BEFORE/:/작업 후 AFTER/}));
       await user.click(screen.getByRole('button', { name: `${phase} 새 사진 추가` }));
       const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
       await user.upload(manualInput, new File([phase], `${phase.toLowerCase()}.jpg`, { type: 'image/jpeg' }));
     }
 
-    const beforeGallery = screen.getByLabelText('BEFORE 사진 갤러리');
-    const afterGallery = screen.getByLabelText('AFTER 사진 갤러리');
-    const before = within(beforeGallery).getByRole('article', { name: 'before.jpg 사진' });
-    const after = within(afterGallery).getByRole('article', { name: 'after.jpg 사진' });
-    fireEvent.dragStart(before);
-    fireEvent.dragOver(after);
-    fireEvent.drop(after);
-    fireEvent.dragEnd(before);
-
-    expect(before).not.toHaveClass('dragging');
-    expect(within(beforeGallery).getByRole('article', { name: 'before.jpg 사진' })).toBeVisible();
-    expect(within(afterGallery).getByRole('article', { name: 'after.jpg 사진' })).toBeVisible();
+    await user.click(screen.getByRole('tab', { name: /작업 전 BEFORE/ }));
+    fireEvent.dragStart(screen.getByRole('article',{name:'before.jpg 사진'}));
+    await user.click(screen.getByRole('tab', { name: /작업 후 AFTER/ }));
+    const after=screen.getByRole('article',{name:'after.jpg 사진'});
+    fireEvent.dragOver(after);fireEvent.drop(after);
+    expect(after).toBeVisible();
+    await user.click(screen.getByRole('tab', { name: /작업 전 BEFORE/ }));
+    expect(screen.getByRole('article',{name:'before.jpg 사진'})).toBeVisible();
+    expect(screen.getByRole('article',{name:'before.jpg 사진'})).not.toHaveClass('dragging');
   });
 
   it('advances folder, structure, and import progress only after each action succeeds', async () => {
@@ -1199,21 +1225,15 @@ describe('desktop report workflow', () => {
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
     await user.upload(manualInput, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
 
-    expect(screen.getByRole('checkbox', { name: 'manual.jpg Report Use' }))
-      .toHaveClass('switch-input');
-    const move = screen.getByRole('button', { name: 'manual.jpg 이동' });
-    const remove = screen.getByRole('button', { name: 'manual.jpg 미배정으로 이동' });
-    expect(move).toHaveClass('photo-action-button', 'move');
-    expect(remove).toHaveClass('photo-action-button', 'danger');
-    await user.click(move);
-    expect(screen.getByRole('button', { name: '이동 완료' })).toHaveClass('move-confirm');
-    const cancel = screen.getByRole('button', { name: '이동 취소' });
-    expect(cancel).toHaveClass('move-cancel');
-    expect(screen.getByText('미배정으로 이동해도 불러온 사진과 편집 내용은 유지됩니다.'))
-      .toBeVisible();
-    await user.click(cancel);
-    await user.click(screen.getByRole('button', { name: 'manual.jpg 미배정으로 이동' }));
-    expect(screen.getByRole('button', { name: '미배정 사진 1' })).toBeEnabled();
+    expect(screen.queryByLabelText('manual.jpg 추가 캡션')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button',{name:'manual.jpg 사진 편집'}));
+    expect(screen.getByRole('checkbox',{name:'manual.jpg Report Use'})).toBeVisible();
+    expect(screen.getByLabelText('manual.jpg 추가 캡션')).toBeVisible();
+    await user.click(screen.getByRole('button',{name:'manual.jpg 이동'}));
+    expect(screen.getByRole('dialog',{name:'선택 사진 이동'})).toBeVisible();
+    await user.click(screen.getByRole('button',{name:'이동 취소'}));
+    await user.click(screen.getByRole('button',{name:'manual.jpg 미배정으로 이동'}));
+    expect(screen.getByLabelText('manual.jpg 미배정 선택')).toBeVisible();
   });
 
   it('resets a cancelled photo move to the current Section and Phase', async () => {
@@ -1225,18 +1245,19 @@ describe('desktop report workflow', () => {
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
     await user.upload(manualInput, new File(['photo'], 'manual.jpg', { type: 'image/jpeg' }));
 
+    await user.click(screen.getByRole('button',{name:'manual.jpg 사진 편집'}));
     await user.click(screen.getByRole('button', { name: 'manual.jpg 이동' }));
     await user.selectOptions(
-      screen.getByLabelText('manual.jpg 이동 Section'),
+      screen.getByLabelText('선택 사진 이동 구역'),
       'CLEANING/GENERAL/FWD/STBD',
     );
-    await user.selectOptions(screen.getByLabelText('manual.jpg 이동 Phase'), 'AFTER');
+    await user.selectOptions(screen.getByLabelText('선택 사진 이동 단계'), 'AFTER');
     await user.click(screen.getByRole('button', { name: '이동 취소' }));
 
     await user.click(screen.getByRole('button', { name: 'manual.jpg 이동' }));
-    expect(screen.getByLabelText('manual.jpg 이동 Section'))
+    expect(screen.getByLabelText('선택 사진 이동 구역'))
       .toHaveValue('CLEANING/GENERAL/FWD/PORT');
-    expect(screen.getByLabelText('manual.jpg 이동 Phase')).toHaveValue('BEFORE');
+    expect(screen.getByLabelText('선택 사진 이동 단계')).toHaveValue('BEFORE');
   });
 
   it('uses one photo-folder flow with optional structure creation after selection', async () => {
@@ -1376,6 +1397,7 @@ describe('desktop report workflow', () => {
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
     await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
     await user.upload(manualInput, new File(['before'], 'before.jpg', { type: 'image/jpeg' }));
+    await user.click(screen.getByRole('tab',{name:/작업 후 AFTER/}));
     await user.click(screen.getByRole('button', { name: 'AFTER 새 사진 추가' }));
     await user.upload(manualInput, new File(['after'], 'after.jpg', { type: 'image/jpeg' }));
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
@@ -1410,7 +1432,9 @@ describe('desktop report workflow', () => {
     await user.clear(main);
     await user.type(main, 'Custom cleaning');
     expect(additional).toHaveValue('Arrival');
+    await user.click(screen.getByRole('tab', { name: /작업 후 AFTER/ }));
     expect(screen.getByLabelText('AFTER 작업명')).toHaveValue('HULL CLEANING');
+    await user.click(screen.getByRole('tab', { name: /작업 전 BEFORE/ }));
 
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
     await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
@@ -1440,6 +1464,7 @@ describe('desktop report workflow', () => {
     await user.click(screen.getByRole('button', { name: 'BEFORE 새 사진 추가' }));
     const manualInput = container.querySelector('input[type="file"]:not([webkitdirectory])') as HTMLInputElement;
     await user.upload(manualInput, new File(['before'], 'before.jpg', { type: 'image/jpeg' }));
+    await user.click(screen.getByRole('button',{name:'before.jpg 사진 편집'}));
     fireEvent.change(screen.getByLabelText('before.jpg 추가 캡션'), { target: { value: supplemental } });
     await user.click(screen.getByRole('button', { name: 'Check / Preview' }));
     const page = screen.getAllByRole('article', { name: /Word template preview page/ })[0];

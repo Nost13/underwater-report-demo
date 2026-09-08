@@ -1,0 +1,52 @@
+import {useState} from 'react';
+import {render,screen,fireEvent,waitFor,act} from '@testing-library/react';
+import {expect,it,vi,afterEach} from 'vitest';
+import {VesselDiagramWorkspace} from './VesselDiagramWorkspace';
+import {emptyReportInfo} from './reportInfo';
+import {createGeneralSections} from '../domain/structure';
+import type {VesselDiagramConfig} from '../vesselDiagram/types';
+import {diagramConfirmed} from '../vesselDiagram/layoutLibrary';
+vi.mock('../vesselDiagram/composer',async(importOriginal)=>({...await importOriginal<typeof import('../vesselDiagram/composer')>(),composeVesselDiagram:vi.fn(async()=>new Uint8Array([137,80,78,71]))}));
+const sections=createGeneralSections('INSPECTION');
+afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks();});
+function Harness(){
+ const [value,setValue]=useState<VesselDiagramConfig|null>(null);
+ return <><VesselDiagramWorkspace sections={sections} value={value} onChange={setValue} info={emptyReportInfo()} onBack={()=>{}} onNext={()=>{}}/><output aria-label="ready">{String(diagramConfirmed(value,sections))}</output></>;
+}
+it('allows a bottom image first, retains it while uploading side, and keeps both navigation tabs visible',async()=>{
+ vi.stubGlobal('createImageBitmap',vi.fn(async()=>({width:1200,height:320,close:()=>{}})));
+ vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:diagram-test');
+ vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});
+ render(<Harness/>);
+ const bottom=screen.getByRole('button',{name:'바텀뷰 맞추기'});
+ expect(bottom).toBeEnabled();
+ fireEvent.click(bottom);
+ fireEvent.change(screen.getByLabelText('선박 바텀뷰 이미지'),{target:{files:[new File(['bottom'],'bottom.png',{type:'image/png'})]}});
+ await waitFor(()=>expect(screen.getByText('bottom.png')).toBeVisible());
+ expect(screen.getByLabelText('ready')).toHaveTextContent('false');
+ expect(screen.getByRole('tab',{name:'Hull 맞추기'})).toBeVisible();
+ fireEvent.click(screen.getByRole('tab',{name:'Niche 맞추기'}));
+ expect(screen.getByRole('tab',{name:'Hull 맞추기'})).toBeVisible();
+ fireEvent.click(screen.getByRole('button',{name:'사이드뷰'}));
+ expect(screen.queryByText('bottom.png')).not.toBeInTheDocument();
+ fireEvent.change(screen.getByLabelText('선박 사이드뷰 이미지'),{target:{files:[new File(['side'],'side.png',{type:'image/png'})]}});
+ await waitFor(()=>expect(screen.getByText('side.png')).toBeVisible());
+ fireEvent.click(screen.getByRole('button',{name:'바텀뷰 맞추기'}));
+ expect(screen.getByText('bottom.png')).toBeVisible();
+ vi.unstubAllGlobals();vi.restoreAllMocks();
+});
+it('ignores a delayed upload from a view that has been left',async()=>{
+ let finishBottom!: (bitmap: {width:number;height:number;close:()=>void})=>void;
+ const pendingBottom=new Promise(resolve=>{finishBottom=resolve;});
+ vi.stubGlobal('createImageBitmap',vi.fn((file:File)=>file.name==='bottom.png'?pendingBottom:Promise.resolve({width:1200,height:320,close:()=>{}})));
+ vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:diagram-test');
+ vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{});
+ render(<Harness/>);
+ fireEvent.click(screen.getByRole('button',{name:'바텀뷰 맞추기'}));
+ fireEvent.change(screen.getByLabelText('선박 바텀뷰 이미지'),{target:{files:[new File(['bottom'],'bottom.png',{type:'image/png'})]}});
+ fireEvent.click(screen.getByRole('button',{name:'사이드뷰'}));
+ fireEvent.change(screen.getByLabelText('선박 사이드뷰 이미지'),{target:{files:[new File(['side'],'side.png',{type:'image/png'})]}});
+ await waitFor(()=>expect(screen.getByText('side.png')).toBeVisible());
+ await act(async()=>{finishBottom({width:1200,height:320,close:()=>{}});await pendingBottom;});
+ expect(screen.getByText('side.png')).toBeVisible();
+});

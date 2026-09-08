@@ -1,0 +1,43 @@
+.workspace.matrix-preparation { min-height: 0; padding-bottom: 0; }
+.condition-matrix { border: 1px solid #bad0d6; border-radius: 14px; background: #fff; padding: 20px; color: #103b4a; }
+.condition-matrix-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.condition-matrix-heading h3 { margin: 4px 0 8px; font-size: 22px; }
+.condition-matrix-heading p:not(.step-kicker), .condition-matrix-note { font-size: 14px; line-height: 1.6; }
+.condition-matrix-heading>span { white-space: nowrap; font-size: 14px; padding: 10px; background: #e7f4f2; border-radius: 8px; }
+.condition-matrix-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 0; font-size: 14px; }
+.condition-matrix-toolbar>label:not(.matrix-checkbox) { display: grid; gap: 6px; }
+.condition-matrix-toolbar select { min-height: 42px; padding: 8px 12px; border: 1px solid #b7cfd7; border-radius: 7px; background: white; color: #103b4a; font-size: 14px; }
+.condition-matrix-toolbar button { min-height: 42px; font-size: 14px; }
+.condition-matrix .matrix-checkbox { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.condition-matrix .matrix-checkbox input { width: 16px; height: 16px; margin: 0; flex: 0 0 16px; accent-color: #0b807a; }
+.condition-matrix-scroll { overflow: auto; max-height: 620px; border: 1px solid #d4e2e5; border-radius: 9px; }
+.condition-matrix-row { display: grid; grid-template-columns: 170px minmax(850px,1fr); gap: 14px; min-width: 1060px; padding: 12px; border-bottom: 1px solid #d4e2e5; align-items: center; }
+.condition-matrix-row:last-child { border-bottom: 0; }
+.condition-matrix-row:nth-child(even) { background: #f6fafb; }
+.condition-matrix-row:focus-within { background: #eaf7f5; }
+.condition-matrix-location { display: grid; gap: 8px; }
+.condition-matrix-location>span,.condition-matrix-location>small { font-size: 13px; color: #526e79; padding-left: 24px; }
+.condition-matrix-location>.matrix-protected { color: #996215; font-weight: 700; }
+.condition-matrix-row .condition-tables { margin: 0; }
+.condition-matrix-row .condition-columns { gap: 8px; }
+.condition-matrix-row .condition-columns input,.condition-matrix-row .condition-columns select,.condition-matrix-row .condition-value { font-size: 14px; min-height: 38px; }
+.condition-matrix-row .slime-toggle input { min-height: 0; }
+.condition-matrix .workflow-modal { max-width: 1080px; width: calc(100vw - 48px); }
+.matrix-detail-toggle { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 16px 0; font-size: 14px; }
+.condition-matrix-note { color: #476570; margin-bottom: 0; }
+.condition-matrix [role=status] { padding: 12px; background: #e5f4f0; border-radius: 7px; font-size: 14px; }
+@media(max-width: 720px) { .condition-matrix { padding: 12px; } .condition-matrix-heading { flex-direction: column; } }
+
+/* A shared column header replaces the repeated card headings. */
+.condition-matrix-row,.condition-matrix-columns { display: grid; grid-template-columns: 170px 48px minmax(145px,1fr) 130px 48px minmax(175px,1fr) minmax(125px,.8fr); gap: 12px; min-width: 1000px; padding: 10px 12px; align-items: center; }
+.condition-matrix-columns { position: sticky; top: 0; z-index: 2; background: #e9f1f3; border-bottom: 1px solid #bfd3d8; font-size: 13px; font-weight: 700; }
+.condition-matrix-row .condition-tables,.condition-matrix-row .condition-group,.condition-matrix-row .condition-columns { display: contents; }
+.condition-matrix-row .condition-group header,.condition-matrix-row .condition-columns>label>span,.condition-matrix-row .condition-field>span { display: none; }
+.condition-matrix-row .condition-columns>label,.condition-matrix-row .condition-field { border: 0; padding: 0; margin: 0; min-width: 0; gap: 4px; }
+.condition-matrix-row .rating-badge { height: 34px; min-height: 34px; width: 42px; font-size: 13px; border-radius: 5px; padding: 0; }
+.condition-matrix-row .condition-value { min-height: 34px; background: transparent; border: 0; padding: 0; font-size: 13px; line-height: 1.4; }
+.condition-matrix-row .condition-columns input,.condition-matrix-row .condition-columns select { min-height: 34px; height: 34px; font-size: 14px; }
+.condition-matrix-row .slime-toggle input { height: 14px; width: 14px; min-height: 0; }
+.condition-matrix-row .slime-toggle span { font-size: 12px; line-height: 1.2; }
+.condition-matrix-location { gap: 4px; }
+.condition-matrix-location>span,.condition-matrix-location>small { font-size: 12px; line-height: 1.3; }

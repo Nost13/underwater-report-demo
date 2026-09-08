@@ -17,6 +17,7 @@ export interface CoverInfo {
   scopeTitle: string;
   scopeDescription: string;
   scopeMode: 'AUTO' | 'MANUAL';
+  scopePerformers?: Record<string, string>;
 }
 
 export interface LinkedCoverValues {
@@ -110,29 +111,31 @@ function scopeEntries(sections: ReportSection[]): Array<{ service: ServiceKind; 
   return entries;
 }
 
-function generatedScope(sections: ReportSection[]): Pick<CoverInfo, 'scopeTitle' | 'scopeDescription'> {
-  const entries = scopeEntries(sections);
-  const groups: Array<{ service: ServiceKind; components: string[] }> = [];
-  const groupMap = new Map<ServiceKind, { service: ServiceKind; components: string[] }>();
-  for (const entry of entries) {
-    let group = groupMap.get(entry.service);
-    if (!group) {
-      group = { service: entry.service, components: [] };
-      groupMap.set(entry.service, group);
-      groups.push(group);
-    }
-    if (!group.components.includes(entry.component)) group.components.push(entry.component);
+export function coverScopeGroups(sections: ReportSection[]): Array<{key:string;title:string}> {
+  const unique=new Map<string,{key:string;title:string}>();
+  for(const entry of scopeEntries(sections)) {
+    const section=sections[entry.index];
+    const component=section.area==='GENERAL'?'General':entry.component.toLowerCase().replace(/\b[a-z]/g,letter=>letter.toUpperCase()).replace(/Iccp/g,'ICCP');
+    const key=section.area==='GENERAL'?`${entry.service}|GENERAL`:`${entry.service}|NICHE|${entry.component.toUpperCase()}`;
+    if(!unique.has(key))unique.set(key,{key,title:`${component} ${SERVICE_REPORT_LABELS[entry.service]}`});
   }
-  const scopeTitle = groups.map((group) => `${SERVICE_REPORT_LABELS[group.service]} of ${group.components.join(' & ')}`).join('; ');
-  const scopeDescription = groups.map((group) => {
-    const details = entries.filter((entry) => entry.service === group.service && group.components.includes(entry.component));
-    const componentDetails = details.map((entry) => entry.qualifier ? `${entry.component} (${entry.qualifier})` : entry.component);
-    return `${SERVICE_REPORT_LABELS[group.service]}: ${[...new Set(componentDetails)].join(' & ')}`;
-  }).join('\n');
-  return { scopeTitle, scopeDescription };
+  return [...unique.values()];
+}
+
+function generatedScope(cover:CoverInfo,sections:ReportSection[]): Pick<CoverInfo,'scopeTitle'|'scopeDescription'> {
+  const groups=coverScopeGroups(sections);
+  const endings:Record<string,string>={ROV:'using an ROV',DIVER:'by divers',BOTH:'using an ROV and by divers'};
+  return {
+    scopeTitle:groups.map(group=>group.title).join(' / '),
+    scopeDescription:groups.flatMap(group=>{
+      const ending=endings[cover.scopePerformers?.[group.key]??''];
+      const subject=group.title.charAt(0)+group.title.slice(1).toLowerCase();
+      return ending?[`${subject} was carried out ${ending}.`]:[];
+    }).join('\n'),
+  };
 }
 
 export function syncGeneratedCoverScope(cover: CoverInfo, sections: ReportSection[], force = false): CoverInfo {
   if (cover.scopeMode === 'MANUAL' && !force) return cover;
-  return { ...cover, ...generatedScope(sections), scopeMode: 'AUTO' };
+  return { ...cover, ...generatedScope(cover, sections), scopeMode: 'AUTO' };
 }

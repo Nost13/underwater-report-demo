@@ -59,7 +59,7 @@ describe('cover information', () => {
     const manual = { ...createCoverInfo(new Date('2026-09-05')), scopeTitle: 'CUSTOM', scopeMode: 'MANUAL' as const };
     expect(syncGeneratedCoverScope(manual, [ropeRemovalSection])).toBe(manual);
     expect(syncGeneratedCoverScope(manual, [ropeRemovalSection], true).scopeTitle)
-      .toBe('Removal of Entanglement Rope & Fishing Net');
+      .toBe('Entanglement Rope & Fishing Net Removal');
   });
 
   it('generates matrix-ordered scope text while de-duplicating repeated entries', () => {
@@ -69,8 +69,8 @@ describe('cover information', () => {
       { ...ropeRemovalSection, id: 'c', component: 'Sea Chest', side: 'STBD' as const, unit: 2, service: 'CLEANING' as const },
     ];
     const result = syncGeneratedCoverScope(createCoverInfo(), sections);
-    expect(result.scopeTitle).toBe('Cleaning of Sea Chest; Removal of Entanglement Rope & Fishing Net');
-    expect(result.scopeDescription).toBe('Cleaning: Sea Chest (STBD 2)\nRemoval: Entanglement Rope & Fishing Net (PORT 1)');
+    expect(result.scopeTitle).toBe('Sea Chest Cleaning / Entanglement Rope & Fishing Net Removal');
+    expect(result.scopeDescription).toBe('');
   });
 
   it('sorts shuffled general and niche sections into findings-matrix order', () => {
@@ -81,7 +81,7 @@ describe('cover information', () => {
       { ...ropeRemovalSection, id: 'general-fwd', component: 'FWD', area: 'GENERAL' as const, side: 'PORT' as const, service: 'INSPECTION' as const },
     ];
     expect(syncGeneratedCoverScope(createCoverInfo(), sections).scopeTitle)
-      .toBe('Inspection of FWD & AFT & Bulbous Bow; Cleaning of Rudder & Pintle');
+      .toBe('General Inspection / Bulbous Bow Inspection / Rudder & Pintle Cleaning');
   });
 
   it('preserves mixed and lowercase Job No. casing in linked values', () => {
@@ -94,7 +94,7 @@ describe('cover information', () => {
     const units = [1, 2, 10].map((unit) => ({ ...ropeRemovalSection, id: `unit-${unit}`, component: 'Sea Chest', side: 'PORT' as const, unit, service: 'CLEANING' as const }));
     const first = syncGeneratedCoverScope(createCoverInfo(), [units[2], units[0], units[1]]);
     const second = syncGeneratedCoverScope(createCoverInfo(), [units[1], units[2], units[0]]);
-    expect(first.scopeDescription).toBe('Cleaning: Sea Chest (PORT 1) & Sea Chest (PORT 2) & Sea Chest (PORT 10)');
+    expect(first.scopeDescription).toBe('');
     expect(second.scopeDescription).toBe(first.scopeDescription);
   });
 
@@ -102,7 +102,7 @@ describe('cover information', () => {
     const unknown = ['Zeta Part', 'Alpha Part', 'Mu Part'].map((component) => ({ ...ropeRemovalSection, id: component, component, service: 'REMOVAL' as const }));
     const first = syncGeneratedCoverScope(createCoverInfo(), [unknown[0], unknown[1], unknown[2]]);
     const second = syncGeneratedCoverScope(createCoverInfo(), [unknown[2], unknown[0], unknown[1]]);
-    expect(first.scopeTitle).toBe('Removal of Alpha Part & Mu Part & Zeta Part');
+    expect(first.scopeTitle).toBe('Alpha Part Removal / Mu Part Removal / Zeta Part Removal');
     expect(second.scopeTitle).toBe(first.scopeTitle);
   });
 });

@@ -4,6 +4,8 @@ const object=(value:unknown):value is Record<string,unknown>=>!!value&&typeof va
 export function validDiagram(value:unknown,depth=0):value is VesselDiagramConfig {
   if(!object(value)||depth>1)return false;
   const diagram=value as unknown as VesselDiagramConfig;
+  if(diagram.sideViewPending!==undefined&&typeof diagram.sideViewPending!=='boolean')return false;
+  if(diagram.sideViewPending&&(!diagram.bottomView||diagram.confirmed))return false;
   if(!(diagram.imageFile instanceof File)||typeof diagram.imageName!=='string'||typeof diagram.confirmed!=='boolean'||!object(diagram.calibration)||!isValidCalibration(diagram.calibration)
     ||!Array.isArray(diagram.hullMarkers)||!Array.isArray(diagram.nicheMarkers))return false;
   const markers=[...diagram.hullMarkers,...diagram.nicheMarkers];

@@ -64,11 +64,12 @@ export function parseReportSnapshot(value: unknown): ReportSnapshot {
   if (!object(input.coverEdits) || !file(input.coverEdits.photoFile) || !object(input.coverEdits.crop)
     || !Object.values(input.coverEdits.crop).every(Number.isFinite)) return fail();
   const crop=input.coverEdits.crop;
+  if(input.coverEdits.scopePerformers!==undefined&&(!object(input.coverEdits.scopePerformers)||!Object.values(input.coverEdits.scopePerformers).every(value=>['','ROV','DIVER','BOTH'].includes(value))))return fail();
   if(![crop.focusX,crop.focusY,crop.zoom].every(Number.isFinite)||crop.focusX<0||crop.focusX>1||crop.focusY<0||crop.focusY>1||crop.zoom<1||crop.zoom>3||!['AUTO','MANUAL'].includes(input.coverEdits.scopeMode)||!['issueDate','scopeTitle','scopeDescription'].every((key)=>typeof (input.coverEdits as unknown as Record<string,unknown>)[key]==='string'))return fail();
   const report = input.report;
   if (!object(report) || !Array.isArray(report.sections) || !Array.isArray(report.photos)
     || !object(report.conditionDefaults) || !object(report.conditionSources) || !object(report.reportLabels) || !object(report.workPerformLabels)) return fail();
-  if(!Object.values(report.conditionDefaults).every((value)=>phaseMap(value,conditionValid))||!Object.values(report.conditionSources).every((value)=>phaseMap(value,(source)=>source==='GROUP'||source==='OVERRIDE'))
+  if(!Object.values(report.conditionDefaults).every((value)=>phaseMap(value,conditionValid))||!Object.values(report.conditionSources).every((value)=>phaseMap(value,(source)=>source==='GROUP'||source==='MATRIX'||source==='OVERRIDE'))
     ||!optionalMap(report.conditionReviews,(value)=>phaseMap(value,(review)=>typeof review==='boolean'))||!optionalMap(report.groupDrafts,conditionValid)
     ||!Object.values(report.reportLabels).every((label)=>object(label)&&['upperAreaLabel','detailTitle','photoCaption'].every((key)=>typeof label[key]==='string'))
     ||!Object.values(report.workPerformLabels).every((label)=>object(label)&&typeof label.main==='string'&&typeof label.phase==='string'))return fail();

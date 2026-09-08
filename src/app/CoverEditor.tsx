@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent } from 'react';
 import type { ReportSection } from '../domain/types';
 import { COVER_PHOTO_SIZE, coverSourceRect } from '../browser/coverImage';
-import { linkedCoverValues, syncGeneratedCoverScope, type CoverInfo } from './coverInfo';
+import { coverScopeGroups, linkedCoverValues, syncGeneratedCoverScope, type CoverInfo } from './coverInfo';
 import type { ReportInfo } from './reportInfo';
 import type { OpenPhotoLibrary } from './PhotoLibraryPicker';
 
@@ -104,6 +104,10 @@ export function CoverEditor({ value, onChange, reportInfo, sections, onBack, onN
         <label className="field"><span>사진 확대</span><input type="range" min="1" max="3" step=".05" value={value.crop.zoom} disabled={!value.photoFile} onChange={(event) => onChange({ ...scope, crop: { ...value.crop, zoom: Number(event.target.value) } })} /></label>
         <p className="cover-help">사진 위를 드래그해 초점을 조정하세요. 방향키로도 조정할 수 있습니다.</p>
         <label className="field"><span>Date of Issue</span><input type="date" value={value.issueDate} onChange={(event) => onChange({ ...scope, issueDate: event.target.value })} /></label>
+        <fieldset className="cover-performers"><legend>작업별 수행 주체</legend>{coverScopeGroups(sections).map(group=><label className="field" key={group.key}><span>{group.title}</span><select aria-label={`${group.title} 수행 주체`} value={scope.scopePerformers?.[group.key]??''} onChange={event=>{
+          const next={...scope,scopePerformers:{...scope.scopePerformers,[group.key]:event.target.value}};
+          onChange(syncGeneratedCoverScope(next,sections));
+        }}><option value="">선택 필요</option><option value="ROV">ROV</option><option value="DIVER">Diver (다이버)</option><option value="BOTH">ROV + Diver (병행)</option></select></label>)}<p>수행 주체를 선택하면 설명을 자동 작성합니다. 직접 편집한 문구는 유지되며, 아래 ‘자동 내용 다시 적용’으로 갱신할 수 있습니다.</p></fieldset>
         <label className="field"><span>Scope of Work title</span><textarea rows={2} value={scope.scopeTitle} onChange={(event) => onChange({ ...scope, scopeTitle: event.target.value, scopeMode: 'MANUAL' })} /></label>
         <label className="field"><span>Scope of Work description</span><textarea rows={4} value={scope.scopeDescription} onChange={(event) => onChange({ ...scope, scopeDescription: event.target.value, scopeMode: 'MANUAL' })} /></label>
         <div className="cover-scope-actions"><span>{scope.scopeMode === 'AUTO' ? '자동 생성' : '직접 편집'}</span><button className="ghost" onClick={() => onChange(syncGeneratedCoverScope(value, sections, true))}>자동 내용 다시 적용</button></div>

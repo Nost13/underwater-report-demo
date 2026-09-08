@@ -41,6 +41,7 @@ export type ReportAction =
   | { type: 'DELETE_PHOTO'; photoId: string }
   | { type: 'UPDATE_CONDITION'; sectionId: string; phase: Phase; patch: ConditionPatch }
   | { type: 'APPLY_GROUP_CONDITION'; sectionId: string; phase: Phase; condition: Condition }
+  | { type: 'APPLY_MATRIX_CONDITION'; anchorId: string; sectionIds: string[]; phase: Phase; condition: Condition; overwriteOverrides?: boolean }
   | { type: 'REVERT_CONDITION_TO_GROUP'; sectionId: string; phase: Phase }
   | { type: 'UPDATE_REPORT_LABELS'; groupKey: string; labels: Partial<ReportLabels> }
   | { type: 'UPDATE_WORK_PERFORM_LABEL'; sectionId: string; phase: Phase; field: 'main' | 'phase'; value: string }
@@ -174,6 +175,34 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
         },
       };
     }
+    case 'APPLY_MATRIX_CONDITION': {
+      const anchor = state.sections.find(section => section.id === action.anchorId);
+      if (!anchor?.phases.includes(action.phase)) return state;
+      const selected = new Set(action.sectionIds);
+      const affected = new Set(state.sections.filter(section => selected.has(section.id)
+        && section.service === anchor.service && section.area === anchor.area
+        && section.phases.includes(action.phase)
+        && (action.overwriteOverrides || state.conditionSources[section.id]?.[action.phase] !== 'OVERRIDE'))
+        .map(section => section.id));
+      if (!affected.size) return state;
+      return {
+        ...state,
+        sections: state.sections.map(section => affected.has(section.id)
+          ? { ...section, conditions: { ...section.conditions, [action.phase]: cloneCondition(action.condition) } }
+          : section),
+        conditionSources: {
+          ...state.conditionSources,
+          ...Object.fromEntries([...affected].map(id => [id, {
+            ...state.conditionSources[id],
+            [action.phase]: state.conditionSources[id]?.[action.phase] === 'OVERRIDE' ? 'OVERRIDE' as const : 'MATRIX' as const,
+          }])),
+        },
+        conditionReviews: {
+          ...state.conditionReviews,
+          ...Object.fromEntries([...affected].map(id => [id, { ...state.conditionReviews?.[id], [action.phase]: false }])),
+        },
+      };
+    }
     case 'APPLY_GROUP_CONDITION': {
       const anchor = state.sections.find((section) => section.id === action.sectionId);
       if (!anchor?.phases.includes(action.phase)) return state;
@@ -181,6 +210,11 @@ export function reportReducer(state: ReportState, action: ReportAction): ReportS
       const nextDefault = cloneCondition(action.condition);
       return {
         ...state,
+        conditionSources: Object.fromEntries(state.sections.map(section => [section.id, {
+          ...state.conditionSources[section.id],
+          ...(conditionGroupKey(section) === groupKey && section.phases.includes(action.phase)
+            && state.conditionSources[section.id]?.[action.phase] !== 'OVERRIDE' ? { [action.phase]: 'GROUP' as const } : {}),
+        }])),
         conditionReviews: Object.fromEntries(state.sections.map((section)=>[section.id,{
           ...state.conditionReviews?.[section.id],
           ...(conditionGroupKey(section)===groupKey && state.conditionSources[section.id]?.[action.phase]!=='OVERRIDE'?{[action.phase]:false}:{}),

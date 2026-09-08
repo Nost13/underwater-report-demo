@@ -29,7 +29,7 @@ export function VesselDiagramWorkspace({value,onChange,sections,info,onBack,onNe
   const [notice,setNotice]=useState('');
   const savingRecord=useRef<Promise<boolean>|null>(null);
   const input=useRef<HTMLInputElement>(null);
-  const current=view==='SIDE'?value:value?.bottomView??null;
+  const current=view==='SIDE'?(value?.sideViewPending?null:value):value?.bottomView??null;
   const scopedSections=useMemo(()=>value?sections.filter((section)=>viewForSection(value,section)===view):sections,[sections,value,view]);
   useEffect(()=>{let active=true;void getDraft('vessel-layout-library','layouts').then((stored)=>{
     if(!active)return;revision.current=stored?.revision??0;setRecords(stored?validateLayoutRecords(stored.value):[]);setReady(true);
@@ -56,8 +56,9 @@ export function VesselDiagramWorkspace({value,onChange,sections,info,onBack,onNe
   const updateView=(next:VesselDiagramConfig)=>{
     const adjusted=pending?{...next,calibration:pending.calibration,hullMarkers:pending.hullMarkers,nicheMarkers:pending.nicheMarkers,markerBindings:pending.markerBindings,removedMarkerIds:pending.removedMarkerIds,confirmed:false}:next;
     if(pending)setPending(null);
-    const combined=view==='SIDE'?{...adjusted,bottomView:value?.bottomView,useBottomView:value?.useBottomView,sectionViews:value?.sectionViews}
-      :{...value!,bottomView:adjusted,useBottomView:true};
+    const combined=view==='SIDE'?{...adjusted,sideViewPending:false,bottomView:value?.bottomView,useBottomView:value?.useBottomView,sectionViews:value?.sectionViews}
+      :value?{...value,bottomView:adjusted,useBottomView:true}
+      :{...adjusted,confirmed:false,sideViewPending:true,bottomView:adjusted,useBottomView:true};
     onChange(combined);
     if(adjusted.confirmed && !current?.confirmed)savingRecord.current=archiveConfirmed(adjusted);
   };
@@ -80,10 +81,11 @@ export function VesselDiagramWorkspace({value,onChange,sections,info,onBack,onNe
   return <>
     <section className="layout-library panel" aria-label="선박 배치 추천">
       <div className="layout-library-actions"><button type="button" aria-pressed={view==='SIDE'} onClick={()=>{setView('SIDE');setPending(null);}}>사이드뷰</button>
-        <button type="button" disabled={!value} aria-pressed={view==='BOTTOM'} onClick={()=>{setView('BOTTOM');setPending(null);if(value)onChange({...value,useBottomView:true});}}>바텀뷰 맞추기</button>
+        <button type="button" aria-pressed={view==='BOTTOM'} onClick={()=>{setView('BOTTOM');setPending(null);if(value)onChange({...value,useBottomView:true});}}>바텀뷰 맞추기</button>
         {value?.useBottomView && <button type="button" onClick={()=>{if(!window.confirm('바텀뷰 연결을 해제하고 사이드뷰로 표시할까요? 저장한 바텀뷰는 유지합니다.'))return;onChange({...value,useBottomView:false,sectionViews:{}});setView('SIDE');}}>바텀뷰 사용 해제</button>}
       </div>
       <h3>{view==='SIDE'?'사이드뷰':'바텀뷰'} 추천 배치</h3>
+      {value?.sideViewPending&&<p role="status">바텀뷰는 보관되어 있습니다. 사이드뷰 이미지를 등록한 뒤 사용하는 위치도를 모두 확정하세요.</p>}
       <p>{info.vessel.type||'선종 미입력'} · LOA {info.vessel.loa||'—'} m · 선폭 {info.vessel.breadth||'—'} m · 유사 크기 각각 ±20%</p>
       <p>같은 IMO 기록 → 유사 선박 평균 → 선종 기본 → 공통 기본. 이미지를 바꿔도 도형은 유지됩니다.</p>
       <button type="button" onClick={chooseMean}>추천 도형 배치 확인</button>
